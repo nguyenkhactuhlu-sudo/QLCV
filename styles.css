@@ -62,12 +62,20 @@ button { cursor: pointer; }
 .login-layout { width: min(1160px, 100%); display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(390px, .92fr); gap: clamp(34px, 7vw, 92px); align-items: center; position: relative; z-index: 1; }
 .login-brand-panel { display: grid; justify-items: center; align-content: center; min-width: 0; text-align: center; }
 .login-emblem-stage { position: relative; width: clamp(250px, 30vw, 390px); aspect-ratio: 1; display: grid; place-items: center; }
-.login-emblem-glass { position: relative; z-index: 2; width: 70%; aspect-ratio: 1; display: grid; place-items: center; overflow: hidden; padding: 15%; border: 1px solid rgba(255,255,255,.9); border-radius: 50%; background: linear-gradient(145deg, rgba(255,255,255,.82), rgba(255,255,255,.38)); box-shadow: 0 28px 70px rgba(30,90,138,.22), inset 0 0 30px rgba(255,255,255,.78); backdrop-filter: blur(14px); }
-.login-emblem-glass::after { content: ""; position: absolute; inset: -30%; background: linear-gradient(110deg, transparent 35%, rgba(255,255,255,.78) 49%, transparent 63%); transform: translateX(-85%) rotate(-12deg); animation: login-shine 5.5s ease-in-out infinite; }
-.login-emblem-glass img { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 9px 12px rgba(105,34,39,.18)); }
-.login-wave { position: absolute; top: 50%; left: 50%; width: 76%; aspect-ratio: 1; border: 2px solid rgba(49,139,192,.25); border-radius: 50%; transform: translate(-50%, -50%) scale(.72); opacity: 0; animation: login-wave 5s cubic-bezier(.17,.55,.3,1) infinite; }
-.login-wave.wave-two { animation-delay: 1.55s; }
-.login-wave.wave-three { animation-delay: 3.1s; }
+.login-emblem-glass { position: relative; z-index: 2; width: 70%; aspect-ratio: 1; display: grid; place-items: center; overflow: hidden; padding: 15%; border: 1px solid rgba(255,255,255,.78); border-radius: 50%; background: linear-gradient(145deg, rgba(255,255,255,.48), rgba(255,255,255,.12)); box-shadow: 0 28px 70px rgba(30,90,138,.2), inset 0 0 30px rgba(255,255,255,.64); backdrop-filter: blur(10px); }
+.login-emblem-glass { transition: transform .5s ease-out, box-shadow .5s ease-out; }
+.login-emblem-glass::after { content: ""; position: absolute; z-index: 3; top: -38%; bottom: -38%; left: -115%; width: 78%; background: linear-gradient(105deg, transparent 10%, rgba(255,255,255,.16) 32%, rgba(255,255,255,.88) 50%, rgba(255,255,255,.18) 68%, transparent 90%); transform: rotate(-18deg); transition: left 1s ease-out; pointer-events: none; }
+.login-emblem-glass img { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 9px 12px rgba(105,34,39,.18)); transition: transform .5s ease-out, filter .5s ease-out; }
+.login-emblem-stage:hover .login-emblem-glass { transform: scale(1.045); box-shadow: 0 32px 78px rgba(30,90,138,.24), inset 0 0 34px rgba(255,255,255,.72); }
+.login-emblem-stage:hover .login-emblem-glass::after { left: 138%; }
+.login-emblem-stage:hover .login-emblem-glass img { transform: scale(1.045); filter: drop-shadow(0 11px 15px rgba(105,34,39,.24)); }
+.login-wave { position: absolute; z-index: 0; top: 50%; left: 50%; width: 100%; aspect-ratio: 1; border: 2px solid rgba(49,139,192,.34); border-radius: 50%; box-shadow: 0 0 11px rgba(69,151,198,.12), inset 0 0 8px rgba(255,255,255,.22); transform: translate(-50%, -50%) scale(.64); opacity: 0; pointer-events: none; animation: login-wave 4.8s cubic-bezier(.17,.55,.3,1) infinite; will-change: transform, opacity; }
+.login-wave::after { content: ""; position: absolute; inset: -2px; border: 1px solid transparent; border-top-color: rgba(255,255,255,.72); border-left-color: rgba(112,186,224,.28); border-radius: 50%; opacity: .7; }
+.login-wave:nth-child(1) { width: 84%; animation-duration: 4.8s; animation-delay: -.15s; }
+.login-wave:nth-child(2) { width: 92%; animation-duration: 5.15s; animation-delay: -.9s; border-color: rgba(75,157,203,.3); }
+.login-wave:nth-child(3) { width: 106%; animation-duration: 4.55s; animation-delay: -1.8s; border-color: rgba(38,119,173,.3); }
+.login-wave:nth-child(4) { width: 97%; border-width: 1px; border-color: rgba(105,180,218,.4); animation-duration: 5.35s; animation-delay: -2.7s; }
+.login-wave:nth-child(5) { width: 112%; border-width: 1px; border-color: rgba(46,131,184,.3); animation-duration: 4.7s; animation-delay: -3.6s; }
 .login-brand-copy { max-width: 660px; margin-top: -16px; }
 .login-brand-copy > span { color: #6687a4; font-size: 12px; font-weight: 700; letter-spacing: .28em; }
 .login-brand-copy h1 { margin: 10px 0 12px; color: #173d60; font-size: clamp(28px, 3.4vw, 46px); line-height: 1.18; letter-spacing: -.025em; }
@@ -102,13 +110,10 @@ button { cursor: pointer; }
 body.login-active { overflow: hidden; }
 
 @keyframes login-wave {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(.66); }
-  16% { opacity: .56; }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.34); }
-}
-@keyframes login-shine {
-  0%, 58% { transform: translateX(-90%) rotate(-12deg); }
-  78%, 100% { transform: translateX(90%) rotate(-12deg); }
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.64); }
+  13% { opacity: var(--wave-peak, .64); }
+  58% { opacity: .24; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(var(--wave-end, 1.7)); }
 }
 
 .app-shell { min-height: 100vh; }
@@ -708,5 +713,6 @@ tbody tr:hover { background: #fbfbfc; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .login-wave, .login-emblem-glass::after { animation: none; }
+  .login-wave { animation-duration: 6.5s !important; }
+  .login-emblem-glass, .login-emblem-glass::after, .login-emblem-glass img { transition-duration: 1.4s; }
 }

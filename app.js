@@ -313,6 +313,7 @@ function reviewQueue() {
 }
 
 function initialize() {
+  initializeLoginWaves();
   const loginSelect = document.getElementById("loginUserSelect");
   loginSelect.innerHTML = DEMO_ACCOUNT_IDS.map(id => {
     const user = userById(id);
@@ -368,6 +369,21 @@ function initialize() {
   updateNav();
   render();
   document.getElementById("loginUserSelect").focus();
+}
+
+function initializeLoginWaves() {
+  document.querySelectorAll(".login-wave").forEach(wave => {
+    const varyWave = firstRun => {
+      wave.style.setProperty("--wave-end", (1.52 + Math.random() * .3).toFixed(2));
+      wave.style.setProperty("--wave-peak", (.52 + Math.random() * .18).toFixed(2));
+      if (firstRun) {
+        wave.style.animationDuration = `${(4.15 + Math.random() * 1.35).toFixed(2)}s`;
+        wave.style.animationDelay = `${(-Math.random() * 4.8).toFixed(2)}s`;
+      }
+    };
+    varyWave(true);
+    wave.addEventListener("animationiteration", () => varyWave(false));
+  });
 }
 
 function selectDemoAccount(userId) {
