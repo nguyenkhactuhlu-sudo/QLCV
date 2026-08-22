@@ -145,6 +145,36 @@ h1 { margin-bottom: 0; font-size: 24px; line-height: 1.2; }
 h2 { margin-bottom: 6px; font-size: 20px; }
 h3 { margin-bottom: 4px; font-size: 15px; }
 .topbar-actions { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+.notification-center { position: relative; }
+.notification-toggle { position: relative; width: 42px; height: 42px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--text); background: var(--surface); cursor: pointer; }
+.notification-toggle:hover, .notification-toggle[aria-expanded="true"] { color: var(--primary); border-color: #9bc4e5; background: var(--primary-light); }
+.notification-toggle:focus-visible { outline: 3px solid rgba(29,113,184,.18); outline-offset: 2px; }
+.notification-toggle svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.notification-badge { position: absolute; top: -5px; right: -5px; min-width: 19px; height: 19px; display: inline-flex; align-items: center; justify-content: center; padding: 0 5px; border: 2px solid #fff; border-radius: 999px; color: #fff; background: var(--red); font-size: 9px; font-weight: 800; line-height: 1; }
+.notification-badge[hidden], .notification-panel[hidden], .notification-header button[hidden] { display: none; }
+.notification-panel { position: absolute; top: calc(100% + 12px); right: 0; z-index: 40; width: min(390px, calc(100vw - 32px)); overflow: hidden; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); box-shadow: 0 18px 45px rgba(15,44,73,.2); }
+.notification-panel::before { content: ""; position: absolute; top: -7px; right: 14px; width: 12px; height: 12px; border-left: 1px solid var(--line); border-top: 1px solid var(--line); background: var(--surface); transform: rotate(45deg); }
+.notification-header { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 15px 12px; border-bottom: 1px solid var(--line); }
+.notification-header strong, .notification-header span { display: block; }
+.notification-header strong { font-size: 14px; }
+.notification-header span { margin-top: 2px; color: var(--muted); font-size: 11px; }
+.notification-header button { padding: 4px 0; border: 0; color: var(--primary); background: transparent; font-size: 11px; font-weight: 700; cursor: pointer; }
+.notification-list { max-height: min(480px, calc(100vh - 150px)); overflow-y: auto; }
+.notification-item { width: 100%; display: grid; grid-template-columns: 10px minmax(0, 1fr); gap: 10px; padding: 13px 15px; border: 0; border-bottom: 1px solid var(--line); background: var(--surface); text-align: left; cursor: pointer; }
+.notification-item:hover { background: var(--surface-soft); }
+.notification-item.is-unread { background: #f4f9fd; }
+.notification-item.is-read { opacity: .72; }
+.notification-dot { width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; background: var(--orange); }
+.notification-dot.revision { background: var(--red); }
+.notification-dot.resubmitted { background: var(--blue); }
+.notification-dot.account { background: var(--green); }
+.notification-copy, .notification-copy strong, .notification-copy span, .notification-copy small { display: block; min-width: 0; }
+.notification-copy strong { color: var(--text); font-size: 12px; }
+.notification-copy span { margin-top: 3px; overflow: hidden; color: var(--muted); font-size: 11px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.notification-copy small { margin-top: 5px; color: #89939e; font-size: 10px; }
+.notification-empty { display: grid; gap: 4px; padding: 34px 20px; color: var(--muted); text-align: center; }
+.notification-empty strong { color: var(--text); font-size: 13px; }
+.notification-empty span { font-size: 11px; }
 .role-switcher { display: grid; gap: 3px; }
 .role-switcher span { color: var(--muted); font-size: 11px; }
 .role-switcher select {
@@ -249,11 +279,19 @@ h3 { margin-bottom: 4px; font-size: 15px; }
 .bar-fill.blue { background: var(--blue); }
 
 .table-wrap { overflow-x: auto; }
+.table-sort-help { margin: -2px 0 9px; color: var(--muted); font-size: 11px; text-align: right; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { padding: 12px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
 th { color: var(--muted); background: var(--surface-soft); font-size: 11px; font-weight: 700; letter-spacing: .03em; }
 tbody tr:hover { background: #fbfbfc; }
 .numeric { text-align: right; font-variant-numeric: tabular-nums; }
+.sortable-column { padding: 0; }
+.sort-button { width: 100%; min-height: 43px; display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; padding: 10px; border: 0; color: var(--muted); background: transparent; font: inherit; font-weight: 700; letter-spacing: inherit; text-align: right; cursor: pointer; }
+.sort-button:hover { color: var(--primary-dark); background: var(--primary-light); }
+.sort-button:focus-visible { position: relative; z-index: 1; outline: 2px solid var(--blue); outline-offset: -2px; }
+.sort-button.is-active { color: var(--primary-dark); background: color-mix(in srgb, var(--primary-light) 72%, white); }
+.sort-indicator { width: 13px; flex: 0 0 13px; color: #919aa5; font-size: 13px; line-height: 1; text-align: center; }
+.sort-button.is-active .sort-indicator { color: var(--primary); }
 .person-cell { display: flex; align-items: center; gap: 9px; min-width: 180px; }
 .mini-avatar { width: 32px; height: 32px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 50%; color: var(--primary-dark); background: var(--primary-light); font-size: 11px; font-weight: 700; }
 .person-cell strong, .person-cell span { display: block; }
@@ -280,12 +318,23 @@ tbody tr:hover { background: #fbfbfc; }
 .journal-header .button { margin-left: auto; }
 .journal-list { display: grid; gap: 12px; }
 .journal-card { display: grid; grid-template-columns: 90px minmax(0, 1fr) auto; gap: 16px; align-items: start; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.journal-card.is-revision { border-color: #e2a7ae; box-shadow: inset 4px 0 0 var(--red); }
 .journal-date { color: var(--muted); font-size: 12px; }
 .journal-date strong { display: block; color: var(--text); font-size: 18px; }
 .journal-body p { margin: 5px 0 8px; color: var(--muted); font-size: 12px; }
 .journal-meta { display: flex; flex-wrap: wrap; gap: 7px; }
 .meta-tag { padding: 3px 7px; border-radius: 6px; color: var(--muted); background: var(--surface-soft); font-size: 11px; }
 .journal-scores { display: flex; gap: 8px; }
+.journal-side { display: grid; justify-items: end; gap: 10px; }
+.button-small { padding: 8px 11px; font-size: 11px; white-space: nowrap; }
+.revision-feedback, .revision-notice, .resubmission-context { display: grid; gap: 4px; padding: 10px 12px; border-left: 3px solid var(--red); border-radius: 8px; color: var(--text); background: var(--red-soft); }
+.revision-notice[hidden] { display: none; }
+.revision-feedback { margin: 10px 0; }
+.revision-feedback strong, .revision-notice strong, .resubmission-context strong { color: var(--red); font-size: 12px; }
+.revision-feedback span, .revision-notice span, .resubmission-context span { font-size: 12px; line-height: 1.45; }
+.resubmission-context { margin-bottom: 16px; border-left-color: var(--blue); background: var(--blue-soft); }
+.resubmission-context strong { color: var(--blue); }
+.resubmission-badge { display: inline-flex; margin: 0 0 5px; padding: 3px 7px; border-radius: 999px; color: var(--blue); background: var(--blue-soft); font-size: 10px; font-weight: 700; }
 .score-box { min-width: 76px; padding: 8px; border-radius: 9px; background: var(--surface-soft); text-align: center; }
 .score-box span, .score-box strong { display: block; }
 .score-box span { color: var(--muted); font-size: 10px; }
@@ -549,6 +598,9 @@ tbody tr:hover { background: #fbfbfc; }
   .avatar-button { display: none; }
   .topbar-actions { width: 100%; margin-left: 0; flex-wrap: wrap; }
   .role-switcher { width: 100%; }
+  .notification-center { margin-left: auto; }
+  .notification-panel { position: fixed; top: 122px; right: 16px; left: 16px; width: auto; }
+  .notification-panel::before { display: none; }
   .role-switcher select { width: 100%; min-width: 0; max-width: none; }
   .toolbar .filter-field { width: 100%; flex: 0 0 100%; }
   .toolbar .filter-field select, .toolbar .filter-field input { width: 100%; min-width: 0; }
@@ -558,6 +610,7 @@ tbody tr:hover { background: #fbfbfc; }
   .journal-header { align-items: start; }
   .journal-card { grid-template-columns: 1fr; }
   .journal-scores { justify-content: flex-start; }
+  .journal-side { justify-items: start; }
   .form-grid, .rating-grid, .detail-grid, .org-branches { grid-template-columns: 1fr; }
   .field-wide { grid-column: auto; }
   .review-queue { grid-template-columns: 1fr; }

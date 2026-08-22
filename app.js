@@ -4,6 +4,7 @@ const PERSONNEL_STORAGE_KEY = "vks-personnel-demo-v1";
 const AUDIT_STORAGE_KEY = "vks-audit-demo-v1";
 const REGISTRATION_CODE_STORAGE_KEY = "vks-registration-codes-demo-v1";
 const REGISTERED_ACCOUNT_STORAGE_KEY = "vks-registered-accounts-demo-v1";
+const NOTIFICATION_READ_STORAGE_KEY = "vks-notification-read-demo-v1";
 
 const units = [
   { id: "province", name: "VKSND tỉnh", short: "VKSND tỉnh", type: "province", parentId: null },
@@ -188,9 +189,11 @@ const state = {
   currentUserId: users.some(user => user.id === requestedUser) ? requestedUser : "u01",
   currentView: ["dashboard", "journal", "reviews", "monthly", "organization", "administration"].includes(requestedView) ? requestedView : "dashboard",
   selectedReviewId: null,
+  editingJournalId: null,
   selectedMonthlyUserId: null,
   dashboardUnit: "all",
   dashboardPeriod: "2026-08",
+  dashboardSummarySort: { key: "count", direction: "desc" },
   monthlyUnit: "all"
 };
 
@@ -198,6 +201,7 @@ let logs = loadLogs();
 let monthlyReviews = loadJson(MONTHLY_STORAGE_KEY, sampleMonthly);
 let registrationCodes = loadJson(REGISTRATION_CODE_STORAGE_KEY, sampleRegistrationCodes);
 let registeredAccounts = loadJson(REGISTERED_ACCOUNT_STORAGE_KEY, []);
+let notificationReadState = loadJson(NOTIFICATION_READ_STORAGE_KEY, {});
 registeredAccounts.forEach(account => {
   if (!users.some(user => user.id === account.id)) users.push(account);
 });
@@ -290,7 +294,11 @@ function canReviewLog(log, reviewer = currentUser()) {
 }
 
 function reviewQueue() {
-  return logs.filter(log => log.status === "pending" && canReviewLog(log));
+  return logs.filter(log => log.status === "pending" && canReviewLog(log)).sort((a, b) => {
+    const aTime = a.resubmittedAt || a.createdAt || `${a.date}T00:00:00`;
+    const bTime = b.resubmittedAt || b.createdAt || `${b.date}T00:00:00`;
+    return bTime.localeCompare(aTime);
+  });
 }
 
 function initialize() {
@@ -302,6 +310,7 @@ function initialize() {
   }).join("");
   roleSelect.value = state.currentUserId;
   roleSelect.addEventListener("change", event => {
+    closeNotificationPanel();
     state.currentUserId = event.target.value;
     state.currentView = "dashboard";
     state.dashboardUnit = "all";
@@ -319,6 +328,19 @@ function initialize() {
     });
   });
   document.getElementById("mobileMenu").addEventListener("click", () => document.getElementById("sidebar").classList.toggle("is-open"));
+  document.getElementById("notificationToggle").addEventListener("click", () => {
+    const panel = document.getElementById("notificationPanel");
+    panel.hidden = !panel.hidden;
+    document.getElementById("notificationToggle").setAttribute("aria-expanded", String(!panel.hidden));
+  });
+  document.getElementById("markAllNotificationsRead").addEventListener("click", markAllNotificationsRead);
+  document.addEventListener("click", event => {
+    const center = document.getElementById("notificationCenter");
+    if (!center.contains(event.target)) closeNotificationPanel();
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape") closeNotificationPanel();
+  });
   document.querySelectorAll("[data-close-modal]").forEach(button => button.addEventListener("click", closeJournalModal));
   document.getElementById("journalModal").addEventListener("click", event => {
     if (event.target.id === "journalModal") closeJournalModal();
@@ -353,6 +375,106 @@ function updateChrome(title, eyebrow) {
   document.getElementById("pageEyebrow").textContent = eyebrow;
   document.getElementById("avatarInitials").textContent = user.initials;
   document.getElementById("pendingNavCount").textContent = reviewQueue().length;
+  renderNotifications();
+}
+
+function notificationsForCurrentUser() {
+  const user = currentUser();
+  const notifications = [];
+  logs.filter(log => log.authorId === user.id && log.status === "revision").forEach(log => {
+    const reviewer = userById(log.reviewerId);
+    notifications.push({
+      id: `revision-${log.id}-${log.reviewedAt || "pending"}`,
+      tone: "revision",
+      title: "Nhật ký cần bổ sung",
+      message: `${reviewer?.name || "Lãnh đạo"}: ${log.comment || "Yêu cầu chỉnh sửa, làm rõ kết quả."}`,
+      time: shortDate(log.date),
+      view: "journal",
+      logId: log.id
+    });
+  });
+  if (isLeader(user)) reviewQueue().forEach(log => {
+    const author = userById(log.authorId);
+    notifications.push({
+      id: `review-${log.id}-${log.resubmittedAt || log.createdAt || log.date}`,
+      tone: log.revisionCount ? "resubmitted" : "pending",
+      title: log.revisionCount ? `Nhật ký trình lại lần ${log.revisionCount}` : "Nhật ký chờ chấm điểm",
+      message: `${author?.name || "Cán bộ"}: ${log.title}`,
+      time: shortDate(log.date),
+      view: "reviews",
+      logId: log.id
+    });
+  });
+  if (user.role === "province_head" || isAdministrator(user)) registeredAccounts.filter(account => account.accountStatus === "pending").forEach(account => {
+    notifications.push({
+      id: `account-${account.id}-${account.registeredAt}`,
+      tone: "account",
+      title: "Tài khoản chờ xác nhận",
+      message: `${account.name} · ${unitById(account.unitId)?.short || "Chưa xác định đơn vị"}`,
+      time: "Mới đăng ký",
+      view: "administration"
+    });
+  });
+  return notifications.slice(0, 20);
+}
+
+function readNotificationIds() {
+  return notificationReadState[currentUser().id] || [];
+}
+
+function saveNotificationReadState() {
+  localStorage.setItem(NOTIFICATION_READ_STORAGE_KEY, JSON.stringify(notificationReadState));
+}
+
+function renderNotifications() {
+  const notifications = notificationsForCurrentUser();
+  const readIds = new Set(readNotificationIds());
+  const unreadCount = notifications.filter(item => !readIds.has(item.id)).length;
+  const badge = document.getElementById("notificationBadge");
+  badge.hidden = unreadCount === 0;
+  badge.textContent = unreadCount > 99 ? "99+" : String(unreadCount);
+  document.getElementById("notificationToggle").setAttribute("aria-label", unreadCount ? `Mở thông báo, ${unreadCount} tin chưa đọc` : "Mở thông báo, không có tin chưa đọc");
+  document.getElementById("notificationSummary").textContent = unreadCount ? `${unreadCount} tin chưa đọc` : "Không có tin mới";
+  document.getElementById("markAllNotificationsRead").hidden = unreadCount === 0;
+  document.getElementById("notificationList").innerHTML = notifications.length ? notifications.map(item => `
+    <button type="button" class="notification-item ${readIds.has(item.id) ? "is-read" : "is-unread"}" data-notification-id="${item.id}" data-notification-view="${item.view}" ${item.logId ? `data-notification-log="${item.logId}"` : ""}>
+      <span class="notification-dot ${item.tone}" aria-hidden="true"></span>
+      <span class="notification-copy"><strong>${item.title}</strong><span>${item.message}</span><small>${item.time}</small></span>
+    </button>`).join("") : `<div class="notification-empty"><strong>Không có thông báo</strong><span>Các nội dung mới cần xử lý sẽ xuất hiện tại đây.</span></div>`;
+  document.querySelectorAll("[data-notification-id]").forEach(button => button.addEventListener("click", () => openNotification(button)));
+}
+
+function markNotificationRead(id) {
+  const userId = currentUser().id;
+  const ids = new Set(notificationReadState[userId] || []);
+  ids.add(id);
+  notificationReadState[userId] = [...ids].slice(-100);
+  saveNotificationReadState();
+}
+
+function markAllNotificationsRead() {
+  const userId = currentUser().id;
+  notificationReadState[userId] = notificationsForCurrentUser().map(item => item.id).slice(-100);
+  saveNotificationReadState();
+  renderNotifications();
+}
+
+function closeNotificationPanel() {
+  const panel = document.getElementById("notificationPanel");
+  panel.hidden = true;
+  document.getElementById("notificationToggle").setAttribute("aria-expanded", "false");
+}
+
+function openNotification(button) {
+  markNotificationRead(button.dataset.notificationId);
+  closeNotificationPanel();
+  const view = button.dataset.notificationView;
+  const logId = button.dataset.notificationLog || null;
+  state.currentView = view;
+  if (view === "reviews") state.selectedReviewId = logId;
+  updateNav();
+  render();
+  if (view === "journal" && logId) openJournalModal(logId);
 }
 
 function render() {
@@ -428,6 +550,14 @@ function renderDashboard() {
   document.getElementById("dashboardPeriodFilter").addEventListener("change", event => { state.dashboardPeriod = event.target.value; renderDashboard(); });
   const filter = document.getElementById("dashboardUnitFilter");
   if (filter) filter.addEventListener("change", event => { state.dashboardUnit = event.target.value; renderDashboard(); });
+  document.querySelectorAll("[data-summary-sort]").forEach(button => button.addEventListener("click", () => {
+    const key = button.dataset.summarySort;
+    state.dashboardSummarySort = {
+      key,
+      direction: state.dashboardSummarySort.key === key && state.dashboardSummarySort.direction === "desc" ? "asc" : "desc"
+    };
+    renderDashboard();
+  }));
 }
 
 function metricCard(label, value, context, tone) {
@@ -547,27 +677,46 @@ function qualityDistribution(items) {
 
 function summaryTable(rows, isUnit) {
   if (!rows.length) return `<div class="empty-state"><strong>Chưa có dữ liệu</strong>Không có kết quả phù hợp với phạm vi đã chọn.</div>`;
-  return `<div class="table-wrap"><table><thead><tr><th>${isUnit ? "Đơn vị" : "Cán bộ"}</th><th class="numeric">Kết quả</th><th class="numeric">Tổng phức tạp</th><th class="numeric">Phức tạp BQ</th><th class="numeric">Chất lượng</th><th class="numeric">Tỷ lệ ≥ 8</th></tr></thead><tbody>${rows.map(row => `<tr><td>${isUnit ? `<strong>${row.label}</strong><br><span class="metric-context">${row.people} người</span>` : `<div class="person-cell"><span class="mini-avatar">${userById(row.id).initials}</span><div><strong>${row.label}</strong><span>${row.sublabel}</span></div></div>`}</td><td class="numeric">${row.count}</td><td class="numeric">${row.complexityTotal}</td><td class="numeric">${row.complexityAvg.toFixed(1)}</td><td class="numeric"><span class="score-pill ${scoreClass(row.quality)}">${row.quality.toFixed(1)}</span></td><td class="numeric">${(row.highQuality / row.count * 100).toFixed(0)}%</td></tr>`).join("")}</tbody></table></div>`;
+  const { key, direction } = state.dashboardSummarySort;
+  const valueOf = row => key === "highQualityRate" ? row.highQuality / row.count : row[key];
+  const sortedRows = [...rows].sort((a, b) => {
+    const difference = valueOf(a) - valueOf(b);
+    return (direction === "asc" ? difference : -difference) || a.label.localeCompare(b.label, "vi");
+  });
+  const sortableHeader = (label, sortKey) => {
+    const active = key === sortKey;
+    const symbol = active ? (direction === "asc" ? "↑" : "↓") : "↕";
+    const ariaSort = active ? (direction === "asc" ? "ascending" : "descending") : "none";
+    const hint = active ? `Đang sắp xếp ${direction === "asc" ? "tăng dần" : "giảm dần"}` : "Nhấn để sắp xếp giảm dần";
+    return `<th class="numeric sortable-column" aria-sort="${ariaSort}"><button type="button" class="sort-button ${active ? "is-active" : ""}" data-summary-sort="${sortKey}" title="${hint}"><span>${label}</span><span class="sort-indicator" aria-hidden="true">${symbol}</span></button></th>`;
+  };
+  return `<div class="table-sort-help">Chọn tên cột để sắp xếp · nhấn lần nữa để đổi chiều</div><div class="table-wrap"><table><thead><tr><th>${isUnit ? "Đơn vị" : "Cán bộ"}</th>${sortableHeader("Kết quả", "count")}${sortableHeader("Tổng phức tạp", "complexityTotal")}${sortableHeader("Phức tạp BQ", "complexityAvg")}${sortableHeader("Chất lượng", "quality")}${sortableHeader("Tỷ lệ ≥ 8", "highQualityRate")}</tr></thead><tbody>${sortedRows.map(row => `<tr><td>${isUnit ? `<strong>${row.label}</strong><br><span class="metric-context">${row.people} người</span>` : `<div class="person-cell"><span class="mini-avatar">${userById(row.id).initials}</span><div><strong>${row.label}</strong><span>${row.sublabel}</span></div></div>`}</td><td class="numeric">${row.count}</td><td class="numeric">${row.complexityTotal}</td><td class="numeric">${row.complexityAvg.toFixed(1)}</td><td class="numeric"><span class="score-pill ${scoreClass(row.quality)}">${row.quality.toFixed(1)}</span></td><td class="numeric">${(row.highQuality / row.count * 100).toFixed(0)}%</td></tr>`).join("")}</tbody></table></div>`;
 }
 
 function renderJournal() {
   const user = currentUser();
-  const mine = logs.filter(log => log.authorId === user.id).sort((a,b) => b.date.localeCompare(a.date));
+  const mine = logs.filter(log => log.authorId === user.id).sort((a,b) => Number(b.status === "revision") - Number(a.status === "revision") || b.date.localeCompare(a.date));
+  const pendingCount = mine.filter(item => item.status === "pending").length;
+  const revisionCount = mine.filter(item => item.status === "revision").length;
   updateChrome("Nhật ký của tôi", "KẾT QUẢ CÔNG TÁC HẰNG NGÀY");
   document.getElementById("appView").innerHTML = `
     <div class="journal-header"><div><h2>${user.name}</h2><p>${user.title} · ${unitById(user.unitId).short}</p></div><button class="button button-primary" id="newJournal">+ Ghi nhật ký mới</button></div>
     <div class="metric-grid">
       ${metricCard("Nhật ký đã gửi", mine.length, "Trong dữ liệu demo", "")}
       ${metricCard("Đã xác nhận", mine.filter(item => item.status === "approved").length, "Kết quả được công nhận", "green")}
-      ${metricCard("Chờ đánh giá", mine.filter(item => item.status === "pending").length, "Đang chờ lãnh đạo đơn vị", "gold")}
+      ${metricCard("Cần xử lý", pendingCount + revisionCount, `${pendingCount} chờ đánh giá · ${revisionCount} cần bổ sung`, "gold")}
       ${metricCard("Chất lượng", weightedQuality(mine.filter(item => item.status === "approved")).toFixed(1) || "—", "Bình quân có trọng số", "blue")}
     </div>
     <div class="journal-list">${mine.length ? mine.map(journalCard).join("") : `<div class="empty-state"><strong>Chưa có nhật ký</strong>Hãy ghi nhận kết quả công việc đầu tiên.</div>`}</div>`;
-  document.getElementById("newJournal").addEventListener("click", openJournalModal);
+  document.getElementById("newJournal").addEventListener("click", () => openJournalModal());
+  document.querySelectorAll("[data-edit-journal]").forEach(button => button.addEventListener("click", () => openJournalModal(button.dataset.editJournal)));
 }
 
 function journalCard(log) {
-  return `<article class="journal-card"><div class="journal-date"><strong>${shortDate(log.date)}</strong>${log.date.slice(0,4)}</div><div class="journal-body"><h3>${log.title}</h3><p>${log.result}</p><div class="journal-meta"><span class="meta-tag">${log.category}</span><span class="meta-tag">${log.workRole}</span><span class="meta-tag">${log.duration}</span><span class="status-pill ${statusClass(log.status)}">${statusLabel(log.status)}</span></div></div><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>${log.complexity ?? "—"}</strong></div><div class="score-box"><span>Chất lượng</span><strong>${log.quality ?? "—"}</strong></div></div></article>`;
+  const canEdit = log.status === "revision" && log.authorId === currentUser().id;
+  const revisionFeedback = log.status === "revision" ? `<div class="revision-feedback"><strong>Lãnh đạo yêu cầu bổ sung</strong><span>${log.comment || "Cần chỉnh sửa, làm rõ kết quả công tác."}</span></div>` : "";
+  const resubmission = log.revisionCount ? `<span class="meta-tag">Đã trình lại ${log.revisionCount} lần</span>` : "";
+  return `<article class="journal-card ${log.status === "revision" ? "is-revision" : ""}"><div class="journal-date"><strong>${shortDate(log.date)}</strong>${log.date.slice(0,4)}</div><div class="journal-body"><h3>${log.title}</h3><p>${log.result}</p>${revisionFeedback}<div class="journal-meta"><span class="meta-tag">${log.category}</span><span class="meta-tag">${log.workRole}</span><span class="meta-tag">${log.duration}</span>${resubmission}<span class="status-pill ${statusClass(log.status)}">${statusLabel(log.status)}</span></div></div><div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>${log.complexity ?? "—"}</strong></div><div class="score-box"><span>Chất lượng</span><strong>${log.quality ?? "—"}</strong></div></div>${canEdit ? `<button type="button" class="button button-primary button-small" data-edit-journal="${log.id}">Sửa và trình lại</button>` : ""}</div></article>`;
 }
 
 function renderReviews() {
@@ -581,7 +730,7 @@ function renderReviews() {
     <div class="review-layout">
       <section><div class="review-queue">${queue.length ? queue.map(log => {
         const author = userById(log.authorId);
-        return `<button class="queue-item ${log.id === state.selectedReviewId ? "is-selected" : ""}" data-review-id="${log.id}"><strong>${author.name}</strong><p>${log.title}</p><span class="queue-meta"><span>${unitById(log.unitId).short}</span><span>${shortDate(log.date)}</span></span></button>`;
+        return `<button class="queue-item ${log.id === state.selectedReviewId ? "is-selected" : ""}" data-review-id="${log.id}"><strong>${author.name}</strong>${log.revisionCount ? `<span class="resubmission-badge">Trình lại lần ${log.revisionCount}</span>` : ""}<p>${log.title}</p><span class="queue-meta"><span>${unitById(log.unitId).short}</span><span>${shortDate(log.date)}</span></span></button>`;
       }).join("") : `<div class="panel empty-state"><strong>Đã xử lý hết</strong>Không còn nhật ký chờ đánh giá.</div>`}</div></section>
       <section class="panel review-detail">${selected ? reviewDetail(selected) : `<div class="empty-state"><strong>Không có nhật ký cần xử lý</strong>Hãy quay lại khi có nhật ký mới.</div>`}</section>
     </div>`;
@@ -630,8 +779,10 @@ function reviewDetail(log) {
   const author = userById(log.authorId);
   const complexity = log.complexity || 6;
   const quality = log.quality || 8;
+  const lastRevision = log.reviewHistory?.at(-1);
+  const revisionContext = lastRevision ? `<div class="resubmission-context"><strong>Báo cáo đã được chỉnh sửa và trình lại lần ${log.revisionCount || log.reviewHistory.length}</strong><span>Yêu cầu trước: ${lastRevision.comment}</span></div>` : "";
   return `<div class="panel-header"><div><span class="eyebrow">${log.id} · ${formatDate(log.date)}</span><h2>${log.title}</h2><p>${author.name} · ${author.title} · ${unitById(log.unitId).short}</p></div></div>
-    <div class="detail-section"><h3>Kết quả báo cáo</h3><p>${log.result}</p><div class="detail-grid"><div class="detail-item"><span>Lĩnh vực</span><strong>${log.category}</strong></div><div class="detail-item"><span>Vai trò</span><strong>${log.workRole}</strong></div><div class="detail-item"><span>Thời gian</span><strong>${log.duration}</strong></div><div class="detail-item"><span>Minh chứng</span><strong>${log.evidence || "Không có"}</strong></div></div></div>
+    ${revisionContext}<div class="detail-section"><h3>Kết quả báo cáo</h3><p>${log.result}</p><div class="detail-grid"><div class="detail-item"><span>Lĩnh vực</span><strong>${log.category}</strong></div><div class="detail-item"><span>Vai trò</span><strong>${log.workRole}</strong></div><div class="detail-item"><span>Thời gian</span><strong>${log.duration}</strong></div><div class="detail-item"><span>Minh chứng</span><strong>${log.evidence || "Không có"}</strong></div></div></div>
     <div class="detail-section"><div class="rating-grid">
       <div class="rating-control"><div class="rating-head"><div><h3>Độ phức tạp</h3><span class="metric-context">Bản chất và phạm vi công việc</span></div><span class="rating-value" id="complexityValue">${complexity}</span></div><input id="complexityRange" type="range" min="1" max="10" value="${complexity}" aria-label="Điểm độ phức tạp"><div class="range-labels"><span>Đơn giản</span><span>Đặc biệt phức tạp</span></div>${scoringGuideMarkup("complexity", complexity)}</div>
       <div class="rating-control"><div class="rating-head"><div><h3>Chất lượng</h3><span class="metric-context">Đúng, đủ, kịp thời và sử dụng được</span></div><span class="rating-value" id="qualityValue">${quality}</span></div><input id="qualityRange" type="range" min="1" max="10" value="${quality}" aria-label="Điểm chất lượng"><div class="range-labels"><span>Không đạt</span><span>Rất tốt</span></div>${scoringGuideMarkup("quality", quality)}</div>
@@ -660,6 +811,7 @@ function applyReview(log, status) {
   Object.assign(log, { complexity, quality, comment, status, reviewerId: currentUser().id, reviewedAt: new Date().toISOString() });
   saveLogs();
   state.selectedReviewId = null;
+  state.editingJournalId = null;
   showToast(status === "approved" ? "Đã xác nhận và chấm điểm nhật ký." : "Đã gửi yêu cầu bổ sung.");
   renderReviews();
 }
@@ -984,22 +1136,76 @@ function submitRegistration(event) {
   localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(auditEvents));
   closeRegisterModal();
   showToast(`Đã đăng ký đúng ${unitById(code.unitId).short}; tài khoản đang chờ xác nhận.`);
+  renderNotifications();
   if (state.currentView === "administration") renderAdministration();
 }
 
-function openJournalModal() {
+function openJournalModal(logId = null) {
   const form = document.getElementById("journalForm");
   form.reset();
-  form.elements.workDate.value = "2026-08-22";
+  const log = typeof logId === "string" ? logs.find(item => item.id === logId) : null;
+  const canEdit = log && log.authorId === currentUser().id && log.status === "revision";
+  state.editingJournalId = canEdit ? log.id : null;
+  document.getElementById("journalModalTitle").textContent = canEdit ? "Chỉnh sửa và trình lại kết quả" : "Ghi nhận kết quả công việc";
+  document.getElementById("journalSubmitButton").textContent = canEdit ? "Lưu và trình lại" : "Gửi nhật ký";
+  const notice = document.getElementById("journalRevisionNotice");
+  notice.hidden = !canEdit;
+  document.getElementById("journalRevisionComment").textContent = canEdit ? log.comment : "";
+  if (canEdit) {
+    form.elements.workDate.value = log.date;
+    form.elements.category.value = log.category;
+    form.elements.title.value = log.title;
+    form.elements.result.value = log.result;
+    form.elements.workRole.value = log.workRole;
+    form.elements.duration.value = log.duration;
+    form.elements.evidence.value = log.evidence || "";
+  } else {
+    form.elements.workDate.value = "2026-08-22";
+  }
   document.getElementById("journalModal").hidden = false;
-  form.elements.category.focus();
+  (canEdit ? form.elements.title : form.elements.category).focus();
 }
-function closeJournalModal() { document.getElementById("journalModal").hidden = true; }
+function closeJournalModal() {
+  state.editingJournalId = null;
+  document.getElementById("journalModal").hidden = true;
+}
 
 function submitJournal(event) {
   event.preventDefault();
   const data = new FormData(event.currentTarget);
   const user = currentUser();
+  const editingLog = state.editingJournalId ? logs.find(log => log.id === state.editingJournalId) : null;
+  if (editingLog) {
+    if (editingLog.authorId !== user.id || editingLog.status !== "revision") {
+      showToast("Nhật ký này không còn ở trạng thái được phép chỉnh sửa.");
+      closeJournalModal();
+      renderJournal();
+      return;
+    }
+    const now = new Date().toISOString();
+    const reviewHistory = [...(editingLog.reviewHistory || []), {
+      status: "revision",
+      reviewerId: editingLog.reviewerId,
+      reviewedAt: editingLog.reviewedAt,
+      complexity: editingLog.complexity,
+      quality: editingLog.quality,
+      comment: editingLog.comment,
+      previousTitle: editingLog.title,
+      previousResult: editingLog.result,
+      resubmittedAt: now
+    }];
+    Object.assign(editingLog, {
+      date: data.get("workDate"), category: data.get("category"), title: data.get("title"), result: data.get("result"),
+      workRole: data.get("workRole"), duration: data.get("duration"), evidence: data.get("evidence"),
+      status: "pending", complexity: null, quality: null, reviewerId: null, comment: "", reviewedAt: null,
+      updatedAt: now, resubmittedAt: now, revisionCount: reviewHistory.length, reviewHistory
+    });
+    saveLogs();
+    closeJournalModal();
+    showToast("Đã chỉnh sửa và trình lại lãnh đạo chấm điểm.");
+    renderJournal();
+    return;
+  }
   const nextId = `NK${String(logs.length + 1).padStart(3, "0")}`;
   logs.push({
     id: nextId, authorId: user.id, unitId: user.unitId, date: data.get("workDate"), category: data.get("category"),
@@ -1032,7 +1238,10 @@ function resetDemo() {
   localStorage.setItem(REGISTRATION_CODE_STORAGE_KEY, JSON.stringify(registrationCodes));
   savePersonnelState();
   localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(auditEvents));
+  notificationReadState = {};
+  localStorage.removeItem(NOTIFICATION_READ_STORAGE_KEY);
   state.selectedReviewId = null;
+  state.editingJournalId = null;
   state.selectedMonthlyUserId = null;
   state.dashboardUnit = "all";
   state.dashboardPeriod = "2026-08";

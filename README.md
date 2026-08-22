@@ -1,6 +1,6 @@
 # Demo nhật ký công tác VKSND tỉnh
 
-Bản demo mô phỏng bảy luồng nghiệp vụ:
+Bản demo mô phỏng các luồng nghiệp vụ chính:
 
 1. Người dùng đăng ký bằng mã do đơn vị cấp; hệ thống tự xác định đơn vị, tạo quyền cán bộ mặc định và đưa tài khoản vào trạng thái chờ xác nhận.
 2. Cán bộ, công chức ghi nhật ký kết quả công việc hằng ngày.
@@ -9,6 +9,9 @@ Bản demo mô phỏng bảy luồng nghiệp vụ:
 5. Cá nhân tự chấm, người có thẩm quyền duyệt điểm và xếp loại tháng.
 6. Quản trị viên tạo/khóa mã đăng ký, xác nhận tài khoản, mô phỏng điều chuyển nhân sự và ủy quyền có thời hạn.
 7. Xuất bảng tổng hợp tháng dưới dạng CSV.
+8. Lãnh đạo trả lại nhật ký kèm nhận xét; người ghi sửa, trình lại và lãnh đạo chấm lại, đồng thời giữ lịch sử các lần bổ sung.
+9. Trung tâm thông báo theo vai trò đưa người dùng đến đúng nhật ký, hồ sơ chờ chấm hoặc tài khoản chờ xác nhận.
+10. Bảng kết quả cho phép sắp xếp theo số kết quả, tổng/bình quân phức tạp, chất lượng và tỷ lệ đạt từ 8 điểm.
 
 Dữ liệu nhật ký mô phỏng gồm hơn 1.200 bản ghi trong 6 tháng, trải trên toàn bộ đơn vị, nhiều lĩnh vực công tác, trạng thái duyệt và mức điểm khác nhau. Bộ lọc kỳ báo cáo và biểu đồ xu hướng được tính trực tiếp từ tập dữ liệu này để trình diễn tải dữ liệu ở quy mô trung bình lớn.
 
@@ -36,6 +39,8 @@ Chọn vai trò ở góc trên bên phải để thử:
 Mã thử trong demo: `P1-2026-A7K9` (Phòng 1) và `KV1-2026-M4N8` (Khu vực 1). Mã chỉ gán đúng đơn vị và không thể cấp quyền lãnh đạo.
 
 Dữ liệu thay đổi được lưu trong `localStorage` của trình duyệt. Nút **Khôi phục dữ liệu mẫu** đưa demo về trạng thái ban đầu.
+
+Tài liệu dành cho lập trình viên hoặc LLM tiếp quản: [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md).
 
 Giao diện sử dụng bộ nhận diện xanh–vàng, biểu trưng ngành Kiểm sát, họa tiết hoa sen và phông Be Vietnam Pro được tham khảo từ Bộ công cụ Kiểm sát. Các tài nguyên được lưu cục bộ trong thư mục `assets`, không gọi CDN; giấy phép phông chữ được lưu tại `assets/fonts/OFL.txt`.
 

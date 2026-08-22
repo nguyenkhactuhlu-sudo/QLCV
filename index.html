@@ -63,6 +63,16 @@
           <h1 id="pageTitle">Tổng quan toàn tỉnh</h1>
         </div>
         <div class="topbar-actions">
+          <div class="notification-center" id="notificationCenter">
+            <button class="notification-toggle" id="notificationToggle" type="button" aria-label="Mở thông báo" aria-expanded="false" aria-controls="notificationPanel">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>
+              <span class="notification-badge" id="notificationBadge" hidden>0</span>
+            </button>
+            <section class="notification-panel" id="notificationPanel" aria-label="Thông báo mới" hidden>
+              <div class="notification-header"><div><strong>Thông báo</strong><span id="notificationSummary">Tin mới cần xử lý</span></div><button type="button" id="markAllNotificationsRead">Đánh dấu đã đọc</button></div>
+              <div class="notification-list" id="notificationList"></div>
+            </section>
+          </div>
           <button class="button button-secondary register-button" id="openRegister">Đăng ký tài khoản</button>
           <label class="role-switcher">
             <span>Chọn tài khoản demo</span>
@@ -88,6 +98,10 @@
         <button class="icon-button" data-close-modal aria-label="Đóng">×</button>
       </div>
       <form id="journalForm" class="form-grid">
+        <div class="revision-notice field-wide" id="journalRevisionNotice" hidden>
+          <strong>Yêu cầu của lãnh đạo</strong>
+          <span id="journalRevisionComment"></span>
+        </div>
         <label class="field">
           <span>Ngày thực hiện</span>
           <input type="date" name="workDate" required>
@@ -135,7 +149,7 @@
         </label>
         <div class="form-actions field-wide">
           <button type="button" class="button button-secondary" data-close-modal>Hủy</button>
-          <button type="submit" class="button button-primary">Gửi nhật ký</button>
+          <button type="submit" class="button button-primary" id="journalSubmitButton">Gửi nhật ký</button>
         </div>
       </form>
     </section>
