@@ -295,6 +295,22 @@ tbody tr:hover { background: #fbfbfc; }
 .rating-value { min-width: 38px; padding: 4px 9px; border-radius: 8px; color: #fff; background: var(--red); font-size: 18px; font-weight: 750; text-align: center; }
 .rating-control input[type="range"] { width: 100%; accent-color: var(--red); }
 .range-labels { display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; }
+.score-guide {
+  min-height: 72px;
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  margin-top: 11px;
+  padding: 10px 11px;
+  border-left: 3px solid var(--blue);
+  border-radius: 8px;
+  background: var(--blue-soft);
+}
+.score-guide strong { color: var(--text); font-size: 12px; }
+.score-guide span { color: var(--muted); font-size: 11px; line-height: 1.45; }
+.score-guide[data-band="low"] { border-left-color: var(--orange); background: var(--orange-soft); }
+.score-guide[data-type="quality"][data-band="high"] { border-left-color: var(--green); background: var(--green-soft); }
+.score-guide[data-type="complexity"][data-band="high"] { border-left-color: var(--red); background: var(--red-soft); }
 .review-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 9px; margin-top: 16px; }
 
 .org-tree { display: grid; gap: 18px; }

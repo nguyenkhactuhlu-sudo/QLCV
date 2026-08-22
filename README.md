@@ -10,6 +10,8 @@ Bản demo mô phỏng bảy luồng nghiệp vụ:
 6. Quản trị viên tạo/khóa mã đăng ký, xác nhận tài khoản, mô phỏng điều chuyển nhân sự và ủy quyền có thời hạn.
 7. Xuất bảng tổng hợp tháng dưới dạng CSV.
 
+Dữ liệu nhật ký mô phỏng gồm hơn 1.200 bản ghi trong 6 tháng, trải trên toàn bộ đơn vị, nhiều lĩnh vực công tác, trạng thái duyệt và mức điểm khác nhau. Bộ lọc kỳ báo cáo và biểu đồ xu hướng được tính trực tiếp từ tập dữ liệu này để trình diễn tải dữ liệu ở quy mô trung bình lớn.
+
 ## Chạy demo
 
 Có thể mở trực tiếp `index.html`, hoặc chạy máy chủ tĩnh tại thư mục này:

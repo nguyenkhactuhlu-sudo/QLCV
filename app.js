@@ -1,4 +1,4 @@
-const STORAGE_KEY = "vks-worklog-demo-v2";
+const STORAGE_KEY = "vks-worklog-demo-v3";
 const MONTHLY_STORAGE_KEY = "vks-monthly-demo-v1";
 const PERSONNEL_STORAGE_KEY = "vks-personnel-demo-v1";
 const AUDIT_STORAGE_KEY = "vks-audit-demo-v1";
@@ -126,6 +126,61 @@ const sampleLogs = [
   createdAt: `${date}T16:30:00`, reviewedAt: reviewerId ? `${date}T18:00:00` : null
 }));
 
+const demoWorkTemplates = [
+  ["Kiểm sát điều tra", "Nghiên cứu hồ sơ và đề xuất yêu cầu xác minh", "Hoàn thành phiếu nghiên cứu, xác định các nội dung cần tiếp tục làm rõ"],
+  ["Thực hành quyền công tố", "Xây dựng dự thảo văn bản tố tụng", "Hoàn thành dự thảo và bảng kiểm căn cứ pháp lý kèm theo"],
+  ["Kiểm sát xét xử", "Chuẩn bị nội dung tham gia phiên tòa", "Hoàn thành đề cương xét hỏi, dự kiến tình huống tranh tụng"],
+  ["Kiểm sát thi hành án", "Rà soát hồ sơ thi hành án", "Lập bảng đối chiếu hồ sơ và kiến nghị xử lý các nội dung còn thiếu"],
+  ["Khiếu nại, tố cáo", "Phân loại và tham mưu xử lý đơn", "Hoàn thành phiếu phân loại cùng dự thảo văn bản trả lời"],
+  ["Tham mưu, tổng hợp", "Tổng hợp số liệu phục vụ báo cáo định kỳ", "Hoàn thành báo cáo và phụ lục đối chiếu số liệu các đơn vị"],
+  ["Công nghệ thông tin", "Cập nhật dữ liệu trên hệ thống nghiệp vụ", "Đối chiếu, chuẩn hóa dữ liệu và ghi nhận kết quả cập nhật"],
+  ["Kiểm sát tạm giữ, tạm giam", "Kiểm tra hồ sơ quản lý người bị tạm giữ", "Hoàn thành biên bản kiểm sát và tổng hợp nội dung cần khắc phục"],
+  ["Công tác xây dựng ngành", "Rà soát tiến độ thực hiện nhiệm vụ trọng tâm", "Hoàn thành bảng theo dõi, xác định nhiệm vụ cần đôn đốc"],
+  ["Phối hợp liên ngành", "Chuẩn bị nội dung cuộc họp liên ngành", "Hoàn thành tài liệu họp, dự thảo kết luận và phân công thực hiện"]
+];
+
+function generateDemoLogs(total = 1200) {
+  const authors = users.filter(user => !["province_head", "administrator"].includes(user.role));
+  const durations = ["Dưới 2 giờ", "2–4 giờ", "Trên 4 giờ", "Nhiều ngày"];
+  const roles = ["Chủ trì", "Phối hợp", "Tham gia"];
+  const start = Date.UTC(2026, 2, 1);
+  const spanDays = 175;
+
+  return Array.from({ length: total }, (_, index) => {
+    const author = authors[(index * 13 + Math.floor(index / 17)) % authors.length];
+    const template = demoWorkTemplates[(index * 7 + author.unitId.length) % demoWorkTemplates.length];
+    const date = new Date(start + ((index * 37) % spanDays) * 86400000).toISOString().slice(0, 10);
+    const status = index % 19 === 0 ? "revision" : index % 7 === 0 ? "pending" : "approved";
+    const complexity = status === "pending" ? null : 3 + ((index * 5 + author.id.length) % 7);
+    const quality = status === "pending" ? null : status === "revision" ? 3 + (index % 3) : 6 + ((index * 3 + author.unitId.length) % 5);
+    const unitHead = users.find(user => user.unitId === author.unitId && user.role === "unit_head");
+    const reviewer = author.role === "unit_head" || author.unitId === "province" ? users.find(user => user.role === "province_head") : unitHead;
+    const sequence = String(index + 1).padStart(4, "0");
+
+    return {
+      id: `DM${sequence}`,
+      authorId: author.id,
+      unitId: author.unitId,
+      date,
+      category: template[0],
+      title: `${template[1]} - lượt ${sequence}`,
+      result: template[2],
+      workRole: roles[(index + author.id.length) % roles.length],
+      duration: durations[(index * 3) % durations.length],
+      evidence: `MC-${date.replaceAll("-", "")}-${sequence}`,
+      status,
+      complexity,
+      quality,
+      reviewerId: status === "pending" ? null : reviewer?.id || "u01",
+      comment: status === "revision" ? "Cần bổ sung căn cứ, tài liệu minh chứng và làm rõ kết quả xử lý." : "",
+      createdAt: `${date}T16:30:00`,
+      reviewedAt: status === "pending" ? null : `${date}T18:00:00`
+    };
+  });
+}
+
+sampleLogs.push(...generateDemoLogs());
+
 const query = new URLSearchParams(window.location.search);
 const requestedUser = query.get("role");
 const requestedView = query.get("view");
@@ -135,6 +190,7 @@ const state = {
   selectedReviewId: null,
   selectedMonthlyUserId: null,
   dashboardUnit: "all",
+  dashboardPeriod: "2026-08",
   monthlyUnit: "all"
 };
 
@@ -209,11 +265,13 @@ function visibleUnitIds(user = currentUser()) {
   return [user.unitId];
 }
 
-function dashboardLogs() {
+function dashboardLogs(includeAllPeriods = false) {
   const user = currentUser();
   let scoped = logs.filter(log => visibleUnitIds(user).includes(log.unitId));
   if (user.role === "staff") scoped = scoped.filter(log => log.authorId === user.id);
   if (state.dashboardUnit !== "all") scoped = scoped.filter(log => log.unitId === state.dashboardUnit);
+  if (!includeAllPeriods && state.dashboardPeriod === "2026-08") scoped = scoped.filter(log => log.date.startsWith("2026-08"));
+  if (!includeAllPeriods && state.dashboardPeriod === "2026-Q3") scoped = scoped.filter(log => log.date >= "2026-07-01" && log.date <= "2026-09-30");
   return scoped;
 }
 
@@ -308,6 +366,7 @@ function renderDashboard() {
   const scope = dashboardLogs();
   const reviewed = scope.filter(log => log.status === "approved" || log.status === "revision");
   const approved = scope.filter(log => log.status === "approved");
+  const trendScope = dashboardLogs(true).filter(log => log.status === "approved");
   const complexityTotal = approved.reduce((sum, log) => sum + (log.complexity || 0), 0);
   const quality = weightedQuality(approved);
   const reviewRate = scope.length ? reviewed.length / scope.length * 100 : 0;
@@ -325,9 +384,9 @@ function renderDashboard() {
   const tableTitle = provinceScope ? "Kết quả theo đơn vị" : "Kết quả theo cán bộ";
 
   document.getElementById("appView").innerHTML = `
-    <div class="demo-notice"><strong>Bản trình diễn</strong><span>Nhân sự và kết quả tháng 6/2026 được trích từ tài liệu đã cung cấp; nhật ký chi tiết trong màn hình này là dữ liệu mô phỏng.</span></div>
+    <div class="demo-notice"><strong>Bản trình diễn</strong><span>Nhân sự và kết quả tháng 6/2026 được trích từ tài liệu đã cung cấp; hơn 1.200 nhật ký chi tiết là dữ liệu mô phỏng để thử nghiệm báo cáo quy mô lớn.</span></div>
     <div class="toolbar">
-      <label class="filter-field"><span>Kỳ báo cáo</span><select><option>Tháng 08/2026</option><option>Tuần này</option><option>Quý III/2026</option></select></label>
+      <label class="filter-field"><span>Kỳ báo cáo</span><select id="dashboardPeriodFilter"><option value="2026-08" ${state.dashboardPeriod === "2026-08" ? "selected" : ""}>Tháng 08/2026</option><option value="2026-Q3" ${state.dashboardPeriod === "2026-Q3" ? "selected" : ""}>Quý III/2026</option><option value="all" ${state.dashboardPeriod === "all" ? "selected" : ""}>6 tháng gần nhất</option></select></label>
       ${unitFilter}
       <div class="spacer"></div>
       <button class="button button-secondary" id="resetDemo">Khôi phục dữ liệu mẫu</button>
@@ -345,7 +404,7 @@ function renderDashboard() {
     <div class="dashboard-grid">
       <section class="panel">
         <div class="panel-header"><div><h2>Xu hướng chất lượng 6 tháng</h2><p>Điểm chất lượng có trọng số · thang điểm 10</p></div><span class="chart-unit">Điểm</span></div>
-        ${trendChart(quality || 8)}
+        ${trendChart(trendScope)}
       </section>
       <section class="panel">
         <div class="panel-header"><div><h2>Tiến độ đánh giá</h2><p>Tình trạng xử lý nhật ký trong phạm vi đang xem</p></div><span class="chart-unit">${scope.length} nhật ký</span></div>
@@ -366,6 +425,7 @@ function renderDashboard() {
     </div>`;
 
   document.getElementById("resetDemo").addEventListener("click", resetDemo);
+  document.getElementById("dashboardPeriodFilter").addEventListener("change", event => { state.dashboardPeriod = event.target.value; renderDashboard(); });
   const filter = document.getElementById("dashboardUnitFilter");
   if (filter) filter.addEventListener("change", event => { state.dashboardUnit = event.target.value; renderDashboard(); });
 }
@@ -374,15 +434,16 @@ function metricCard(label, value, context, tone) {
   return `<article class="metric-card ${tone}"><span class="metric-label">${label}</span><div class="metric-value">${value}</div><span class="metric-context">${context}</span></article>`;
 }
 
-function trendChart(currentQuality) {
-  const values = [currentQuality - .7, currentQuality - .4, currentQuality - .5, currentQuality - .2, currentQuality - .1, currentQuality].map(value => Math.max(5, Math.min(10, value)));
+function trendChart(sourceLogs) {
+  const periods = ["2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08"];
   const months = ["T3", "T4", "T5", "T6", "T7", "T8"];
+  const values = periods.map(period => weightedQuality(sourceLogs.filter(log => log.date.startsWith(period))));
   const width = 620, height = 260, left = 42, right = 18, top = 22, bottom = 38;
   const x = index => left + index / (values.length - 1) * (width - left - right);
-  const y = value => top + (10 - value) / 5 * (height - top - bottom);
+  const y = value => top + (10 - (value || 5)) / 5 * (height - top - bottom);
   const points = values.map((value, index) => `${x(index)},${y(value)}`).join(" ");
   const grid = [6, 7, 8, 9, 10].map(value => `<line class="grid-line" x1="${left}" x2="${width - right}" y1="${y(value)}" y2="${y(value)}"/><text class="tick-label" x="${left - 9}" y="${y(value) + 4}" text-anchor="end">${value}</text>`).join("");
-  return `<svg class="trend-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Xu hướng chất lượng 6 tháng">${grid}<polyline class="trend-area" points="${left},${height - bottom} ${points} ${width - right},${height - bottom}"/><polyline class="trend-line" points="${points}"/>${values.map((value, index) => `<g><circle class="trend-point" cx="${x(index)}" cy="${y(value)}" r="5"><title>${months[index]}: ${value.toFixed(1)} điểm</title></circle><text class="trend-value" x="${x(index)}" y="${y(value) - 11}" text-anchor="middle">${value.toFixed(1)}</text><text class="tick-label" x="${x(index)}" y="${height - 14}" text-anchor="middle">${months[index]}</text></g>`).join("")}</svg><div class="chart-caption">Đường xu hướng là dữ liệu mô phỏng phục vụ trình diễn; số tháng hiện tại lấy từ phạm vi đang chọn.</div>`;
+  return `<svg class="trend-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Xu hướng chất lượng thực tế từ dữ liệu mô phỏng trong 6 tháng">${grid}<polyline class="trend-area" points="${left},${height - bottom} ${points} ${width - right},${height - bottom}"/><polyline class="trend-line" points="${points}"/>${values.map((value, index) => `<g><circle class="trend-point" cx="${x(index)}" cy="${y(value)}" r="5"><title>${months[index]}: ${value ? value.toFixed(1) + " điểm" : "chưa có dữ liệu"}</title></circle><text class="trend-value" x="${x(index)}" y="${y(value) - 11}" text-anchor="middle">${value ? value.toFixed(1) : "—"}</text><text class="tick-label" x="${x(index)}" y="${height - 14}" text-anchor="middle">${months[index]}</text></g>`).join("")}</svg><div class="chart-caption">Mỗi điểm là chất lượng có trọng số tính từ các nhật ký đã xác nhận trong tháng và phạm vi đơn vị đang xem.</div>`;
 }
 
 function reviewStatusChart(items) {
@@ -507,13 +568,52 @@ function renderReviews() {
   if (selected) bindReviewActions(selected);
 }
 
+const scoringGuides = {
+  complexity: [
+    { max: 2, title: "Đơn giản", text: "Công việc lặp lại, quy trình rõ ràng và phạm vi xử lý hẹp." },
+    { max: 4, title: "Thông thường", text: "Có xử lý chuyên môn nhưng ít tình huống phát sinh hoặc phối hợp." },
+    { max: 6, title: "Khá phức tạp", text: "Nhiều bước xử lý, cần phối hợp hoặc tổng hợp từ nhiều nguồn." },
+    { max: 8, title: "Phức tạp", text: "Đòi hỏi chuyên môn sâu, xử lý tình huống khó hoặc có tác động đáng kể." },
+    { max: 10, title: "Đặc biệt phức tạp", text: "Tác động lớn, nhiều bên liên quan hoặc cần giải pháp chuyên sâu." }
+  ],
+  quality: [
+    { max: 2, title: "Không đạt", text: "Có sai sót nghiêm trọng, kết quả chưa sử dụng được hoặc phải làm lại." },
+    { max: 4, title: "Cần bổ sung", text: "Kết quả chưa đầy đủ và cần chỉnh sửa đáng kể trước khi sử dụng." },
+    { max: 6, title: "Đạt yêu cầu", text: "Hoàn thành yêu cầu cơ bản, kết quả có thể sử dụng." },
+    { max: 8, title: "Tốt", text: "Kết quả đúng, đầy đủ, kịp thời và trình bày rõ ràng." },
+    { max: 10, title: "Rất tốt", text: "Kết quả nổi bật, hiệu quả cao hoặc có sáng kiến mang lại giá trị." }
+  ]
+};
+
+function scoringGuide(type, value) {
+  const numericValue = Number(value);
+  return scoringGuides[type].find(item => numericValue <= item.max) || scoringGuides[type].at(-1);
+}
+
+function scoringGuideMarkup(type, value) {
+  const guide = scoringGuide(type, value);
+  const band = Number(value) <= 4 ? "low" : Number(value) <= 8 ? "standard" : "high";
+  return `<div class="score-guide" id="${type}Guide" data-type="${type}" data-band="${band}" aria-live="polite"><strong id="${type}GuideTitle">Mức ${value} · ${guide.title}</strong><span id="${type}GuideText">${guide.text}</span></div>`;
+}
+
+function updateScoringGuide(type, value) {
+  const guide = scoringGuide(type, value);
+  const guideElement = document.getElementById(`${type}Guide`);
+  document.getElementById(`${type}Value`).textContent = value;
+  document.getElementById(`${type}GuideTitle`).textContent = `Mức ${value} · ${guide.title}`;
+  document.getElementById(`${type}GuideText`).textContent = guide.text;
+  guideElement.dataset.band = Number(value) <= 4 ? "low" : Number(value) <= 8 ? "standard" : "high";
+}
+
 function reviewDetail(log) {
   const author = userById(log.authorId);
+  const complexity = log.complexity || 6;
+  const quality = log.quality || 8;
   return `<div class="panel-header"><div><span class="eyebrow">${log.id} · ${formatDate(log.date)}</span><h2>${log.title}</h2><p>${author.name} · ${author.title} · ${unitById(log.unitId).short}</p></div></div>
     <div class="detail-section"><h3>Kết quả báo cáo</h3><p>${log.result}</p><div class="detail-grid"><div class="detail-item"><span>Lĩnh vực</span><strong>${log.category}</strong></div><div class="detail-item"><span>Vai trò</span><strong>${log.workRole}</strong></div><div class="detail-item"><span>Thời gian</span><strong>${log.duration}</strong></div><div class="detail-item"><span>Minh chứng</span><strong>${log.evidence || "Không có"}</strong></div></div></div>
     <div class="detail-section"><div class="rating-grid">
-      <div class="rating-control"><div class="rating-head"><div><h3>Độ phức tạp</h3><span class="metric-context">Bản chất và phạm vi công việc</span></div><span class="rating-value" id="complexityValue">${log.complexity || 6}</span></div><input id="complexityRange" type="range" min="1" max="10" value="${log.complexity || 6}" aria-label="Điểm độ phức tạp"><div class="range-labels"><span>Đơn giản</span><span>Đặc biệt phức tạp</span></div></div>
-      <div class="rating-control"><div class="rating-head"><div><h3>Chất lượng</h3><span class="metric-context">Đúng, đủ, kịp thời và sử dụng được</span></div><span class="rating-value" id="qualityValue">${log.quality || 8}</span></div><input id="qualityRange" type="range" min="1" max="10" value="${log.quality || 8}" aria-label="Điểm chất lượng"><div class="range-labels"><span>Không đạt</span><span>Rất tốt</span></div></div>
+      <div class="rating-control"><div class="rating-head"><div><h3>Độ phức tạp</h3><span class="metric-context">Bản chất và phạm vi công việc</span></div><span class="rating-value" id="complexityValue">${complexity}</span></div><input id="complexityRange" type="range" min="1" max="10" value="${complexity}" aria-label="Điểm độ phức tạp"><div class="range-labels"><span>Đơn giản</span><span>Đặc biệt phức tạp</span></div>${scoringGuideMarkup("complexity", complexity)}</div>
+      <div class="rating-control"><div class="rating-head"><div><h3>Chất lượng</h3><span class="metric-context">Đúng, đủ, kịp thời và sử dụng được</span></div><span class="rating-value" id="qualityValue">${quality}</span></div><input id="qualityRange" type="range" min="1" max="10" value="${quality}" aria-label="Điểm chất lượng"><div class="range-labels"><span>Không đạt</span><span>Rất tốt</span></div>${scoringGuideMarkup("quality", quality)}</div>
     </div></div>
     <div class="detail-section"><label class="field"><span>Nhận xét của lãnh đạo</span><textarea id="reviewComment" rows="3" placeholder="Bắt buộc khi điểm chất lượng dưới 5 hoặc từ 9 trở lên"></textarea></label><div class="review-actions"><button class="button button-danger" id="requestRevision">Yêu cầu bổ sung</button><button class="button button-primary" id="approveLog">Xác nhận kết quả</button></div></div>`;
 }
@@ -521,8 +621,8 @@ function reviewDetail(log) {
 function bindReviewActions(log) {
   const complexity = document.getElementById("complexityRange");
   const quality = document.getElementById("qualityRange");
-  complexity.addEventListener("input", () => document.getElementById("complexityValue").textContent = complexity.value);
-  quality.addEventListener("input", () => document.getElementById("qualityValue").textContent = quality.value);
+  complexity.addEventListener("input", () => updateScoringGuide("complexity", complexity.value));
+  quality.addEventListener("input", () => updateScoringGuide("quality", quality.value));
   document.getElementById("approveLog").addEventListener("click", () => applyReview(log, "approved"));
   document.getElementById("requestRevision").addEventListener("click", () => applyReview(log, "revision"));
 }
@@ -914,6 +1014,7 @@ function resetDemo() {
   state.selectedReviewId = null;
   state.selectedMonthlyUserId = null;
   state.dashboardUnit = "all";
+  state.dashboardPeriod = "2026-08";
   state.monthlyUnit = "all";
   showToast("Đã khôi phục dữ liệu mẫu.");
   render();
