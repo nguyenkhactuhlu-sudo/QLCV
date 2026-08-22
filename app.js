@@ -411,7 +411,7 @@ function renderDashboard() {
         ${reviewStatusChart(scope)}
       </section>
       <section class="panel">
-        <div class="panel-header"><div><h2>So sánh chất lượng ${provinceScope ? "theo đơn vị" : "theo cán bộ"}</h2><p>Mỗi dòng là một đối tượng; thanh màu thể hiện chất lượng, điểm phức tạp hiển thị riêng bên phải</p></div><span class="chart-unit">Thang 1–10</span></div>
+        <div class="panel-header"><div><h2>So sánh chất lượng ${provinceScope ? "theo đơn vị" : "theo cán bộ"}</h2><p>${provinceScope ? "Các đơn vị được chia thành hai nhóm để quan sát đồng thời trên cùng thang điểm" : "Mỗi dòng là một cán bộ; thanh màu thể hiện chất lượng, điểm phức tạp hiển thị riêng"}</p></div><span class="chart-unit">Thang 1–10</span></div>
         ${comparisonBarChart(grouping)}
       </section>
       <section class="panel">
@@ -458,11 +458,32 @@ function reviewStatusChart(items) {
 
 function comparisonBarChart(rows) {
   if (!rows.length) return `<div class="empty-state"><strong>Chưa có dữ liệu được xác nhận</strong>Hãy chọn phạm vi khác hoặc duyệt thêm nhật ký.</div>`;
+  const isUnitComparison = rows.every(row => unitById(row.id));
+  if (isUnitComparison) return groupedUnitComparisonChart(rows);
   const sorted = [...rows].sort((a, b) => b.quality - a.quality || b.complexityAvg - a.complexityAvg);
   return `<div class="comparison-chart"><div class="comparison-head"><span>Đối tượng</span><span>Chất lượng</span><span>Phức tạp</span></div>${sorted.map(row => {
     const tone = row.quality >= 8 ? "green" : row.quality >= 6.5 ? "blue" : "gold";
     return `<div class="comparison-row"><div class="comparison-label"><strong>${row.label}</strong><span>${row.count} kết quả${row.people > 1 ? ` · ${row.people} người` : ""}</span></div><div class="comparison-score"><div class="bar-track"><div class="bar-fill ${tone}" style="width:${row.quality * 10}%"></div></div><strong>${row.quality.toFixed(1)}</strong></div><span class="complexity-chip">${row.complexityAvg.toFixed(1)}</span></div>`;
   }).join("")}</div><div class="chart-legend"><span><i class="legend-swatch swatch-green"></i>Chất lượng từ 8</span><span><i class="legend-swatch swatch-blue"></i>Từ 6,5 đến dưới 8</span><span><i class="legend-swatch swatch-gold"></i>Dưới 6,5</span></div>`;
+}
+
+function groupedUnitComparisonChart(rows) {
+  const definitions = [
+    { type: "department", title: "Phòng thuộc VKSND tỉnh", tone: "department" },
+    { type: "regional", title: "VKSND khu vực", tone: "regional" }
+  ];
+  const groups = definitions.map(definition => ({
+    ...definition,
+    rows: rows.filter(row => unitById(row.id)?.type === definition.type).sort((a, b) => b.quality - a.quality || b.complexityAvg - a.complexityAvg)
+  })).filter(group => group.rows.length);
+
+  const renderRow = row => {
+    const displayQuality = Number(row.quality.toFixed(1));
+    const tone = displayQuality >= 8 ? "green" : displayQuality >= 6.5 ? "blue" : "gold";
+    return `<div class="unit-compare-row" aria-label="${row.label}: chất lượng ${displayQuality.toFixed(1)}, phức tạp ${row.complexityAvg.toFixed(1)}, ${row.count} kết quả"><div class="unit-compare-label"><strong>${row.label}</strong><span>${row.count} kết quả</span></div><div class="unit-compare-bar"><div class="bar-track"><div class="bar-fill ${tone}" style="width:${row.quality * 10}%"></div></div></div><strong class="unit-quality">${displayQuality.toFixed(1)}</strong><span class="unit-complexity">PT ${row.complexityAvg.toFixed(1)}</span></div>`;
+  };
+
+  return `<div class="unit-comparison-grid ${groups.length === 1 ? "is-single" : ""}" role="group" aria-label="So sánh chất lượng giữa các đơn vị">${groups.map(group => `<section class="unit-comparison-group ${group.tone}"><div class="unit-group-header"><div><span class="unit-group-stripe"></span><h3>${group.title}</h3></div><strong>${group.rows.length} đơn vị</strong></div><div class="unit-column-labels"><span>Đơn vị</span><span>Chất lượng</span><span>Điểm</span><span>Phức tạp</span></div><div class="unit-compare-list">${group.rows.map(renderRow).join("")}</div></section>`).join("")}</div><div class="chart-legend"><span><i class="legend-swatch swatch-green"></i>Chất lượng từ 8</span><span><i class="legend-swatch swatch-blue"></i>Từ 6,5 đến dưới 8</span><span><i class="legend-swatch swatch-gold"></i>Dưới 6,5</span><span>PT = độ phức tạp bình quân</span></div>`;
 }
 
 function aggregateByUnit(items) {

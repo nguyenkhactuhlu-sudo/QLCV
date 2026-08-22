@@ -5,7 +5,7 @@ Bản demo mô phỏng bảy luồng nghiệp vụ:
 1. Người dùng đăng ký bằng mã do đơn vị cấp; hệ thống tự xác định đơn vị, tạo quyền cán bộ mặc định và đưa tài khoản vào trạng thái chờ xác nhận.
 2. Cán bộ, công chức ghi nhật ký kết quả công việc hằng ngày.
 3. Người đứng đầu đơn vị duyệt, chấm độ phức tạp và chất lượng trên thang 1–10.
-4. Lãnh đạo tỉnh hoặc lãnh đạo đơn vị xem dashboard theo phạm vi được phân quyền, với biểu đồ thanh dễ đọc thay cho ma trận phân tán.
+4. Lãnh đạo tỉnh hoặc lãnh đạo đơn vị xem dashboard theo phạm vi được phân quyền; biểu đồ so sánh nhiều đơn vị được chia thành hai nhóm song song để giữ trang gọn và dễ đọc.
 5. Cá nhân tự chấm, người có thẩm quyền duyệt điểm và xếp loại tháng.
 6. Quản trị viên tạo/khóa mã đăng ký, xác nhận tài khoản, mô phỏng điều chuyển nhân sự và ủy quyền có thời hạn.
 7. Xuất bảng tổng hợp tháng dưới dạng CSV.
@@ -36,6 +36,8 @@ Chọn vai trò ở góc trên bên phải để thử:
 Mã thử trong demo: `P1-2026-A7K9` (Phòng 1) và `KV1-2026-M4N8` (Khu vực 1). Mã chỉ gán đúng đơn vị và không thể cấp quyền lãnh đạo.
 
 Dữ liệu thay đổi được lưu trong `localStorage` của trình duyệt. Nút **Khôi phục dữ liệu mẫu** đưa demo về trạng thái ban đầu.
+
+Giao diện sử dụng bộ nhận diện xanh–vàng, biểu trưng ngành Kiểm sát, họa tiết hoa sen và phông Be Vietnam Pro được tham khảo từ Bộ công cụ Kiểm sát. Các tài nguyên được lưu cục bộ trong thư mục `assets`, không gọi CDN; giấy phép phông chữ được lưu tại `assets/fonts/OFL.txt`.
 
 ## Phạm vi
 
