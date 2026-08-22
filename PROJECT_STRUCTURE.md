@@ -6,6 +6,8 @@
 
 QLCV là bản demo web tĩnh mô phỏng hệ thống nhật ký và đánh giá kết quả công tác của Viện kiểm sát nhân dân cấp tỉnh.
 
+Trang đầu tiên là màn hình đăng nhập demo lấy cảm hứng từ giao diện Bộ công cụ Kiểm sát: nền xanh sáng, hoa sen, biểu trưng trong khối kính và hiệu ứng vòng sóng nhẹ.
+
 Luồng nghiệp vụ cốt lõi:
 
 1. Kiểm sát viên, cán bộ, công chức ghi **kết quả công việc đã hoàn thành** trong ngày.
@@ -109,6 +111,17 @@ Không được chỉ dựa vào việc ẩn nút trên giao diện khi xây b�
 | `administration` | `renderAdministration()` | Mã đăng ký, tài khoản, nhân sự, ủy quyền và nhật ký quản trị |
 
 Menu được cập nhật bằng `updateNav()`. Tiêu đề, số mục chờ và thông báo được cập nhật bằng `updateChrome()`.
+
+### Đăng nhập demo
+
+- `DEMO_ACCOUNT_IDS` xác định các tài khoản được đưa lên màn hình đăng nhập.
+- `demoCredentials` chứa mật khẩu mô phỏng và nhãn vai trò.
+- `selectDemoAccount()` điền tài khoản và mật khẩu đã lưu.
+- `submitDemoLogin()` kiểm tra mật khẩu demo và mở ứng dụng.
+- `activateDemoUser()` thiết lập lại phạm vi xem theo người vừa đăng nhập.
+- `showLoginScreen()` đăng xuất khỏi giao diện và quay về màn hình chọn tài khoản.
+
+Đây chỉ là mô phỏng phía trình duyệt. Không tái sử dụng mật khẩu hoặc cơ chế này cho bản chính thức.
 
 ## 7. Mô hình dữ liệu chính
 

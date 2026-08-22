@@ -197,6 +197,17 @@ const state = {
   monthlyUnit: "all"
 };
 
+const DEMO_ACCOUNT_IDS = ["u01", "u02", "u03", "u04", "u05", "u08", "u20"];
+const demoCredentials = {
+  u01: { password: "VT-Tinh@2026", label: "Viện trưởng tỉnh" },
+  u02: { password: "PVT-Tinh@2026", label: "Phó VT tỉnh" },
+  u03: { password: "TP-P1@2026", label: "Trưởng phòng" },
+  u04: { password: "PP-P1@2026", label: "Phó phòng" },
+  u05: { password: "KSV-P1@2026", label: "Kiểm sát viên" },
+  u08: { password: "VT-KV1@2026", label: "Viện trưởng KV" },
+  u20: { password: "Admin@2026", label: "Quản trị" }
+};
+
 let logs = loadLogs();
 let monthlyReviews = loadJson(MONTHLY_STORAGE_KEY, sampleMonthly);
 let registrationCodes = loadJson(REGISTRATION_CODE_STORAGE_KEY, sampleRegistrationCodes);
@@ -302,22 +313,21 @@ function reviewQueue() {
 }
 
 function initialize() {
-  const roleSelect = document.getElementById("roleSelect");
-  const demoUsers = ["u01", "u02", "u03", "u04", "u05", "u08", "u20"];
-  roleSelect.innerHTML = demoUsers.map(id => {
+  const loginSelect = document.getElementById("loginUserSelect");
+  loginSelect.innerHTML = DEMO_ACCOUNT_IDS.map(id => {
     const user = userById(id);
-    return `<option value="${user.id}">${user.name} — ${user.title}</option>`;
+    return `<option value="${id}">${user.name} — ${demoCredentials[id].label}</option>`;
   }).join("");
-  roleSelect.value = state.currentUserId;
-  roleSelect.addEventListener("change", event => {
-    closeNotificationPanel();
-    state.currentUserId = event.target.value;
-    state.currentView = "dashboard";
-    state.dashboardUnit = "all";
-    state.selectedReviewId = null;
-    updateNav();
-    render();
-  });
+  document.getElementById("demoAccountCards").innerHTML = DEMO_ACCOUNT_IDS.map(id => {
+    const user = userById(id);
+    return `<button class="quick-account" type="button" data-login-account="${id}" title="${user.name} — ${user.title}"><span class="quick-account-avatar">${user.initials}</span><span>${demoCredentials[id].label}</span></button>`;
+  }).join("");
+  loginSelect.addEventListener("change", () => selectDemoAccount(loginSelect.value));
+  document.querySelectorAll("[data-login-account]").forEach(button => button.addEventListener("click", () => selectDemoAccount(button.dataset.loginAccount)));
+  document.getElementById("demoLoginForm").addEventListener("submit", submitDemoLogin);
+  document.getElementById("toggleLoginPassword").addEventListener("click", toggleLoginPassword);
+  document.getElementById("logoutDemo").addEventListener("click", showLoginScreen);
+  selectDemoAccount(state.currentUserId);
 
   document.querySelectorAll(".nav-item").forEach(button => {
     button.addEventListener("click", () => {
@@ -357,6 +367,66 @@ function initialize() {
   }));
   updateNav();
   render();
+  document.getElementById("loginUserSelect").focus();
+}
+
+function selectDemoAccount(userId) {
+  const selectedId = demoCredentials[userId] ? userId : DEMO_ACCOUNT_IDS[0];
+  document.getElementById("loginUserSelect").value = selectedId;
+  document.getElementById("loginPassword").value = demoCredentials[selectedId].password;
+  document.querySelectorAll("[data-login-account]").forEach(button => button.classList.toggle("is-selected", button.dataset.loginAccount === selectedId));
+}
+
+function submitDemoLogin(event) {
+  event.preventDefault();
+  const userId = document.getElementById("loginUserSelect").value;
+  const password = document.getElementById("loginPassword").value;
+  if (!demoCredentials[userId] || password !== demoCredentials[userId].password) {
+    showToast("Mật khẩu demo chưa đúng. Hãy chọn lại tài khoản để điền mật khẩu đã lưu.");
+    document.getElementById("loginPassword").focus();
+    return;
+  }
+  document.getElementById("loginScreen").hidden = true;
+  document.getElementById("appShell").hidden = false;
+  document.body.classList.remove("login-active");
+  activateDemoUser(userId);
+  showToast(`Đã đăng nhập với vai trò ${demoCredentials[userId].label}.`);
+}
+
+function activateDemoUser(userId) {
+  if (!DEMO_ACCOUNT_IDS.includes(userId)) return;
+  closeNotificationPanel();
+  closeJournalModal();
+  state.currentUserId = userId;
+  state.currentView = "dashboard";
+  state.dashboardUnit = "all";
+  state.selectedReviewId = null;
+  state.selectedMonthlyUserId = null;
+  updateNav();
+  render();
+}
+
+function toggleLoginPassword() {
+  const input = document.getElementById("loginPassword");
+  const button = document.getElementById("toggleLoginPassword");
+  const showing = input.type === "text";
+  input.type = showing ? "password" : "text";
+  button.textContent = showing ? "Hiện" : "Ẩn";
+  button.setAttribute("aria-label", showing ? "Hiện mật khẩu" : "Ẩn mật khẩu");
+}
+
+function showLoginScreen() {
+  closeNotificationPanel();
+  closeJournalModal();
+  document.getElementById("sidebar").classList.remove("is-open");
+  document.getElementById("appShell").hidden = true;
+  document.getElementById("loginScreen").hidden = false;
+  document.body.classList.add("login-active");
+  document.getElementById("loginPassword").type = "password";
+  document.getElementById("toggleLoginPassword").textContent = "Hiện";
+  document.getElementById("toggleLoginPassword").setAttribute("aria-label", "Hiện mật khẩu");
+  selectDemoAccount(state.currentUserId);
+  document.getElementById("loginUserSelect").focus();
 }
 
 function updateNav() {
@@ -374,6 +444,8 @@ function updateChrome(title, eyebrow) {
   document.getElementById("pageTitle").textContent = title;
   document.getElementById("pageEyebrow").textContent = eyebrow;
   document.getElementById("avatarInitials").textContent = user.initials;
+  document.getElementById("sessionUserName").textContent = user.name;
+  document.getElementById("sessionUserRole").textContent = `${user.title} · ${unitById(user.unitId).short}`;
   document.getElementById("pendingNavCount").textContent = reviewQueue().length;
   renderNotifications();
 }

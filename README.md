@@ -2,16 +2,17 @@
 
 Bản demo mô phỏng các luồng nghiệp vụ chính:
 
-1. Người dùng đăng ký bằng mã do đơn vị cấp; hệ thống tự xác định đơn vị, tạo quyền cán bộ mặc định và đưa tài khoản vào trạng thái chờ xác nhận.
-2. Cán bộ, công chức ghi nhật ký kết quả công việc hằng ngày.
-3. Người đứng đầu đơn vị duyệt, chấm độ phức tạp và chất lượng trên thang 1–10.
-4. Lãnh đạo tỉnh hoặc lãnh đạo đơn vị xem dashboard theo phạm vi được phân quyền; biểu đồ so sánh nhiều đơn vị được chia thành hai nhóm song song để giữ trang gọn và dễ đọc.
-5. Cá nhân tự chấm, người có thẩm quyền duyệt điểm và xếp loại tháng.
-6. Quản trị viên tạo/khóa mã đăng ký, xác nhận tài khoản, mô phỏng điều chuyển nhân sự và ủy quyền có thời hạn.
-7. Xuất bảng tổng hợp tháng dưới dạng CSV.
-8. Lãnh đạo trả lại nhật ký kèm nhận xét; người ghi sửa, trình lại và lãnh đạo chấm lại, đồng thời giữ lịch sử các lần bổ sung.
-9. Trung tâm thông báo theo vai trò đưa người dùng đến đúng nhật ký, hồ sơ chờ chấm hoặc tài khoản chờ xác nhận.
-10. Bảng kết quả cho phép sắp xếp theo số kết quả, tổng/bình quân phức tạp, chất lượng và tỷ lệ đạt từ 8 điểm.
+1. Trang chào là màn hình đăng nhập mô phỏng; chọn tài khoản mẫu sẽ tự điền mật khẩu tương ứng hoặc mở đăng ký bằng mã đơn vị.
+2. Người dùng đăng ký bằng mã do đơn vị cấp; hệ thống tự xác định đơn vị, tạo quyền cán bộ mặc định và đưa tài khoản vào trạng thái chờ xác nhận.
+3. Cán bộ, công chức ghi nhật ký kết quả công việc hằng ngày.
+4. Người đứng đầu đơn vị duyệt, chấm độ phức tạp và chất lượng trên thang 1–10.
+5. Lãnh đạo tỉnh hoặc lãnh đạo đơn vị xem dashboard theo phạm vi được phân quyền; biểu đồ so sánh nhiều đơn vị được chia thành hai nhóm song song để giữ trang gọn và dễ đọc.
+6. Cá nhân tự chấm, người có thẩm quyền duyệt điểm và xếp loại tháng.
+7. Quản trị viên tạo/khóa mã đăng ký, xác nhận tài khoản, mô phỏng điều chuyển nhân sự và ủy quyền có thời hạn.
+8. Xuất bảng tổng hợp tháng dưới dạng CSV.
+9. Lãnh đạo trả lại nhật ký kèm nhận xét; người ghi sửa, trình lại và lãnh đạo chấm lại, đồng thời giữ lịch sử các lần bổ sung.
+10. Trung tâm thông báo theo vai trò đưa người dùng đến đúng nhật ký, hồ sơ chờ chấm hoặc tài khoản chờ xác nhận.
+11. Bảng kết quả cho phép sắp xếp theo số kết quả, tổng/bình quân phức tạp, chất lượng và tỷ lệ đạt từ 8 điểm.
 
 Dữ liệu nhật ký mô phỏng gồm hơn 1.200 bản ghi trong 6 tháng, trải trên toàn bộ đơn vị, nhiều lĩnh vực công tác, trạng thái duyệt và mức điểm khác nhau. Bộ lọc kỳ báo cáo và biểu đồ xu hướng được tính trực tiếp từ tập dữ liệu này để trình diễn tải dữ liệu ở quy mô trung bình lớn.
 
@@ -27,7 +28,7 @@ Sau đó mở `http://localhost:8080`.
 
 ## Tài khoản mô phỏng
 
-Chọn vai trò ở góc trên bên phải để thử:
+Chọn tài khoản ngay trên màn hình đăng nhập; mật khẩu demo tương ứng được điền tự động:
 
 - Viện trưởng tỉnh: xem toàn tỉnh và duyệt nhật ký của cấp dưới trực tiếp.
 - Phó Viện trưởng tỉnh: xem các đơn vị được phân công và đánh giá người đứng đầu.

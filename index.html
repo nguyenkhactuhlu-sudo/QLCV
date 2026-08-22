@@ -7,8 +7,53 @@
   <title>Demo quản lý công việc VKSND tỉnh</title>
   <link rel="stylesheet" href="styles.css">
 </head>
-<body>
-  <div class="app-shell">
+<body class="login-active">
+  <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
+    <img class="login-lotus" src="assets/lotus.webp" alt="" aria-hidden="true">
+    <div class="login-layout">
+      <div class="login-brand-panel">
+        <div class="login-emblem-stage" aria-hidden="true">
+          <span class="login-wave wave-one"></span>
+          <span class="login-wave wave-two"></span>
+          <span class="login-wave wave-three"></span>
+          <div class="login-emblem-glass"><img src="assets/logo-kiem-sat.png" alt=""></div>
+        </div>
+        <div class="login-brand-copy">
+          <span>VIỆN KIỂM SÁT NHÂN DÂN TỈNH</span>
+          <h1>Hệ thống nhật ký<br>và đánh giá công việc</h1>
+          <p>Ghi nhận kết quả hằng ngày · Đánh giá đúng thẩm quyền · Điều hành bằng số liệu</p>
+        </div>
+      </div>
+
+      <div class="login-card">
+        <div class="login-card-heading">
+          <span class="eyebrow">BẢN TRÌNH DIỄN</span>
+          <h2 id="loginTitle">Đăng nhập hệ thống</h2>
+          <p>Chọn một tài khoản mẫu. Mật khẩu tương ứng đã được điền sẵn để thuận tiện trình chiếu.</p>
+        </div>
+        <form id="demoLoginForm" class="login-form">
+          <label class="field">
+            <span>Tài khoản demo</span>
+            <select id="loginUserSelect" aria-label="Chọn tài khoản đăng nhập"></select>
+          </label>
+          <label class="field">
+            <span>Mật khẩu</span>
+            <div class="password-field"><input id="loginPassword" type="password" autocomplete="current-password" required><button type="button" id="toggleLoginPassword" aria-label="Hiện mật khẩu">Hiện</button></div>
+          </label>
+          <div class="saved-password-note"><span>✓</span><p><strong>Mật khẩu demo đã lưu sẵn</strong><small>Chỉ dùng để mô phỏng, không phải cơ chế bảo mật thật.</small></p></div>
+          <button class="button button-primary login-submit" type="submit">Đăng nhập</button>
+        </form>
+        <div class="quick-account-section">
+          <div class="quick-account-heading"><span>Chọn nhanh vai trò</span><small>Bấm để điền tài khoản</small></div>
+          <div class="quick-account-grid" id="demoAccountCards"></div>
+        </div>
+        <div class="login-register"><span>Chưa có tài khoản?</span><button type="button" id="openRegister">Đăng ký bằng mã đơn vị</button></div>
+      </div>
+    </div>
+    <div class="login-footer"><span>Bản demo phục vụ xem xét phương án</span><span>Dữ liệu thao tác chỉ lưu trên trình duyệt</span></div>
+  </section>
+
+  <div class="app-shell" id="appShell" hidden>
     <aside class="sidebar" id="sidebar">
       <div class="brand">
         <img class="brand-logo" src="assets/logo-kiem-sat.png" alt="Biểu trưng ngành Kiểm sát nhân dân">
@@ -73,14 +118,11 @@
               <div class="notification-list" id="notificationList"></div>
             </section>
           </div>
-          <button class="button button-secondary register-button" id="openRegister">Đăng ký tài khoản</button>
-          <label class="role-switcher">
-            <span>Chọn tài khoản demo</span>
-            <select id="roleSelect" aria-label="Chọn người dùng demo"></select>
-          </label>
+          <div class="session-user"><strong id="sessionUserName">Người dùng</strong><span id="sessionUserRole">Vai trò</span></div>
           <button class="avatar-button" id="avatarButton" aria-label="Thông tin người dùng">
             <span id="avatarInitials">NM</span>
           </button>
+          <button class="button button-secondary logout-button" id="logoutDemo" type="button">Đổi tài khoản</button>
         </div>
       </header>
 
