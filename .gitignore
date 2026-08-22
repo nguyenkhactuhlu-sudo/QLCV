@@ -20,4 +20,4 @@ soffice.cmd
 soffice_word_export.ps1
 
 # Bản tài liệu cũ đã được thay thế
-outputs/Phuong_an_xay_dung_phan_mem_quan_ly_cong_viec.docx
+outputs/*.docx

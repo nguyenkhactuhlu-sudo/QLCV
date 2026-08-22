@@ -193,6 +193,8 @@ const state = {
   selectedMonthlyUserId: null,
   dashboardUnit: "all",
   dashboardPeriod: "2026-08",
+  dashboardComparisonMode: "unit",
+  dashboardPersonUnit: "all",
   dashboardSummarySort: { key: "count", direction: "desc" },
   monthlyUnit: "all"
 };
@@ -591,44 +593,51 @@ function renderDashboard() {
     </select></label>` : "";
 
   const grouping = provinceScope ? aggregateByUnit(approved) : aggregateByUser(approved, user.unitId);
+  const comparisonMode = provinceScope ? state.dashboardComparisonMode : "person";
+  const personUnitId = state.dashboardPersonUnit === "all" ? null : state.dashboardPersonUnit;
+  const personalGrouping = aggregateVisibleUsers(approved, personUnitId);
+  const comparisonGrouping = comparisonMode === "person" ? personalGrouping : grouping;
   const tableTitle = provinceScope ? "Kết quả theo đơn vị" : "Kết quả theo cán bộ";
 
   document.getElementById("appView").innerHTML = `
-    <div class="demo-notice"><strong>Bản trình diễn</strong><span>Nhân sự và kết quả tháng 6/2026 được trích từ tài liệu đã cung cấp; hơn 1.200 nhật ký chi tiết là dữ liệu mô phỏng để thử nghiệm báo cáo quy mô lớn.</span></div>
-    <div class="toolbar">
+    <div class="demo-notice dashboard-notice"><strong>Bản trình diễn</strong><span>Nhân sự và kết quả tháng 6/2026 được trích từ tài liệu đã cung cấp; hơn 1.200 nhật ký chi tiết là dữ liệu mô phỏng để thử nghiệm báo cáo quy mô lớn.</span></div>
+    <div class="toolbar dashboard-toolbar">
       <label class="filter-field"><span>Kỳ báo cáo</span><select id="dashboardPeriodFilter"><option value="2026-08" ${state.dashboardPeriod === "2026-08" ? "selected" : ""}>Tháng 08/2026</option><option value="2026-Q3" ${state.dashboardPeriod === "2026-Q3" ? "selected" : ""}>Quý III/2026</option><option value="all" ${state.dashboardPeriod === "all" ? "selected" : ""}>6 tháng gần nhất</option></select></label>
       ${unitFilter}
       <div class="spacer"></div>
       <button class="button button-secondary" id="resetDemo">Khôi phục dữ liệu mẫu</button>
     </div>
-    <div class="metric-grid">
-      ${metricCard("Kết quả được xác nhận", approved.length, `${scope.filter(log => log.status === "pending").length} nhật ký chờ đánh giá`, "")}
-      ${metricCard("Tổng điểm phức tạp", complexityTotal.toFixed(0), "Phản ánh khối lượng công việc", "gold")}
-      ${metricCard("Chất lượng có trọng số", quality ? quality.toFixed(1) : "—", "Thang điểm 10", "green")}
-      ${metricCard("Tỷ lệ đã đánh giá", `${reviewRate.toFixed(0)}%`, `${reviewed.length}/${scope.length} nhật ký`, "blue")}
+    <div class="dashboard-summary-bento">
+      <section class="dashboard-kpi-cluster" aria-label="Các chỉ số chính">
+        ${compactMetric("Kết quả xác nhận", approved.length, `${scope.filter(log => log.status === "pending").length} chờ chấm`, "")}
+        ${compactMetric("Tổng phức tạp", complexityTotal.toFixed(0), "Khối lượng", "gold")}
+        ${compactMetric("Chất lượng", quality ? quality.toFixed(1) : "—", "Thang 10", "green")}
+        ${compactMetric("Đã đánh giá", `${reviewRate.toFixed(0)}%`, `${reviewed.length}/${scope.length}`, "blue")}
+      </section>
+      <section class="insight-strip dashboard-insight">
+        ${qualityGauge(quality, scope, approved)}
+      </section>
     </div>
-    <section class="insight-strip">
-      <div><span class="eyebrow">NHẬN ĐỊNH NHANH</span><strong>${quality >= 8 ? "Chất lượng công việc đang ở mức tốt" : "Có chỉ số chất lượng cần theo dõi"}</strong></div>
-      <p>${scope.filter(log => log.status === "pending").length} nhật ký đang chờ xử lý · ${scope.filter(log => log.status === "revision").length} nhật ký cần bổ sung · ${approved.filter(log => log.complexity >= 7 && log.quality >= 8).length} kết quả phức tạp đạt chất lượng cao.</p>
-    </section>
-    <div class="dashboard-grid">
-      <section class="panel">
-        <div class="panel-header"><div><h2>Xu hướng chất lượng 6 tháng</h2><p>Điểm chất lượng có trọng số · thang điểm 10</p></div><span class="chart-unit">Điểm</span></div>
+    <div class="dashboard-grid dashboard-bento">
+      <section class="panel bento-tile bento-trend">
+        <div class="panel-header"><div><h2>Xu hướng chất lượng và phức tạp 6 tháng</h2><p>Hai đường dùng chung thang điểm 1–10 · đường mảnh thể hiện chiều biến động</p></div><span class="chart-unit">Điểm</span></div>
         ${trendChart(trendScope)}
       </section>
-      <section class="panel">
-        <div class="panel-header"><div><h2>Tiến độ đánh giá</h2><p>Tình trạng xử lý nhật ký trong phạm vi đang xem</p></div><span class="chart-unit">${scope.length} nhật ký</span></div>
-        ${reviewStatusChart(scope)}
+      <div class="bento-side-stack">
+        <section class="panel bento-tile bento-distribution">
+          <div class="panel-header"><div><h2>Phân bố chất lượng</h2><p>Nhật ký đã được đánh giá</p></div></div>
+          ${qualityDistribution(approved)}
+        </section>
+        <section class="panel bento-tile bento-progress">
+          <div class="panel-header"><div><h2>Tiến độ đánh giá</h2><p>Tình trạng xử lý nhật ký</p></div><span class="chart-unit">${scope.length} nhật ký</span></div>
+          ${reviewStatusChart(scope)}
+        </section>
+      </div>
+      <section class="panel bento-tile bento-comparison">
+        <div class="panel-header"><div><h2>So sánh chất lượng ${comparisonMode === "unit" ? "theo đơn vị" : "theo cá nhân"}</h2><p>${comparisonMode === "unit" ? "Hai nhóm đơn vị trên cùng thang điểm" : "Xếp theo chất lượng; luôn đọc cùng điểm phức tạp và số kết quả"}</p></div><div class="comparison-controls">${provinceScope ? `<select id="comparisonMode" aria-label="Chọn cách so sánh"><option value="unit" ${comparisonMode === "unit" ? "selected" : ""}>Theo đơn vị</option><option value="person" ${comparisonMode === "person" ? "selected" : ""}>Theo cá nhân</option></select>` : ""}${provinceScope && comparisonMode === "person" ? `<select id="comparisonPersonUnit" aria-label="Lọc đơn vị khi so sánh cá nhân"><option value="all">Tất cả đơn vị</option>${availableUnits.map(unit => `<option value="${unit.id}" ${state.dashboardPersonUnit === unit.id ? "selected" : ""}>${unit.short}</option>`).join("")}</select>` : ""}</div></div>
+        ${comparisonBarChart(comparisonGrouping, comparisonMode === "person" ? 12 : Infinity)}
       </section>
-      <section class="panel">
-        <div class="panel-header"><div><h2>So sánh chất lượng ${provinceScope ? "theo đơn vị" : "theo cán bộ"}</h2><p>${provinceScope ? "Các đơn vị được chia thành hai nhóm để quan sát đồng thời trên cùng thang điểm" : "Mỗi dòng là một cán bộ; thanh màu thể hiện chất lượng, điểm phức tạp hiển thị riêng"}</p></div><span class="chart-unit">Thang 1–10</span></div>
-        ${comparisonBarChart(grouping)}
-      </section>
-      <section class="panel">
-        <div class="panel-header"><div><h2>Phân bố chất lượng</h2><p>Chỉ tính nhật ký đã được đánh giá</p></div></div>
-        ${qualityDistribution(approved)}
-      </section>
-      <section class="panel panel-wide">
+      <section class="panel panel-wide bento-tile bento-summary">
         <div class="panel-header"><div><h2>${tableTitle}</h2><p>Khối lượng, độ phức tạp và chất lượng trong kỳ</p></div></div>
         ${summaryTable(grouping, provinceScope)}
       </section>
@@ -638,6 +647,10 @@ function renderDashboard() {
   document.getElementById("dashboardPeriodFilter").addEventListener("change", event => { state.dashboardPeriod = event.target.value; renderDashboard(); });
   const filter = document.getElementById("dashboardUnitFilter");
   if (filter) filter.addEventListener("change", event => { state.dashboardUnit = event.target.value; renderDashboard(); });
+  const comparisonModeSelect = document.getElementById("comparisonMode");
+  if (comparisonModeSelect) comparisonModeSelect.addEventListener("change", event => { state.dashboardComparisonMode = event.target.value; renderDashboard(); });
+  const comparisonPersonUnit = document.getElementById("comparisonPersonUnit");
+  if (comparisonPersonUnit) comparisonPersonUnit.addEventListener("change", event => { state.dashboardPersonUnit = event.target.value; renderDashboard(); });
   document.querySelectorAll("[data-summary-sort]").forEach(button => button.addEventListener("click", () => {
     const key = button.dataset.summarySort;
     state.dashboardSummarySort = {
@@ -652,16 +665,44 @@ function metricCard(label, value, context, tone) {
   return `<article class="metric-card ${tone}"><span class="metric-label">${label}</span><div class="metric-value">${value}</div><span class="metric-context">${context}</span></article>`;
 }
 
+function compactMetric(label, value, context, tone) {
+  return `<div class="compact-metric ${tone}"><span>${label}</span><strong>${value}</strong><small>${context}</small></div>`;
+}
+
+function qualityGauge(quality, scope, approved) {
+  const score = Number.isFinite(quality) ? quality : 0;
+  const angle = -90 + Math.max(0, Math.min(10, score)) * 18;
+  const message = score >= 8 ? "Chất lượng đang ở mức tốt" : score >= 6.5 ? "Chất lượng ở mức khá" : "Có chỉ số cần theo dõi";
+  return `<div class="gauge-wrap"><div class="gauge-visual"><div class="mini-gauge" aria-label="Chất lượng ${score.toFixed(1)} trên 10"><div class="gauge-dial"></div><span class="gauge-needle" style="transform:rotate(${angle}deg)"></span><i></i><small class="gauge-min">0</small><small class="gauge-mid">5</small><small class="gauge-max">10</small></div><div class="gauge-reading"><strong>${score ? score.toFixed(1) : "—"}</strong><span>/10</span></div><span>Điểm chất lượng tổng hợp</span></div><div class="gauge-copy"><span class="eyebrow">NHẬN ĐỊNH NHANH</span><strong>${message}</strong><p>${scope.filter(log => log.status === "pending").length} chờ xử lý · ${scope.filter(log => log.status === "revision").length} cần bổ sung · ${approved.filter(log => log.complexity >= 7 && log.quality >= 8).length} nổi bật</p></div></div>`;
+}
+
 function trendChart(sourceLogs) {
   const periods = ["2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08"];
   const months = ["T3", "T4", "T5", "T6", "T7", "T8"];
-  const values = periods.map(period => weightedQuality(sourceLogs.filter(log => log.date.startsWith(period))));
-  const width = 620, height = 260, left = 42, right = 18, top = 22, bottom = 38;
-  const x = index => left + index / (values.length - 1) * (width - left - right);
+  const qualityValues = periods.map(period => weightedQuality(sourceLogs.filter(log => log.date.startsWith(period))));
+  const complexityValues = periods.map(period => average(sourceLogs.filter(log => log.date.startsWith(period)).map(log => log.complexity).filter(Number.isFinite)));
+  const width = 620, height = 170, left = 42, right = 18, top = 16, bottom = 32;
+  const x = index => left + index / (qualityValues.length - 1) * (width - left - right);
   const y = value => top + (10 - (value || 5)) / 5 * (height - top - bottom);
-  const points = values.map((value, index) => `${x(index)},${y(value)}`).join(" ");
-  const grid = [6, 7, 8, 9, 10].map(value => `<line class="grid-line" x1="${left}" x2="${width - right}" y1="${y(value)}" y2="${y(value)}"/><text class="tick-label" x="${left - 9}" y="${y(value) + 4}" text-anchor="end">${value}</text>`).join("");
-  return `<svg class="trend-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Xu hướng chất lượng thực tế từ dữ liệu mô phỏng trong 6 tháng">${grid}<polyline class="trend-area" points="${left},${height - bottom} ${points} ${width - right},${height - bottom}"/><polyline class="trend-line" points="${points}"/>${values.map((value, index) => `<g><circle class="trend-point" cx="${x(index)}" cy="${y(value)}" r="5"><title>${months[index]}: ${value ? value.toFixed(1) + " điểm" : "chưa có dữ liệu"}</title></circle><text class="trend-value" x="${x(index)}" y="${y(value) - 11}" text-anchor="middle">${value ? value.toFixed(1) : "—"}</text><text class="tick-label" x="${x(index)}" y="${height - 14}" text-anchor="middle">${months[index]}</text></g>`).join("")}</svg><div class="chart-caption">Mỗi điểm là chất lượng có trọng số tính từ các nhật ký đã xác nhận trong tháng và phạm vi đơn vị đang xem.</div>`;
+  const qualityPoints = qualityValues.map((value, index) => `${x(index)},${y(value)}`).join(" ");
+  const complexityPoints = complexityValues.map((value, index) => `${x(index)},${y(value)}`).join(" ");
+  const horizontalGrid = [6, 7, 8, 9, 10].map(value => `<line class="grid-line" x1="${left}" x2="${width - right}" y1="${y(value)}" y2="${y(value)}"/><text class="tick-label" x="${left - 9}" y="${y(value) + 4}" text-anchor="end">${value}</text>`).join("");
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
+  const squareColumns = Math.max(1, Math.round(plotWidth / (plotHeight / 5)));
+  const squareGrid = Array.from({ length: squareColumns + 1 }, (_, index) => {
+    const gridX = left + index / squareColumns * plotWidth;
+    return `<line class="grid-line square-grid" x1="${gridX}" x2="${gridX}" y1="${top}" y2="${height - bottom}"/>`;
+  }).join("");
+  const monthGrid = qualityValues.map((value, index) => `<line class="grid-line month-grid" x1="${x(index)}" x2="${x(index)}" y1="${top}" y2="${height - bottom}"/>`).join("");
+  const delta = values => values.length > 1 ? values.at(-1) - values.at(-2) : 0;
+  const deltaChip = (label, values, tone) => {
+    const change = delta(values);
+    const direction = change > .04 ? "↑" : change < -.04 ? "↓" : "→";
+    const cls = change > .04 ? "up" : change < -.04 ? "down" : "flat";
+    return `<span class="trend-delta ${cls} ${tone}"><i></i>${label} <strong>${values.at(-1).toFixed(1)}</strong> ${direction} ${Math.abs(change).toFixed(1)}</span>`;
+  };
+  return `<div class="trend-summary">${deltaChip("Chất lượng", qualityValues, "quality")}${deltaChip("Phức tạp", complexityValues, "complexity")}</div><svg class="trend-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Xu hướng chất lượng và độ phức tạp trong 6 tháng"><rect class="trend-plot" x="${left}" y="${top}" width="${plotWidth}" height="${plotHeight}"/>${squareGrid}${horizontalGrid}${monthGrid}<polyline class="trend-line quality" points="${qualityPoints}"/><polyline class="trend-line complexity" points="${complexityPoints}"/>${qualityValues.map((value, index) => `<g><circle class="trend-point quality" cx="${x(index)}" cy="${y(value)}" r="3"><title>${months[index]} · Chất lượng ${value.toFixed(1)}</title></circle><circle class="trend-point complexity" cx="${x(index)}" cy="${y(complexityValues[index])}" r="3"><title>${months[index]} · Phức tạp ${complexityValues[index].toFixed(1)}</title></circle><text class="tick-label" x="${x(index)}" y="${height - 10}" text-anchor="middle">${months[index]}</text></g>`).join("")}</svg><div class="chart-legend trend-legend"><span><i class="legend-line quality"></i>Chất lượng</span><span><i class="legend-line complexity"></i>Phức tạp bình quân</span><span>↑ tăng · ↓ giảm so với tháng trước</span></div>`;
 }
 
 function reviewStatusChart(items) {
@@ -671,18 +712,21 @@ function reviewStatusChart(items) {
   const total = Math.max(1, items.length);
   const a = approved / total * 100;
   const b = (approved + revision) / total * 100;
-  return `<div class="donut-layout"><div class="donut" style="--approved:${a}%;--reviewed:${b}%"><div><strong>${Math.round(a)}%</strong><span>đã xác nhận</span></div></div><div class="donut-legend"><div><i class="legend-swatch swatch-green"></i><span>Đã xác nhận</span><strong>${approved}</strong></div><div><i class="legend-swatch swatch-red"></i><span>Cần bổ sung</span><strong>${revision}</strong></div><div><i class="legend-swatch swatch-gold"></i><span>Chờ đánh giá</span><strong>${pending}</strong></div></div></div><div class="chart-caption">Ưu tiên xử lý nhóm “Chờ đánh giá” trước khi chốt kỳ báo cáo.</div>`;
+  const revisionRate = revision / total * 100;
+  const pendingRate = pending / total * 100;
+  return `<div class="compact-pie-layout"><div class="compact-pie review-pie" style="--p1:${a}%;--p2:${b}%"><div><strong>${Math.round(a)}%</strong><span>đã xác nhận</span></div></div><div class="compact-pie-legend"><div><i class="legend-swatch swatch-green"></i><span>Đã xác nhận</span><strong>${Math.round(a)}% <small>(${approved})</small></strong></div><div><i class="legend-swatch swatch-red"></i><span>Cần bổ sung</span><strong>${Math.round(revisionRate)}% <small>(${revision})</small></strong></div><div><i class="legend-swatch swatch-gold"></i><span>Chờ đánh giá</span><strong>${Math.round(pendingRate)}% <small>(${pending})</small></strong></div></div></div>`;
 }
 
-function comparisonBarChart(rows) {
+function comparisonBarChart(rows, limit = Infinity) {
   if (!rows.length) return `<div class="empty-state"><strong>Chưa có dữ liệu được xác nhận</strong>Hãy chọn phạm vi khác hoặc duyệt thêm nhật ký.</div>`;
   const isUnitComparison = rows.every(row => unitById(row.id));
   if (isUnitComparison) return groupedUnitComparisonChart(rows);
   const sorted = [...rows].sort((a, b) => b.quality - a.quality || b.complexityAvg - a.complexityAvg);
-  return `<div class="comparison-chart"><div class="comparison-head"><span>Đối tượng</span><span>Chất lượng</span><span>Phức tạp</span></div>${sorted.map(row => {
+  const visibleRows = sorted.slice(0, limit);
+  return `<div class="comparison-chart"><div class="comparison-head"><span>Đối tượng</span><span>Chất lượng</span><span>Phức tạp</span></div>${visibleRows.map(row => {
     const tone = row.quality >= 8 ? "green" : row.quality >= 6.5 ? "blue" : "gold";
-    return `<div class="comparison-row"><div class="comparison-label"><strong>${row.label}</strong><span>${row.count} kết quả${row.people > 1 ? ` · ${row.people} người` : ""}</span></div><div class="comparison-score"><div class="bar-track"><div class="bar-fill ${tone}" style="width:${row.quality * 10}%"></div></div><strong>${row.quality.toFixed(1)}</strong></div><span class="complexity-chip">${row.complexityAvg.toFixed(1)}</span></div>`;
-  }).join("")}</div><div class="chart-legend"><span><i class="legend-swatch swatch-green"></i>Chất lượng từ 8</span><span><i class="legend-swatch swatch-blue"></i>Từ 6,5 đến dưới 8</span><span><i class="legend-swatch swatch-gold"></i>Dưới 6,5</span></div>`;
+    return `<div class="comparison-row"><div class="comparison-label"><strong>${row.label}</strong><span>${row.sublabel ? `${row.sublabel} · ` : ""}${row.count} kết quả${row.people > 1 ? ` · ${row.people} người` : ""}</span></div><div class="comparison-score"><div class="bar-track"><div class="bar-fill ${tone}" style="width:${row.quality * 10}%"></div></div><strong>${row.quality.toFixed(1)}</strong></div><span class="complexity-chip">${row.complexityAvg.toFixed(1)}</span></div>`;
+  }).join("")}</div>${sorted.length > visibleRows.length ? `<p class="comparison-limit-note">Đang hiển thị 12 cá nhân có chất lượng cao nhất trong phạm vi đã chọn. Chọn một đơn vị để xem danh sách tập trung hơn.</p>` : ""}<div class="chart-legend"><span><i class="legend-swatch swatch-green"></i>Chất lượng từ 8</span><span><i class="legend-swatch swatch-blue"></i>Từ 6,5 đến dưới 8</span><span><i class="legend-swatch swatch-gold"></i>Dưới 6,5</span></div>`;
 }
 
 function groupedUnitComparisonChart(rows) {
@@ -715,6 +759,14 @@ function aggregateByUser(items, unitId) {
   return users.filter(user => user.unitId === unitId).map(user => {
     const subset = items.filter(item => item.authorId === user.id);
     return aggregateRow(user.id, user.name, subset, 1, user.title);
+  }).filter(row => row.count > 0);
+}
+
+function aggregateVisibleUsers(items, unitId = null) {
+  const visibleUnits = visibleUnitIds();
+  return users.filter(user => user.role !== "administrator" && visibleUnits.includes(user.unitId) && (!unitId || user.unitId === unitId)).map(user => {
+    const subset = items.filter(item => item.authorId === user.id);
+    return aggregateRow(user.id, user.name, subset, 1, `${user.title} · ${unitById(user.unitId).short}`);
   }).filter(row => row.count > 0);
 }
 
@@ -759,8 +811,9 @@ function qualityDistribution(items) {
     { label: "Cần bổ sung (1–4)", count: items.filter(item => item.quality && item.quality < 5).length, cls: "" }
   ];
   const total = Math.max(1, bands.reduce((sum, band) => sum + band.count, 0));
-  return `<div class="bar-list">${bands.map(band => `<div class="bar-row"><div class="bar-label"><span>${band.label}</span><span>${band.count} kết quả</span></div><div class="bar-track"><div class="bar-fill ${band.cls}" style="width:${band.count / total * 100}%"></div></div></div>`).join("")}</div>
-    <div class="detail-section"><h3>Nguyên tắc đọc số liệu</h3><p class="metric-context">Điểm chất lượng được trình bày cùng độ phức tạp; không sử dụng riêng tổng điểm để xếp hạng cá nhân.</p></div>`;
+  const rates = bands.map(band => band.count / total * 100);
+  const p1 = rates[0], p2 = p1 + rates[1], p3 = p2 + rates[2];
+  return `<div class="compact-pie-layout"><div class="compact-pie quality-pie" style="--p1:${p1}%;--p2:${p2}%;--p3:${p3}%"><div><strong>${total}</strong><span>kết quả</span></div></div><div class="compact-pie-legend">${bands.map((band, index) => `<div><i class="legend-swatch ${index === 0 ? "swatch-green" : index === 1 ? "swatch-blue" : index === 2 ? "swatch-gold" : "swatch-red"}"></i><span>${band.label}</span><strong>${Math.round(rates[index])}% <small>(${band.count})</small></strong></div>`).join("")}</div></div>`;
 }
 
 function summaryTable(rows, isUnit) {
@@ -1333,6 +1386,8 @@ function resetDemo() {
   state.selectedMonthlyUserId = null;
   state.dashboardUnit = "all";
   state.dashboardPeriod = "2026-08";
+  state.dashboardComparisonMode = "unit";
+  state.dashboardPersonUnit = "all";
   state.monthlyUnit = "all";
   showToast("Đã khôi phục dữ liệu mẫu.");
   render();
