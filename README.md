@@ -1,0 +1,57 @@
+# Demo nhật ký công tác VKSND tỉnh
+
+Bản demo mô phỏng bảy luồng nghiệp vụ:
+
+1. Người dùng đăng ký bằng mã do đơn vị cấp; hệ thống tự xác định đơn vị, tạo quyền cán bộ mặc định và đưa tài khoản vào trạng thái chờ xác nhận.
+2. Cán bộ, công chức ghi nhật ký kết quả công việc hằng ngày.
+3. Người đứng đầu đơn vị duyệt, chấm độ phức tạp và chất lượng trên thang 1–10.
+4. Lãnh đạo tỉnh hoặc lãnh đạo đơn vị xem dashboard theo phạm vi được phân quyền, với biểu đồ thanh dễ đọc thay cho ma trận phân tán.
+5. Cá nhân tự chấm, người có thẩm quyền duyệt điểm và xếp loại tháng.
+6. Quản trị viên tạo/khóa mã đăng ký, xác nhận tài khoản, mô phỏng điều chuyển nhân sự và ủy quyền có thời hạn.
+7. Xuất bảng tổng hợp tháng dưới dạng CSV.
+
+## Chạy demo
+
+Có thể mở trực tiếp `index.html`, hoặc chạy máy chủ tĩnh tại thư mục này:
+
+```powershell
+python -m http.server 8080
+```
+
+Sau đó mở `http://localhost:8080`.
+
+## Tài khoản mô phỏng
+
+Chọn vai trò ở góc trên bên phải để thử:
+
+- Viện trưởng tỉnh: xem toàn tỉnh và duyệt nhật ký của cấp dưới trực tiếp.
+- Phó Viện trưởng tỉnh: xem các đơn vị được phân công và đánh giá người đứng đầu.
+- Trưởng phòng/Viện trưởng khu vực: xem dashboard đơn vị và duyệt nhật ký cán bộ.
+- Phó Trưởng phòng được ủy quyền: hỗ trợ chấm nhật ký cán bộ.
+- Kiểm sát viên: ghi và xem nhật ký cá nhân.
+- Quản trị hệ thống: tạo/khóa mã đăng ký theo đơn vị, xác nhận tài khoản mới, điều chuyển nhân sự, cấp/thu hồi ủy quyền và xem lịch sử thay đổi.
+
+Mã thử trong demo: `P1-2026-A7K9` (Phòng 1) và `KV1-2026-M4N8` (Khu vực 1). Mã chỉ gán đúng đơn vị và không thể cấp quyền lãnh đạo.
+
+Dữ liệu thay đổi được lưu trong `localStorage` của trình duyệt. Nút **Khôi phục dữ liệu mẫu** đưa demo về trạng thái ban đầu.
+
+## Phạm vi
+
+## Đưa lên GitHub Pages
+
+1. Đẩy `index.html`, `styles.css`, `app.js` và `README.md` lên nhánh chính của repository.
+2. Mở **Settings → Pages**.
+3. Chọn **Deploy from a branch**, nhánh chính và thư mục gốc `/root`.
+4. Lưu cấu hình và sử dụng đường dẫn GitHub Pages được tạo.
+
+Không cần bước build và không cần máy chủ cơ sở dữ liệu.
+
+## Phạm vi dữ liệu
+
+Đây là prototype giao diện và nghiệp vụ, chưa kết nối Google Forms, Google Sheets, Apps Script hay hệ thống đăng nhập thật.
+
+- Họ tên, chức vụ, chức danh, đơn vị và kết quả tháng 6/2026 được trích từ tài liệu người dùng cung cấp.
+- Nhật ký công việc chi tiết, xu hướng biểu đồ, phân công và các thao tác thử nghiệm là dữ liệu mô phỏng.
+- Mọi thay đổi chỉ lưu trong `localStorage` của trình duyệt và không làm thay đổi dữ liệu nguồn.
+
+Nếu repository đặt ở chế độ công khai, cần được người có thẩm quyền xác nhận việc công khai danh sách nhân sự trước khi phát hành đường dẫn.

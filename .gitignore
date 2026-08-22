@@ -1,0 +1,23 @@
+# Tệp nguồn và dữ liệu nội bộ không phát hành
+*.pdf
+*.xlsx
+
+# Tệp tạm của Microsoft Office
+~$*
+
+# Thư mục dựng và kiểm tra cục bộ
+.docx_qa/
+tmp/
+__pycache__/
+*.pyc
+
+# Công cụ sinh tài liệu chỉ dùng cục bộ
+build_*.py
+export_docx_pdf.py
+pdf2image.py
+run_render_docx.py
+soffice.cmd
+soffice_word_export.ps1
+
+# Bản tài liệu cũ đã được thay thế
+outputs/Phuong_an_xay_dung_phan_mem_quan_ly_cong_viec.docx
