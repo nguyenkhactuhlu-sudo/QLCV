@@ -580,6 +580,7 @@ function renderDashboard() {
   const approved = scope.filter(log => log.status === "approved");
   const trendScope = dashboardLogs(true).filter(log => log.status === "approved");
   const complexityTotal = approved.reduce((sum, log) => sum + (log.complexity || 0), 0);
+  const complexityAvg = average(approved.map(log => log.complexity).filter(Number.isFinite));
   const quality = weightedQuality(approved);
   const reviewRate = scope.length ? reviewed.length / scope.length * 100 : 0;
   const title = user.role === "province_head" ? "Tổng quan toàn tỉnh" : user.role === "province_deputy" ? "Các đơn vị được phân công" : user.role === "administrator" ? "Tổng quan dữ liệu demo" : user.role === "staff" ? "Kết quả công tác của tôi" : `Tổng quan ${unitById(user.unitId).short}`;
@@ -609,8 +610,8 @@ function renderDashboard() {
     </div>
     <div class="dashboard-summary-bento">
       <section class="dashboard-kpi-cluster" aria-label="Các chỉ số chính">
-        ${compactMetric("Kết quả xác nhận", approved.length, `${scope.filter(log => log.status === "pending").length} chờ chấm`, "")}
-        ${compactMetric("Tổng phức tạp", complexityTotal.toFixed(0), "Khối lượng", "gold")}
+        ${compactMetric("Tổng công việc", approved.length, `${scope.filter(log => log.status === "pending").length} chờ chấm`, "")}
+        ${compactMetric("Độ phức tạp", complexityAvg ? complexityAvg.toFixed(1) : "—", "Thang 10", "gold")}
         ${compactMetric("Chất lượng", quality ? quality.toFixed(1) : "—", "Thang 10", "green")}
         ${compactMetric("Đã đánh giá", `${reviewRate.toFixed(0)}%`, `${reviewed.length}/${scope.length}`, "blue")}
       </section>
@@ -671,7 +672,7 @@ function compactMetric(label, value, context, tone) {
 
 function qualityGauge(quality, scope, approved) {
   const score = Number.isFinite(quality) ? quality : 0;
-  const angle = 90 - Math.max(0, Math.min(10, score)) * 18;
+  const angle = Math.max(0, Math.min(10, score)) * 18;
   const message = score >= 8 ? "Chất lượng đang ở mức tốt" : score >= 6.5 ? "Chất lượng ở mức khá" : "Có chỉ số cần theo dõi";
   return `<div class="gauge-wrap"><div class="gauge-visual"><div class="mini-gauge" aria-label="Chất lượng ${score.toFixed(1)} trên 10"><div class="gauge-dial"></div><span class="gauge-needle" style="transform:rotate(${angle}deg)"></span><i></i><small class="gauge-min">0</small><small class="gauge-mid">5</small><small class="gauge-max">10</small></div><div class="gauge-reading"><strong>${score ? score.toFixed(1) : "—"}</strong><span>/10</span></div><span>Điểm chất lượng tổng hợp</span></div><div class="gauge-copy"><span class="eyebrow">NHẬN ĐỊNH NHANH</span><strong>${message}</strong><p>${scope.filter(log => log.status === "pending").length} chờ xử lý · ${scope.filter(log => log.status === "revision").length} cần bổ sung · ${approved.filter(log => log.complexity >= 7 && log.quality >= 8).length} nổi bật</p></div></div>`;
 }
