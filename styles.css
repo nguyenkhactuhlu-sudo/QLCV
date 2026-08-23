@@ -363,7 +363,7 @@ h3 { margin-bottom: 4px; font-size: 15px; }
 .gauge-visual { display: grid; justify-items: center; gap: 1px; }
 .gauge-visual > span { color: var(--muted); font-size: 7px; }
 .mini-gauge { position: relative; width: 124px; height: 70px; overflow: hidden; }
-.gauge-dial { position: absolute; top: 5px; left: 0; width: 124px; height: 124px; border-radius: 50%; background: conic-gradient(from 270deg, #eb6a70 0 17%, #f4c34f 17% 33%, #45b77d 33% 50%, transparent 50% 100%); }
+.gauge-dial { position: absolute; top: 5px; left: 0; width: 124px; height: 124px; border-radius: 50%; background: conic-gradient(from 90deg, #eb6a70 0 30%, #f4c34f 30% 60%, #45b77d 60% 100%); }
 .gauge-dial::after { content: ""; position: absolute; inset: 14px; border-radius: 50%; background: #fff; }
 .gauge-needle { position: absolute; z-index: 2; bottom: 10px; left: 15px; width: 47px; height: 1.5px; border-radius: 999px; background: #34495a; transform-origin: 100% 50%; transition: transform .5s ease; }
 .mini-gauge > i { position: absolute; z-index: 3; bottom: 6px; left: 57px; width: 10px; height: 10px; border: 2px solid #fff; border-radius: 50%; background: #34495a; }

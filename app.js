@@ -671,7 +671,7 @@ function compactMetric(label, value, context, tone) {
 
 function qualityGauge(quality, scope, approved) {
   const score = Number.isFinite(quality) ? quality : 0;
-  const angle = -90 + Math.max(0, Math.min(10, score)) * 18;
+  const angle = 90 - Math.max(0, Math.min(10, score)) * 18;
   const message = score >= 8 ? "Chất lượng đang ở mức tốt" : score >= 6.5 ? "Chất lượng ở mức khá" : "Có chỉ số cần theo dõi";
   return `<div class="gauge-wrap"><div class="gauge-visual"><div class="mini-gauge" aria-label="Chất lượng ${score.toFixed(1)} trên 10"><div class="gauge-dial"></div><span class="gauge-needle" style="transform:rotate(${angle}deg)"></span><i></i><small class="gauge-min">0</small><small class="gauge-mid">5</small><small class="gauge-max">10</small></div><div class="gauge-reading"><strong>${score ? score.toFixed(1) : "—"}</strong><span>/10</span></div><span>Điểm chất lượng tổng hợp</span></div><div class="gauge-copy"><span class="eyebrow">NHẬN ĐỊNH NHANH</span><strong>${message}</strong><p>${scope.filter(log => log.status === "pending").length} chờ xử lý · ${scope.filter(log => log.status === "revision").length} cần bổ sung · ${approved.filter(log => log.complexity >= 7 && log.quality >= 8).length} nổi bật</p></div></div>`;
 }
