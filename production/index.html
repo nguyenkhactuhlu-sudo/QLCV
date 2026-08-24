@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Hệ thống quản lý công việc, nhật ký công tác và đánh giá cán bộ VKSND tỉnh">
   <title>QLCV - Hệ thống chính thức</title>
-  <link rel="stylesheet" href="../demo/styles.css?v=20260824-1">
+  <link rel="stylesheet" href="../demo/styles.css?v=20260825-4">
   <script src="./config.js"></script>
-  <script src="../supabase-auth.js?v=20260824-2"></script>
+  <script src="../supabase-auth.js?v=20260825-4"></script>
 </head>
 <body class="login-active">
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
@@ -36,21 +36,11 @@
           <p>Nhập email và mật khẩu.</p>
         </div>
         <form id="demoLoginForm" class="login-form">
-          <label class="field">
-            <span>Tài khoản demo</span>
-            <select id="loginUserSelect" aria-label="Chọn tài khoản đăng nhập"></select>
-          </label>
-          <label class="field">
-            <span>Mật khẩu</span>
-            <div class="password-field"><input id="loginPassword" type="password" autocomplete="current-password" required><button type="button" id="toggleLoginPassword" aria-label="Hiện mật khẩu">Hiện</button></div>
-          </label>
-          <div class="saved-password-note"><span>✓</span><p><strong>Mật khẩu demo đã lưu sẵn</strong><small>Chỉ dùng để mô phỏng, không phải cơ chế bảo mật thật.</small></p></div>
-          <button class="button button-primary login-submit" type="submit">Đăng nhập</button>
+          <label class="field"><span>Email</span><input id="loginEmail" type="email" required></label>
+          <label class="field"><span>Mật khẩu</span><input id="loginPassword" type="password" required></label>
+          <div id="loginError" style="display:none;color:red;font-size:13px;"></div>
+          <button type="submit" id="loginBtn" class="button button-primary login-submit">Đăng nhập</button>
         </form>
-        <div class="quick-account-section">
-          <div class="quick-account-heading"><span>Chọn nhanh vai trò</span><small>Bấm để điền tài khoản</small></div>
-          <div class="quick-account-grid" id="demoAccountCards"></div>
-        </div>
         <div class="login-register"><span>Chưa có tài khoản?</span><button type="button" id="openRegister">Đăng ký bằng mã đơn vị</button></div>
       </div>
     </div>
@@ -95,23 +85,9 @@
         </button>
       </nav>
 
-      <div class="sidebar-note">
-        <span class="status-dot"></span>
-        <div>
-          <strong>Hệ thống chính thức</strong>
-          <span>Dữ liệu thời gian thực từ Supabase</span>
-        </div>
-      </div>
-    </aside>
-
-    <main class="main-content">
-      <header class="topbar">
-        <button class="mobile-menu" id="mobileMenu" aria-label="Mở menu">☰</button>
-        <div class="page-heading">
-          <span class="eyebrow" id="pageEyebrow">BÁO CÁO ĐIỀU HÀNH</span>
-          <h1 id="pageTitle">Tổng quan toàn tỉnh</h1>
-        </div>
-        <div class="topbar-actions">
+      <div class="sidebar-footer">
+        <div class="session-user"><strong id="sessionUserName">Người dùng</strong><span id="sessionUserRole">Vai trò</span></div>
+        <div class="sidebar-footer-actions">
           <div class="notification-center" id="notificationCenter">
             <button class="notification-toggle" id="notificationToggle" type="button" aria-label="Mở thông báo" aria-expanded="false" aria-controls="notificationPanel">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>
@@ -122,11 +98,17 @@
               <div class="notification-list" id="notificationList"></div>
             </section>
           </div>
-          <div class="session-user"><strong id="sessionUserName">Người dùng</strong><span id="sessionUserRole">Vai trò</span></div>
-          <button class="avatar-button" id="avatarButton" aria-label="Thông tin người dùng">
-            <span id="avatarInitials">NM</span>
-          </button>
           <button class="button button-secondary logout-button" id="settingsButton" type="button">Cài đặt</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <button class="mobile-menu" id="mobileMenu" aria-label="Mở menu">☰</button>
+        <div class="page-heading">
+          <span class="eyebrow" id="pageEyebrow">BÁO CÁO ĐIỀU HÀNH</span>
+          <h1 id="pageTitle">Tổng quan toàn tỉnh</h1>
         </div>
       </header>
 
@@ -245,6 +227,6 @@
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="./app.js?v=20260825-2"></script>
+  <script src="./app.js?v=20260825-3"></script>
 </body>
 </html>

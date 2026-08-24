@@ -199,6 +199,18 @@ body.login-active { overflow: hidden; }
 .sidebar-note span { color: rgba(255,255,255,.64); font-size: 11px; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #6ee7a8; box-shadow: 0 0 0 3px rgba(110,231,168,.17); }
 
+/* Chan sidebar gop thong bao/cai dat (thay cho topbar-actions rieng) */
+.sidebar-footer { margin-top: auto; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.12); display: grid; gap: 10px; }
+.sidebar-footer .session-user { max-width: none; text-align: left; }
+.sidebar-footer .session-user strong { color: #fff; font-size: 13px; }
+.sidebar-footer .session-user span { color: rgba(255,255,255,.64); font-size: 11px; }
+.sidebar-footer-actions { display: flex; align-items: center; gap: 10px; }
+.sidebar-footer-actions .notification-toggle { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.2); color: #fff; }
+.sidebar-footer-actions .notification-toggle:hover, .sidebar-footer-actions .notification-toggle[aria-expanded="true"] { background: rgba(255,255,255,.18); border-color: rgba(255,255,255,.32); color: #fff; }
+.sidebar-footer-actions .logout-button { flex: 1; }
+.sidebar-footer .notification-panel { left: 0; right: auto; top: auto; bottom: calc(100% + 12px); max-height: min(480px, calc(100vh - 100px)); overflow-y: auto; }
+.sidebar-footer .notification-panel::before { left: 14px; right: auto; top: auto; bottom: -7px; border: none; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+
 .main-content { margin-left: var(--sidebar); min-width: 0; }
 .topbar {
   min-height: 92px;
@@ -849,11 +861,12 @@ tbody tr:hover { background: #fbfbfc; }
   h1 { font-size: 18px; }
   .avatar-button { display: none; }
   .session-user { margin-left: auto; text-align: left; }
+  .sidebar-footer .session-user { margin-left: 0; }
   .logout-button { flex: 0 0 auto; }
   .topbar-actions { width: 100%; margin-left: 0; flex-wrap: wrap; }
   .notification-center { margin-left: auto; }
-  .notification-panel { position: fixed; top: 122px; right: 16px; left: 16px; width: auto; }
-  .notification-panel::before { display: none; }
+  .notification-panel, .sidebar-footer .notification-panel { position: fixed; top: 122px; right: 16px; left: 16px; bottom: auto; width: auto; max-height: calc(100vh - 140px); }
+  .notification-panel::before, .sidebar-footer .notification-panel::before { display: none; }
   .toolbar .filter-field { width: 100%; flex: 0 0 100%; }
   .toolbar .filter-field select, .toolbar .filter-field input { width: 100%; min-width: 0; }
   .toolbar .spacer { display: none; }

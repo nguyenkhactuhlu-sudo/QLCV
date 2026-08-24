@@ -98,7 +98,7 @@ function showPendingScreen(){
   setVisible($('sidebar'),false);
   var nc=$('notificationCenter');if(nc)nc.hidden=true;
   var mm=$('mobileMenu');if(mm)mm.hidden=true;
-  $('avatarInitials').textContent='?';$('sessionUserName').textContent=U.n;$('sessionUserRole').textContent='Đang chờ xác nhận';
+  $('sessionUserName').textContent=U.n;$('sessionUserRole').textContent='Đang chờ xác nhận';
   $('pageEyebrow').textContent='TÀI KHOẢN MỚI';$('pageTitle').textContent='Đang chờ xác nhận';
   $('appView').innerHTML='<div class="empty-state" style="margin-top:40px"><strong>Tài khoản của bạn đang chờ quản trị viên xác nhận</strong><span>Bạn đã đăng ký thành công bằng mã đơn vị. Quản trị viên sẽ đối chiếu thông tin và kích hoạt tài khoản trong thời gian sớm nhất. Vui lòng quay lại sau.</span></div>';
 }
@@ -129,9 +129,6 @@ function ub(){
   var nc0=$('notificationCenter');if(nc0)nc0.hidden=false;
   var mm0=$('mobileMenu');if(mm0)mm0.hidden=false;
 
-  // Dung 1 anh dai dien chung (logo nganh) thay vi chu cai dau - khong xay
-  // tinh nang tai anh len rieng cho tung nguoi.
-  $('avatarInitials').innerHTML='<img src="../demo/assets/logo-kiem-sat.png" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
   $('sessionUserName').textContent=U.n;
   var un='';if(UNITS.length&&U.uid){var uu=UNITS.find(function(x){return x.id===U.uid});if(uu)un=uu.short_name||uu.code;}
   $('sessionUserRole').textContent=(U.tl||'')+' . '+(un||'');
@@ -1327,7 +1324,6 @@ document.addEventListener('DOMContentLoaded',function(){
   $('journalModal').addEventListener('click',function(e){if(e.target.id==='journalModal')cj()});
   $('journalForm').addEventListener('submit',sj);
   $('settingsButton') && ($('settingsButton').onclick=openAccountModal);
-  $('avatarButton') && ($('avatarButton').onclick=openAccountModal);
   document.querySelectorAll('[data-close-account]').forEach(function(b){b.addEventListener('click',closeAccountModal)});
   $('accountModal') && $('accountModal').addEventListener('click',function(e){if(e.target.id==='accountModal')closeAccountModal()});
   $('accountNameForm') && $('accountNameForm').addEventListener('submit',submitAccountName);

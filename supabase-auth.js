@@ -1,22 +1,17 @@
-// supabase-auth.js - Thay man hinh dang nhap demo bang dang nhap email/mat khau that.
-// Chi phu trach FORM dang nhap; sau khi dang nhap thanh cong se goi window.QLCV_afterLogin
-// (dinh nghia trong app.js cua tung ban) de nap ho so va ve giao dien.
+// supabase-auth.js - Xu ly dang nhap email/mat khau that.
+// Form dang nhap da viet dung san trong index.html, khong can doi/thay the
+// gi nua (truoc day doi form bang JS sau 1.5s gay nhay man hinh sai luc tai
+// trang). Sau khi dang nhap thanh cong se goi window.QLCV_afterLogin (dinh
+// nghia trong app.js cua tung ban) de nap ho so va ve giao dien.
 (function(){
   if(window.VITE_DEMO_MODE!==false)return;
   var URL=window.VITE_SUPABASE_URL||'';
   var KEY=window.VITE_SUPABASE_ANON_KEY||'';
-  window.addEventListener('DOMContentLoaded',function(){setTimeout(setup,1500);});
 
-  function setup(){
-    var h=document.querySelector('.login-card-heading');
-    if(h)h.innerHTML='<span class="eyebrow">HỆ THỐNG CHÍNH THỨC</span><h2>Đăng nhập hệ thống</h2><p>Nhập email và mật khẩu.</p>';
-    var f=document.getElementById('demoLoginForm');if(!f)return;
-    var nf=document.createElement('form');nf.id='demoLoginForm';nf.className='login-form';
-    nf.innerHTML='<label class="field"><span>Email</span><input id="loginEmail" type="email" required></label><label class="field"><span>Mật khẩu</span><input id="loginPassword" type="password" required></label><div id="loginError" style="display:none;color:red;font-size:13px;"></div><button type="submit" id="loginBtn" class="button button-primary login-submit">Đăng nhập</button>';
-    f.parentNode.replaceChild(nf,f);nf.onsubmit=doLogin;
-    var qs=document.querySelector('.quick-account-section');if(qs)qs.style.display='none';
-    var sp=document.querySelector('.saved-password-note');if(sp)sp.style.display='none';
-  }
+  window.addEventListener('DOMContentLoaded',function(){
+    var f=document.getElementById('demoLoginForm');
+    if(f)f.addEventListener('submit',doLogin);
+  });
 
   async function doLogin(e){
     e.preventDefault();
