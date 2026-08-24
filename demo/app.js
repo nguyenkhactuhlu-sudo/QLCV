@@ -1237,7 +1237,7 @@ function renderOrganization() {
   const assignablePeople = users.filter(person => person.accountStatus !== "pending");
   document.getElementById("appView").innerHTML = `<div class="dashboard-grid">
     <section class="panel panel-wide"><div class="panel-header"><div><h2>Cây tổ chức trong demo</h2><p>Hai nhóm đơn vị ngang cấp, cùng trực thuộc VKSND tỉnh</p></div></div><div class="org-tree"><div class="org-root"><strong>VKSND tỉnh</strong><span>Viện trưởng · Các Phó Viện trưởng</span></div><div class="org-branches"><div class="org-column"><h3>Phòng chuyên trách</h3>${departments.map(orgUnitCard).join("")}</div><div class="org-column"><h3>VKSND khu vực</h3>${regionals.map(orgUnitCard).join("")}</div></div></div></section>
-    <section class="panel panel-wide"><div class="panel-header"><div><h2>Gán vai trò và đơn vị</h2><p>Chỉ định chức vụ và đơn vị cho từng tài khoản. Với vai trò Phó Viện trưởng tỉnh, chọn thêm các đơn vị được phân công phụ trách (giữ Ctrl/Cmd để chọn nhiều đơn vị).</p></div></div>${assignRoleTable(assignablePeople)}</section>
+    <section class="panel panel-wide"><div class="panel-header"><div><h2>Gán vai trò và đơn vị</h2><p>Chỉ định chức vụ và đơn vị cho từng tài khoản. Viện trưởng/Phó Viện trưởng tỉnh chọn "Lãnh đạo Viện tỉnh" làm đơn vị. Với vai trò Phó Viện trưởng tỉnh, tick chọn thêm các đơn vị được phân công phụ trách.</p></div></div>${assignRoleTable(assignablePeople)}</section>
     <section class="panel panel-wide"><div class="panel-header"><div><h2>Quy tắc người chấm</h2><p>Không cho phép người dùng tự chấm nhật ký của mình</p></div></div><div class="org-role-list">
       <div class="org-role-row"><strong>Cán bộ, công chức</strong><p>Người đứng đầu đơn vị trực tiếp đánh giá; cấp phó chỉ chấm khi có ủy quyền.</p></div>
       <div class="org-role-row"><strong>Phó lãnh đạo đơn vị</strong><p>Viện trưởng khu vực hoặc Trưởng phòng đánh giá.</p></div>
@@ -1246,36 +1246,66 @@ function renderOrganization() {
     </div></section></div>`;
   document.querySelectorAll("[data-save-role]").forEach(button => button.addEventListener("click", () => saveAccountRole(button.dataset.saveRole)));
   document.querySelectorAll("[data-toggle-active]").forEach(button => button.addEventListener("click", () => toggleAccountActive(button.dataset.toggleActive)));
+  bindRoleSelectToggle();
+}
+
+const LEADERSHIP_UNIT_ID = "province";
+const LEADERSHIP_UNIT_LABEL = "Lãnh đạo Viện tỉnh";
+
+// "province" la don vi cap tinh co san (unitById tra ve "VKSND tinh"), dung
+// lam ten hien thi rieng khi no dong vai tro "don vi" cua Vien truong/Pho
+// Vien truong tinh - nhung nguoi khong thuoc phong/khu vuc nao.
+function unitDisplayName(unitId) {
+  return unitId === LEADERSHIP_UNIT_ID ? LEADERSHIP_UNIT_LABEL : unitById(unitId).short;
 }
 
 function assignRoleTable(people) {
   if (!people.length) return `<div class="empty-state compact-empty"><strong>Chưa có tài khoản nào</strong></div>`;
   const sorted = people.slice().sort((a, b) => { const aActive = a.active !== false, bActive = b.active !== false; return aActive === bActive ? 0 : (aActive ? 1 : -1); });
-  const unitOptions = units.filter(unit => unit.type !== "province");
-  return `<div class="table-wrap"><table><thead><tr><th>Họ và tên</th><th>Trạng thái</th><th>Vai trò</th><th>Đơn vị</th><th>Đơn vị phụ trách (nếu là Phó VT tỉnh)</th><th></th></tr></thead><tbody>${sorted.map(person => {
+  // Don vi that (phong/khu vuc) - dung lam danh sach "don vi phu trach".
+  const deptUnits = units.filter(unit => unit.type !== "province");
+  // Vien truong/Pho Vien truong tinh khong thuoc phong/khu vuc nao - them
+  // muc rieng tro ve don vi cap tinh de co the chon lam "Don vi" cua ho.
+  const homeUnitOptions = [{ id: LEADERSHIP_UNIT_ID, short: LEADERSHIP_UNIT_LABEL }, ...deptUnits];
+  return `<div class="table-wrap"><table><thead><tr><th>Họ và tên</th><th>Trạng thái</th><th>Vai trò</th><th>Đơn vị</th><th>Đơn vị phụ trách (Phó VT tỉnh)</th><th></th></tr></thead><tbody>${sorted.map(person => {
     const roleSel = `<select data-role-select="${person.id}">${ROLE_OPTIONS.map(role => `<option value="${role}" ${person.role === role ? "selected" : ""}>${ROLE_LABELS[role]}</option>`).join("")}</select>`;
-    const unitSel = `<select data-unit-select="${person.id}">${unitOptions.map(unit => `<option value="${unit.id}" ${person.unitId === unit.id ? "selected" : ""}>${unit.short}</option>`).join("")}</select>`;
+    const unitSel = `<select data-unit-select="${person.id}">${homeUnitOptions.map(unit => `<option value="${unit.id}" ${person.unitId === unit.id ? "selected" : ""}>${unit.short}</option>`).join("")}</select>`;
     const assigned = person.assignedUnits || [];
-    const assignSel = `<select multiple size="3" data-assigned-select="${person.id}">${unitOptions.map(unit => `<option value="${unit.id}" ${assigned.includes(unit.id) ? "selected" : ""}>${unit.short}</option>`).join("")}</select>`;
+    const isDeputy = person.role === "province_deputy";
+    const checklist = `<div class="unit-checklist" data-assigned-checklist="${person.id}" style="display:${isDeputy ? "" : "none"}">${deptUnits.map(unit => `<label><input type="checkbox" value="${unit.id}" ${assigned.includes(unit.id) ? "checked" : ""}> ${unit.short}</label>`).join("")}</div>`
+      + `<span class="unit-checklist-empty" data-assigned-empty="${person.id}" style="display:${isDeputy ? "none" : ""}">Chỉ áp dụng cho Phó Viện trưởng tỉnh</span>`;
     const isSelf = person.id === currentUser().id;
     const active = person.active !== false;
     const lockBtn = isSelf ? "" : `<button type="button" class="button button-small ${active ? "button-danger" : "button-secondary"}" data-toggle-active="${person.id}">${active ? "Khoá" : "Mở lại"}</button>`;
-    return `<tr><td><strong>${person.name}</strong></td><td><span class="status-pill ${active ? "status-approved" : "status-pending"}">${active ? "Đang hoạt động" : "Đã khoá"}</span></td><td>${roleSel}</td><td>${unitSel}</td><td>${assignSel}</td><td class="numeric"><button class="button button-primary button-small" data-save-role="${person.id}">Lưu</button> ${lockBtn}</td></tr>`;
+    return `<tr><td><strong>${person.name}</strong></td><td><span class="status-pill ${active ? "status-approved" : "status-pending"}">${active ? "Đang hoạt động" : "Đã khoá"}</span></td><td>${roleSel}</td><td>${unitSel}</td><td>${checklist}</td><td class="numeric"><button class="button button-primary button-small" data-save-role="${person.id}">Lưu</button> ${lockBtn}</td></tr>`;
   }).join("")}</tbody></table></div>`;
+}
+
+function bindRoleSelectToggle() {
+  document.querySelectorAll("[data-role-select]").forEach(select => {
+    select.addEventListener("change", () => {
+      const id = select.dataset.roleSelect;
+      const isDeputy = select.value === "province_deputy";
+      const list = document.querySelector(`[data-assigned-checklist="${id}"]`);
+      const empty = document.querySelector(`[data-assigned-empty="${id}"]`);
+      if (list) list.style.display = isDeputy ? "" : "none";
+      if (empty) empty.style.display = isDeputy ? "none" : "";
+    });
+  });
 }
 
 function saveAccountRole(id) {
   const person = userById(id);
   const roleSel = document.querySelector(`[data-role-select="${id}"]`);
   const unitSel = document.querySelector(`[data-unit-select="${id}"]`);
-  const assignedSel = document.querySelector(`[data-assigned-select="${id}"]`);
+  const checklist = document.querySelector(`[data-assigned-checklist="${id}"]`);
   if (!person || !roleSel || !unitSel) return;
-  const oldRole = person.role, oldUnit = unitById(person.unitId).short;
+  const oldRole = person.role, oldUnit = unitDisplayName(person.unitId);
   person.role = roleSel.value;
   person.unitId = unitSel.value;
-  person.assignedUnits = roleSel.value === "province_deputy" ? Array.from(assignedSel.selectedOptions).map(option => option.value) : undefined;
+  person.assignedUnits = roleSel.value === "province_deputy" ? Array.from(checklist.querySelectorAll("input:checked")).map(cb => cb.value) : undefined;
   savePersonnelState();
-  auditEvents.push({ at: new Date().toISOString(), actor: currentUser().name, action: "Gán vai trò và đơn vị", detail: `${person.name}: ${ROLE_LABELS[oldRole]} tại ${oldUnit} → ${ROLE_LABELS[person.role]} tại ${unitById(person.unitId).short}` });
+  auditEvents.push({ at: new Date().toISOString(), actor: currentUser().name, action: "Gán vai trò và đơn vị", detail: `${person.name}: ${ROLE_LABELS[oldRole]} tại ${oldUnit} → ${ROLE_LABELS[person.role]} tại ${unitDisplayName(person.unitId)}` });
   localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(auditEvents));
   showToast("Đã cập nhật vai trò và đơn vị.");
   updateNav();
@@ -1287,7 +1317,7 @@ function toggleAccountActive(id) {
   if (!person || person.id === currentUser().id) return;
   person.active = !(person.active !== false);
   savePersonnelState();
-  auditEvents.push({ at: new Date().toISOString(), actor: currentUser().name, action: person.active ? "Mở lại tài khoản" : "Khoá tài khoản", detail: `${person.name} · ${unitById(person.unitId).short}` });
+  auditEvents.push({ at: new Date().toISOString(), actor: currentUser().name, action: person.active ? "Mở lại tài khoản" : "Khoá tài khoản", detail: `${person.name} · ${unitDisplayName(person.unitId)}` });
   localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(auditEvents));
   showToast(person.active ? "Đã mở lại tài khoản." : "Đã khoá tài khoản.");
   renderOrganization();
