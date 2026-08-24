@@ -208,33 +208,6 @@ body.login-active { overflow: hidden; }
 }
 .nav-item:hover, .nav-item.is-active { color: #fff; background: rgba(255,255,255,.14); }
 .nav-item.is-active { box-shadow: inset 3px 0 0 var(--gold); }
-
-/* Cac tab dieu huong kieu "giay note dan" mem mai hon thay cho vach vang
-   cung nhac - chi ban production dung (".nav-list" von dung chung voi ban
-   demo nen khong sua truc tiep, bao trong ".sidebar-tabs-soft"). Dung
-   selector con chau de dam bao thang do dac ta hon ".nav-item.is-active"
-   goc, khong phu thuoc thu tu khai bao. */
-.sidebar-tabs-soft.nav-list { gap: 9px; }
-.sidebar-tabs-soft .nav-item { border-radius: 6px 14px 14px 6px; transition: transform .15s ease, background .15s ease; }
-.sidebar-tabs-soft .nav-item:hover { background: rgba(255,255,255,.1); }
-.sidebar-tabs-soft .nav-item.is-active {
-  position: relative;
-  background: rgba(255,255,255,.16);
-  box-shadow: 0 6px 16px rgba(6,59,115,.3);
-  transform: rotate(-.4deg);
-}
-.sidebar-tabs-soft .nav-item.is-active::before {
-  content: "";
-  position: absolute;
-  top: -5px;
-  left: 18px;
-  width: 24px;
-  height: 9px;
-  border-radius: 2px;
-  background: rgba(212,175,55,.7);
-  box-shadow: 0 1px 3px rgba(0,0,0,.22);
-  transform: rotate(-5deg);
-}
 .nav-icon { width: 20px; font-size: 18px; text-align: center; }
 .nav-count {
   min-width: 22px;
