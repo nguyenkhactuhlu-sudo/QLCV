@@ -156,6 +156,31 @@ body.login-active { overflow: hidden; }
 .brand strong { font-size: 14px; letter-spacing: .04em; }
 .brand span { margin-top: 2px; color: rgba(255,255,255,.72); font-size: 12px; }
 
+/* The logo/ten he thong dang the mem, tach khoi danh sach dieu huong ben
+   duoi - chi ban production dung class nay (khong sua ".brand" truc tiep
+   vi class do dung chung voi ban demo). Dung selector ghep ".brand.sidebar-
+   brand-soft" de dam bao thang do dac ta hon ".brand", khong phu thuoc thu
+   tu khai bao trong file (tranh lap lai loi da gap voi topbar/notification). */
+.brand.sidebar-brand-soft {
+  position: relative;
+  margin: 0 0 20px;
+  padding: 16px 14px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 16px;
+  background: linear-gradient(150deg, rgba(255,255,255,.14), rgba(255,255,255,.03));
+  box-shadow: 0 10px 26px rgba(6,59,115,.24);
+  overflow: hidden;
+}
+.sidebar-brand-soft::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,.1) 52%, transparent 68%);
+  pointer-events: none;
+}
+.sidebar-brand-soft .brand-logo { position: relative; z-index: 1; }
+.sidebar-brand-soft > div { position: relative; z-index: 1; }
+
 .nav-list { display: grid; gap: 6px; margin-top: 24px; }
 .nav-item {
   width: 100%;
@@ -199,14 +224,13 @@ body.login-active { overflow: hidden; }
 .sidebar-note span { color: rgba(255,255,255,.64); font-size: 11px; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #6ee7a8; box-shadow: 0 0 0 3px rgba(110,231,168,.17); }
 
-/* Chan sidebar chi con ten/vai tro dang dang nhap */
+/* Chan sidebar - dong chu ghi nguon, khong con hien ten/vai tro dang nhap */
 .sidebar-footer { margin-top: auto; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.12); }
-.sidebar-footer .session-user { max-width: none; text-align: left; }
-.sidebar-footer .session-user strong { color: #fff; font-size: 13px; }
-.sidebar-footer .session-user span { color: rgba(255,255,255,.64); font-size: 11px; }
+.sidebar-footer-credit span { display: block; color: rgba(255,255,255,.5); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
+.sidebar-footer-credit strong { display: block; margin-top: 3px; color: rgba(255,255,255,.88); font-size: 12px; font-weight: 600; }
 
 /* Chuong thong bao noi co dinh o goc tren-phai man hinh, tach khoi topbar/sidebar */
-.notification-center-floating { position: fixed; top: 20px; right: 24px; z-index: 45; }
+.notification-center.notification-center-floating { position: fixed; top: 20px; right: 24px; z-index: 45; }
 .notification-center-floating .notification-toggle { box-shadow: 0 6px 16px rgba(15,44,73,.16); }
 
 /* Bo han topbar tieu de trang cho gon (chi ban production dung class nay,
@@ -866,12 +890,11 @@ tbody tr:hover { background: #fbfbfc; }
   h1 { font-size: 18px; }
   .avatar-button { display: none; }
   .session-user { margin-left: auto; text-align: left; }
-  .sidebar-footer .session-user { margin-left: 0; }
   .logout-button { flex: 0 0 auto; }
   .topbar-actions { width: 100%; margin-left: 0; flex-wrap: wrap; }
   .notification-center { margin-left: auto; }
-  .notification-panel, .sidebar-footer .notification-panel { position: fixed; top: 122px; right: 16px; left: 16px; bottom: auto; width: auto; max-height: calc(100vh - 140px); }
-  .notification-panel::before, .sidebar-footer .notification-panel::before { display: none; }
+  .notification-panel { position: fixed; top: 122px; right: 16px; left: 16px; bottom: auto; width: auto; max-height: calc(100vh - 140px); }
+  .notification-panel::before { display: none; }
   .toolbar .filter-field { width: 100%; flex: 0 0 100%; }
   .toolbar .filter-field select, .toolbar .filter-field input { width: 100%; min-width: 0; }
   .toolbar .spacer { display: none; }

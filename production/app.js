@@ -98,7 +98,6 @@ function showPendingScreen(){
   setVisible($('sidebar'),false);
   var nc=$('notificationCenter');if(nc)nc.hidden=true;
   var mm=$('mobileMenu');if(mm)mm.hidden=true;
-  $('sessionUserName').textContent=U.n;$('sessionUserRole').textContent='Đang chờ xác nhận';
   $('pageEyebrow').textContent='TÀI KHOẢN MỚI';$('pageTitle').textContent='Đang chờ xác nhận';
   $('appView').innerHTML='<div class="empty-state" style="margin-top:40px"><strong>Tài khoản của bạn đang chờ quản trị viên xác nhận</strong><span>Bạn đã đăng ký thành công bằng mã đơn vị. Quản trị viên sẽ đối chiếu thông tin và kích hoạt tài khoản trong thời gian sớm nhất. Vui lòng quay lại sau.</span></div>';
 }
@@ -129,9 +128,6 @@ function ub(){
   var nc0=$('notificationCenter');if(nc0)nc0.hidden=false;
   var mm0=$('mobileMenu');if(mm0)mm0.hidden=false;
 
-  $('sessionUserName').textContent=U.n;
-  var un='';if(UNITS.length&&U.uid){var uu=UNITS.find(function(x){return x.id===U.uid});if(uu)un=uu.short_name||uu.code;}
-  $('sessionUserRole').textContent=(U.tl||'')+' . '+(un||'');
   setVisible(document.querySelector('.review-nav'),isLeader());
   setVisible(document.querySelector('.admin-nav'),isAdminOrProvinceHead());
   // Co cau to chuc chi danh cho Vien truong tinh va quan tri vien.
@@ -1300,7 +1296,7 @@ async function submitAccountName(e){
     var r=await fetch(API+'rpc/update_own_name',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_full_name:name})});
     var d=await r.json();
     if(!r.ok||d.success===false)throw new Error((d&&d.error)||('HTTP '+r.status));
-    U.n=name;$('sessionUserName').textContent=name;
+    U.n=name;
     showToast('Đã lưu tên hiển thị.');
   }catch(err){showToast('Lỗi: '+err.message)}
 }
