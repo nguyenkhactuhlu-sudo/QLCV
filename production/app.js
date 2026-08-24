@@ -155,6 +155,7 @@ function render(){
   else if(V==='monthly')rm();
   else if(V==='organization')ro();
   else if(V==='administration')ra();
+  else if(V==='settings')rs();
   else rp();
 }
 
@@ -1265,15 +1266,31 @@ async function submitRegistration(e){
 }
 
 // ============================================
-// CAI DAT TAI KHOAN - doi ten, doi mat khau, dang xuat
+// CAI DAT TAI KHOAN - trang that (khong con la hop thoai), doi ten/mat khau/dang xuat
 // ============================================
-function openAccountModal(){
-  if(!requireActive())return;
-  $('accountFullName').value=U.n;
-  $('accountPasswordForm').reset();
-  $('accountModal').hidden=false;
+function rs(){
+  $('pageEyebrow').textContent='TÀI KHOẢN';$('pageTitle').textContent='Cài đặt tài khoản';
+  var h='<div class="panel" style="padding:18px;margin-bottom:14px;max-width:520px">'
+    +'<h3 style="margin:0 0 12px">Họ và tên</h3>'
+    +'<form id="accountNameForm" class="form-grid">'
+    +'<label class="field field-wide"><span>Họ và tên hiển thị</span><input name="fullName" id="accountFullName" value="'+esc(U.n)+'" required></label>'
+    +'<div class="form-actions field-wide"><button type="submit" class="button button-primary">Lưu tên</button></div>'
+    +'</form></div>';
+  h+='<div class="panel" style="padding:18px;margin-bottom:14px;max-width:520px">'
+    +'<h3 style="margin:0 0 12px">Đổi mật khẩu</h3>'
+    +'<form id="accountPasswordForm" class="form-grid">'
+    +'<label class="field"><span>Mật khẩu mới</span><input name="newPassword" type="password" minlength="8" required autocomplete="new-password"></label>'
+    +'<label class="field"><span>Nhập lại mật khẩu mới</span><input name="confirmNewPassword" type="password" minlength="8" required autocomplete="new-password"></label>'
+    +'<div class="form-actions field-wide"><button type="submit" class="button button-primary">Đổi mật khẩu</button></div>'
+    +'</form></div>';
+  h+='<div class="panel" style="padding:18px;max-width:520px">'
+    +'<div class="form-actions field-wide"><button type="button" class="button button-danger" id="accountLogout">Đăng xuất</button></div>'
+    +'</div>';
+  $('appView').innerHTML=h;
+  $('accountNameForm').addEventListener('submit',submitAccountName);
+  $('accountPasswordForm').addEventListener('submit',submitAccountPassword);
+  $('accountLogout').onclick=x;
 }
-function closeAccountModal(){$('accountModal').hidden=true}
 
 async function submitAccountName(e){
   e.preventDefault();
@@ -1304,7 +1321,7 @@ async function submitAccountPassword(e){
 }
 
 function showToast(m){var t=$('toast');if(t){t.textContent=m;t.classList.add('is-visible');setTimeout(function(){t.classList.remove('is-visible')},3000)}}
-function x(){closeNotificationPanel();cj();closeAccountModal();localStorage.removeItem('st');U=null;$('appShell').hidden=true;$('loginScreen').hidden=false;document.body.classList.add('login-active')}
+function x(){closeNotificationPanel();cj();localStorage.removeItem('st');U=null;$('appShell').hidden=true;$('loginScreen').hidden=false;document.body.classList.add('login-active')}
 
 // Cho supabase-auth.js goi vao sau khi dang nhap/khoi phuc phien, khong can qua su kien rieng
 window.QLCV_afterLogin=initU;
@@ -1323,12 +1340,6 @@ document.addEventListener('DOMContentLoaded',function(){
   document.querySelectorAll('[data-close-modal]').forEach(function(b){b.addEventListener('click',cj)});
   $('journalModal').addEventListener('click',function(e){if(e.target.id==='journalModal')cj()});
   $('journalForm').addEventListener('submit',sj);
-  $('settingsButton') && ($('settingsButton').onclick=openAccountModal);
-  document.querySelectorAll('[data-close-account]').forEach(function(b){b.addEventListener('click',closeAccountModal)});
-  $('accountModal') && $('accountModal').addEventListener('click',function(e){if(e.target.id==='accountModal')closeAccountModal()});
-  $('accountNameForm') && $('accountNameForm').addEventListener('submit',submitAccountName);
-  $('accountPasswordForm') && $('accountPasswordForm').addEventListener('submit',submitAccountPassword);
-  $('accountLogout') && ($('accountLogout').onclick=function(){closeAccountModal();x()});
   $('notificationToggle').addEventListener('click',function(){
     var panel=$('notificationPanel');
     panel.hidden=!panel.hidden;

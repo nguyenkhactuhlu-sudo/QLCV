@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Hệ thống quản lý công việc, nhật ký công tác và đánh giá cán bộ VKSND tỉnh">
   <title>QLCV - Hệ thống chính thức</title>
-  <link rel="stylesheet" href="../demo/styles.css?v=20260825-4">
+  <link rel="stylesheet" href="../demo/styles.css?v=20260825-5">
   <script src="./config.js"></script>
   <script src="../supabase-auth.js?v=20260825-4"></script>
 </head>
@@ -48,6 +48,16 @@
   </section>
 
   <div class="app-shell" id="appShell" hidden>
+    <div class="notification-center notification-center-floating" id="notificationCenter">
+      <button class="notification-toggle" id="notificationToggle" type="button" aria-label="Mở thông báo" aria-expanded="false" aria-controls="notificationPanel">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>
+        <span class="notification-badge" id="notificationBadge" hidden>0</span>
+      </button>
+      <section class="notification-panel" id="notificationPanel" aria-label="Thông báo mới" hidden>
+        <div class="notification-header"><div><strong>Thông báo</strong><span id="notificationSummary">Tin mới cần xử lý</span></div><button type="button" id="markAllNotificationsRead">Đánh dấu đã đọc</button></div>
+        <div class="notification-list" id="notificationList"></div>
+      </section>
+    </div>
     <aside class="sidebar" id="sidebar">
       <div class="brand">
         <img class="brand-logo" src="../demo/assets/logo-kiem-sat.png" alt="Biểu trưng ngành Kiểm sát nhân dân">
@@ -83,28 +93,19 @@
           <span class="nav-icon" aria-hidden="true">⚙</span>
           <span>Quản trị nhân sự</span>
         </button>
+        <button class="nav-item" data-view="settings">
+          <span class="nav-icon" aria-hidden="true">⚒</span>
+          <span>Cài đặt</span>
+        </button>
       </nav>
 
       <div class="sidebar-footer">
         <div class="session-user"><strong id="sessionUserName">Người dùng</strong><span id="sessionUserRole">Vai trò</span></div>
-        <div class="sidebar-footer-actions">
-          <div class="notification-center" id="notificationCenter">
-            <button class="notification-toggle" id="notificationToggle" type="button" aria-label="Mở thông báo" aria-expanded="false" aria-controls="notificationPanel">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>
-              <span class="notification-badge" id="notificationBadge" hidden>0</span>
-            </button>
-            <section class="notification-panel" id="notificationPanel" aria-label="Thông báo mới" hidden>
-              <div class="notification-header"><div><strong>Thông báo</strong><span id="notificationSummary">Tin mới cần xử lý</span></div><button type="button" id="markAllNotificationsRead">Đánh dấu đã đọc</button></div>
-              <div class="notification-list" id="notificationList"></div>
-            </section>
-          </div>
-          <button class="button button-secondary logout-button" id="settingsButton" type="button">Cài đặt</button>
-        </div>
       </div>
     </aside>
 
     <main class="main-content">
-      <header class="topbar">
+      <header class="topbar topbar-minimal">
         <button class="mobile-menu" id="mobileMenu" aria-label="Mở menu">☰</button>
         <div class="page-heading">
           <span class="eyebrow" id="pageEyebrow">BÁO CÁO ĐIỀU HÀNH</span>
@@ -197,36 +198,7 @@
     </section>
   </div>
 
-  <div class="modal-backdrop" id="accountModal" hidden>
-    <section class="modal auth-modal" role="dialog" aria-modal="true" aria-labelledby="accountModalTitle">
-      <div class="modal-header">
-        <div><span class="eyebrow">TÀI KHOẢN</span><h2 id="accountModalTitle">Cài đặt tài khoản</h2></div>
-        <button class="icon-button" data-close-account aria-label="Đóng">×</button>
-      </div>
-      <div class="panel" style="padding:18px;margin-bottom:14px">
-        <h3 style="margin:0 0 12px">Họ và tên</h3>
-        <form id="accountNameForm" class="form-grid">
-          <label class="field field-wide"><span>Họ và tên hiển thị</span><input name="fullName" id="accountFullName" required></label>
-          <div class="form-actions field-wide"><button type="submit" class="button button-primary">Lưu tên</button></div>
-        </form>
-      </div>
-      <div class="panel" style="padding:18px;margin-bottom:14px">
-        <h3 style="margin:0 0 12px">Đổi mật khẩu</h3>
-        <form id="accountPasswordForm" class="form-grid">
-          <label class="field"><span>Mật khẩu mới</span><input name="newPassword" type="password" minlength="8" required autocomplete="new-password"></label>
-          <label class="field"><span>Nhập lại mật khẩu mới</span><input name="confirmNewPassword" type="password" minlength="8" required autocomplete="new-password"></label>
-          <div class="form-actions field-wide"><button type="submit" class="button button-primary">Đổi mật khẩu</button></div>
-        </form>
-      </div>
-      <div class="panel" style="padding:18px">
-        <div class="form-actions field-wide">
-          <button type="button" class="button button-danger" id="accountLogout">Đăng xuất</button>
-        </div>
-      </div>
-    </section>
-  </div>
-
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="./app.js?v=20260825-3"></script>
+  <script src="./app.js?v=20260825-4"></script>
 </body>
 </html>
