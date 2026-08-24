@@ -53,6 +53,34 @@ var STATUS_CLASS={pending:'status-pending',approved:'status-approved',revision:'
 
 function catName(id){var c=CATS.find(function(x){return x.id===id});return c?c.name:'—'}
 function shortDate(d){try{return new Intl.DateTimeFormat('vi-VN',{day:'2-digit',month:'2-digit'}).format(new Date(d+'T00:00:00'))}catch(e){return d||''}}
+// Ngay day du "dd/mm/yyyy" tu chuoi "YYYY-MM-DD" (kieu DATE cua Postgres),
+// ghep truc tiep tu chuoi - khong qua Date/locale - de tranh moi rui ro
+// lech mui gio hoac dao thu tu.
+function fullDate(d){if(!d)return '';var p=String(d).split('-');return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:d}
+// Dinh dang co dinh "dd/mm/yyyy, hh:mm", tu ghep chuoi (khong dung
+// toLocaleString mac dinh) de khong bao gio bi dao nguoc theo locale trinh
+// duyet cua nguoi xem.
+function shortDateTime(iso){
+  try{
+    var d=new Date(iso);
+    if(isNaN(d.getTime()))return '';
+    var p2=function(n){return String(n).padStart(2,'0')};
+    return p2(d.getDate())+'/'+p2(d.getMonth()+1)+'/'+d.getFullYear()+', '+p2(d.getHours())+':'+p2(d.getMinutes());
+  }catch(e){return ''}
+}
+// Thoi gian "nop" thuc te cua 1 nhat ky: neu da tung tra lai (revision_count>0)
+// thi tinh theo lan sua/trinh lai gan nhat (updated_at, tu dong cap nhat boi
+// trigger DB), con lai la lan tao dau tien (created_at).
+function submittedAtOf(l){return (l.revision_count?l.updated_at:l.created_at)||l.created_at||l.updated_at}
+// Ghep chuoi "YYYY-MM"/"YYYY-MM-DD" truc tiep tu cac thanh phan gio dia
+// phuong (y, m 0-index nhu Date, d 1-index) - KHONG di qua
+// "new Date(y,m,d).toISOString()", vi cach do quy doi ve UTC va o mui gio
+// UTC+7 (Viet Nam), nua dem ngay 1 dia phuong = 17h ngay cuoi thang truoc
+// trong UTC, gay lech lui 1 thang/1 ngay. Da phat hien loi nay o nhieu noi
+// dung chung mau "new Date(y,m,d).toISOString().slice(...)" (recentPeriods,
+// bieu do xu huong, pham vi ngay cham diem thang...).
+function ymStr(y,m){var mm=((m%12)+12)%12,yy=y+Math.floor(m/12);return yy+'-'+String(mm+1).padStart(2,'0')}
+function ymdStr(y,m,d){return ymStr(y,m)+'-'+String(d).padStart(2,'0')}
 
 // Duoc goi boi supabase-auth.js ngay sau khi dang nhap thanh cong,
 // hoac boi buoc kiem tra phien lam viec khi tai lai trang.
@@ -132,6 +160,7 @@ function ub(){
   var ut0=$('sidebarUserTitle');if(ut0)ut0.textContent=U.tl||ROLE_LABELS[U.rl]||'';
 
   setVisible(document.querySelector('.review-nav'),isLeader());
+  setVisible(document.querySelector('.unit-journal-nav'),isLeader());
   setVisible(document.querySelector('.admin-nav'),isAdminOrProvinceHead());
   // Co cau to chuc chi danh cho Vien truong tinh va quan tri vien.
   setVisible(document.querySelector('.org-nav'),isAdminOrProvinceHead());
@@ -141,6 +170,7 @@ function ub(){
   setVisible(document.querySelector('.monthly-nav'),!isAdminOnly);
 
   if(!isLeader()&&V==='reviews')V='dashboard';
+  if(!isLeader()&&V==='unitJournal')V='dashboard';
   if(!isAdminOrProvinceHead()&&V==='administration')V='dashboard';
   if(!isAdminOrProvinceHead()&&V==='organization')V='dashboard';
   if(isAdminOnly&&(V==='journal'||V==='monthly'))V='dashboard';
@@ -151,6 +181,7 @@ function render(){
   if(V==='dashboard')rd();
   else if(V==='journal')rj();
   else if(V==='reviews')rr();
+  else if(V==='unitJournal')ruj();
   else if(V==='monthly')rm();
   else if(V==='organization')ro();
   else if(V==='administration')ra();
@@ -211,7 +242,7 @@ function dashboardAvailableUnits(){
 
 async function fetchDashboardLogs(){
   var now=new Date();
-  var start=new Date(now.getFullYear(),now.getMonth()-5,1).toISOString().slice(0,10);
+  var start=ymdStr(now.getFullYear(),now.getMonth()-5,1);
   var r=await fetch(API+'work_logs?log_date=gte.'+start+'&select=author_id,unit_id,log_date,status,complexity_score,quality_score&order=log_date.desc',{headers:authHeaders()});
   if(!r.ok)throw new Error('HTTP '+r.status);
   return await r.json();
@@ -284,7 +315,7 @@ function trendChartHtml(sourceLogs){
   var periods=[],monthLabels=[];
   for(var i=5;i>=0;i--){
     var d=new Date(now.getFullYear(),now.getMonth()-i,1);
-    periods.push(d.toISOString().slice(0,7));
+    periods.push(ymStr(now.getFullYear(),now.getMonth()-i));
     monthLabels.push('T'+(d.getMonth()+1));
   }
   var qualityValues=periods.map(function(p){return weightedQualitySnake(sourceLogs.filter(function(l){return l.log_date.indexOf(p)===0}))});
@@ -385,11 +416,13 @@ function summaryTableHtml(rows,isUnit,people){
     return '<th class="numeric sortable-column" aria-sort="'+ariaSort+'"><button type="button" class="sort-button '+(active?'is-active':'')+'" data-summary-sort="'+sortKey+'" title="'+hint+'"><span>'+label+'</span><span class="sort-indicator" aria-hidden="true">'+symbol+'</span></button></th>';
   }
   function personById(id){return people.find(function(p){return p.id===id})}
-  return '<div class="table-sort-help">Chọn tên cột để sắp xếp · nhấn lần nữa để đổi chiều</div><div class="table-wrap"><table><thead><tr><th>'+(isUnit?'Đơn vị':'Cán bộ')+'</th>'+sortableHeader('Kết quả','count')+sortableHeader('Tổng phức tạp','complexityTotal')+sortableHeader('Phức tạp BQ','complexityAvg')+sortableHeader('Chất lượng','quality')+sortableHeader('Tỷ lệ ≥ 8','highQualityRate')+'</tr></thead><tbody>'+sortedRows.map(function(row){
+  var clickable=isLeader();
+  return '<div class="table-sort-help">Chọn tên cột để sắp xếp · nhấn lần nữa để đổi chiều'+(clickable?' · Nhấn 1 dòng để xem nhật ký công tác':'')+'</div><div class="table-wrap"><table><thead><tr><th>'+(isUnit?'Đơn vị':'Cán bộ')+'</th>'+sortableHeader('Kết quả','count')+sortableHeader('Tổng phức tạp','complexityTotal')+sortableHeader('Phức tạp BQ','complexityAvg')+sortableHeader('Chất lượng','quality')+sortableHeader('Tỷ lệ ≥ 8','highQualityRate')+'</tr></thead><tbody>'+sortedRows.map(function(row){
     var firstCell;
     if(isUnit){firstCell='<strong>'+esc(row.label)+'</strong><br><span class="metric-context">'+row.people+' người</span>'}
     else{var p=personById(row.id);firstCell='<div class="person-cell"><span class="mini-avatar">'+esc(p&&p.initials?p.initials:'')+'</span><div><strong>'+esc(row.label)+'</strong><span>'+esc(row.sublabel)+'</span></div></div>'}
-    return '<tr><td>'+firstCell+'</td><td class="numeric">'+row.count+'</td><td class="numeric">'+row.complexityTotal+'</td><td class="numeric">'+row.complexityAvg.toFixed(1)+'</td><td class="numeric"><span class="score-pill '+scoreClassOf(row.quality)+'">'+row.quality.toFixed(1)+'</span></td><td class="numeric">'+(row.highQuality/row.count*100).toFixed(0)+'%</td></tr>';
+    var rowAttr=clickable?(isUnit?' class="summary-row-clickable" data-summary-unit="'+esc(row.id)+'"':' class="summary-row-clickable" data-summary-person="'+esc(row.id)+'"'):'';
+    return '<tr'+rowAttr+'><td>'+firstCell+'</td><td class="numeric">'+row.count+'</td><td class="numeric">'+row.complexityTotal+'</td><td class="numeric">'+row.complexityAvg.toFixed(1)+'</td><td class="numeric"><span class="score-pill '+scoreClassOf(row.quality)+'">'+row.quality.toFixed(1)+'</span></td><td class="numeric">'+(row.highQuality/row.count*100).toFixed(0)+'%</td></tr>';
   }).join('')+'</tbody></table></div>';
 }
 
@@ -427,7 +460,7 @@ async function rd(){
 
   var h='<div class="toolbar dashboard-toolbar">'
     +'<label class="filter-field"><span>Kỳ báo cáo</span><select id="dashboardPeriodFilter">'
-    +'<option value="month" '+(DASHBOARD_PERIOD==='month'?'selected':'')+'>'+esc(periodLabel(new Date().toISOString().slice(0,7)))+'</option>'
+    +'<option value="month" '+(DASHBOARD_PERIOD==='month'?'selected':'')+'>'+esc(periodLabel(ymStr(new Date().getFullYear(),new Date().getMonth())))+'</option>'
     +'<option value="quarter" '+(DASHBOARD_PERIOD==='quarter'?'selected':'')+'>Quý này</option>'
     +'<option value="all" '+(DASHBOARD_PERIOD==='all'?'selected':'')+'>6 tháng gần nhất</option>'
     +'</select></label>'+unitFilterHtml+'<div class="spacer"></div></div>';
@@ -460,6 +493,16 @@ async function rd(){
     var key=b.dataset.summarySort;
     DASHBOARD_SORT={key:key,direction:(DASHBOARD_SORT.key===key&&DASHBOARD_SORT.direction==='desc')?'asc':'desc'};
     rd();
+  })});
+  document.querySelectorAll('[data-summary-unit]').forEach(function(tr){tr.addEventListener('click',function(e){
+    if(e.target.closest('[data-summary-sort]'))return;
+    UJ_UNIT_FILTER=tr.dataset.summaryUnit;UJ_SELECTED_PERSON_ID=null;UJ_MODE='person';
+    setView('unitJournal');render();
+  })});
+  document.querySelectorAll('[data-summary-person]').forEach(function(tr){tr.addEventListener('click',function(e){
+    if(e.target.closest('[data-summary-sort]'))return;
+    UJ_SELECTED_PERSON_ID=tr.dataset.summaryPerson;UJ_MODE='person';
+    setView('unitJournal');render();
   })});
 }
 
@@ -504,7 +547,7 @@ function renderJournalList(){
     +'<option value="approved" '+(JOURNAL_STATUS_FILTER==='approved'?'selected':'')+'>Đã xác nhận</option>'
     +'<option value="revision" '+(JOURNAL_STATUS_FILTER==='revision'?'selected':'')+'>Cần bổ sung</option>'
     +'</select></label><label class="field"><span>Tìm theo nội dung</span><input type="text" id="journalSearchInput" value="'+esc(JOURNAL_SEARCH)+'" placeholder="Nhập từ khoá..."></label></div>';
-  h+='<div class="journal-list">'+(filtered.length?filtered.map(journalCardHtml).join(''):'<div class="empty-state"><strong>Không có nhật ký phù hợp</strong><span>Thử đổi bộ lọc hoặc ghi nhật ký mới.</span></div>')+'</div>';
+  h+='<div class="journal-list">'+(filtered.length?filtered.map(function(l){return journalCardHtml(l)}).join(''):'<div class="empty-state"><strong>Không có nhật ký phù hợp</strong><span>Thử đổi bộ lọc hoặc ghi nhật ký mới.</span></div>')+'</div>';
   $('appView').innerHTML=h;
   $('nj').onclick=function(){oj()};
   document.querySelectorAll('[data-edit-journal]').forEach(function(b){b.addEventListener('click',function(){oj(b.dataset.editJournal)})});
@@ -522,14 +565,16 @@ function renderJournalList(){
 
 function metricCard(label,value,context,tone){return '<article class="metric-card '+(tone||'')+'"><span class="metric-label">'+esc(label)+'</span><div class="metric-value">'+value+'</div><span class="metric-context">'+esc(context)+'</span></article>'}
 
-function journalCardHtml(log){
-  var canEdit=log.status==='revision';
+function journalCardHtml(log,opts){
+  opts=opts||{};
+  var canEdit=log.status==='revision'&&!opts.readOnly;
   var revisionFeedback=log.status==='revision'?'<div class="revision-feedback"><strong>Lãnh đạo yêu cầu bổ sung</strong><span>'+esc(log.review_comment||'Cần chỉnh sửa, làm rõ kết quả công tác.')+'</span></div>':'';
   var resubmission=log.revision_count?'<span class="meta-tag">Đã trình lại '+log.revision_count+' lần</span>':'';
+  var authorTag=opts.authorName?(opts.authorId?'<button type="button" class="meta-tag journal-author-tag" data-uj-jump-person="'+esc(opts.authorId)+'">'+esc(opts.authorName)+'</button>':'<span class="meta-tag journal-author-tag">'+esc(opts.authorName)+'</span>'):'';
   return '<article class="journal-card '+(log.status==='revision'?'is-revision':'')+'">'
     +'<div class="journal-date"><strong>'+shortDate(log.log_date)+'</strong>'+(log.log_date||'').slice(0,4)+'</div>'
     +'<div class="journal-body"><h3>'+esc(log.title)+'</h3><p>'+esc(log.result)+'</p>'+revisionFeedback
-    +'<div class="journal-meta"><span class="meta-tag">'+esc(catName(log.category_id))+'</span><span class="meta-tag">'+esc(WORK_ROLE_LABEL[log.work_role]||log.work_role)+'</span><span class="meta-tag">'+esc(DURATION_LABEL[log.duration]||log.duration)+'</span>'+resubmission+'<span class="status-pill '+(STATUS_CLASS[log.status]||'')+'">'+(STATUS_LABEL[log.status]||log.status)+'</span></div></div>'
+    +'<div class="journal-meta">'+authorTag+'<span class="meta-tag">'+esc(catName(log.category_id))+'</span><span class="meta-tag">'+esc(WORK_ROLE_LABEL[log.work_role]||log.work_role)+'</span><span class="meta-tag">'+esc(DURATION_LABEL[log.duration]||log.duration)+'</span>'+resubmission+'<span class="status-pill '+(STATUS_CLASS[log.status]||'')+'">'+(STATUS_LABEL[log.status]||log.status)+'</span></div></div>'
     +'<div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>'+(log.complexity_score==null?'—':log.complexity_score)+'</strong></div><div class="score-box"><span>Chất lượng</span><strong>'+(log.quality_score==null?'—':log.quality_score)+'</strong></div></div>'
     +(canEdit?'<button type="button" class="button button-primary button-small" data-edit-journal="'+log.id+'">Sửa và trình lại</button>':'')+'</div></article>';
 }
@@ -624,7 +669,7 @@ async function ro(){
   }
   var h='<div class="dashboard-grid">'
     +'<section class="panel panel-wide"><div class="panel-header"><div><h2>Cây tổ chức</h2><p>Hai nhóm đơn vị ngang cấp, cùng trực thuộc VKSND tỉnh</p></div></div><div class="org-tree"><div class="org-root"><strong>VKSND tỉnh</strong><span>Viện trưởng · Các Phó Viện trưởng</span></div><div class="org-branches"><div class="org-column"><h3>Phòng chuyên trách</h3>'+departments.map(orgUnitCardHtml).join('')+'</div><div class="org-column"><h3>VKSND khu vực</h3>'+regionals.map(orgUnitCardHtml).join('')+'</div></div></div></section>'
-    +'<section class="panel panel-wide"><div class="panel-header"><div><h2>Gán vai trò và đơn vị</h2><p>Chỉ định đúng chức vụ và đơn vị cho từng tài khoản. Tài khoản đang chờ xác nhận sẽ được kích hoạt luôn khi gán. Viện trưởng/Phó Viện trưởng tỉnh chọn "Lãnh đạo Viện tỉnh" làm đơn vị. Với vai trò Phó Viện trưởng tỉnh, tick chọn thêm các đơn vị được phân công phụ trách.</p></div></div>'+assignRoleTableHtml(people,assignedByUser)+'</section>'
+    +'<section class="panel panel-wide"><div class="panel-header"><div><h2>Gán vai trò và đơn vị</h2><p>Chỉ định đúng chức vụ và đơn vị cho từng tài khoản, nhóm theo đơn vị. Tài khoản đang chờ xác nhận sẽ được kích hoạt luôn khi gán. Viện trưởng/Phó Viện trưởng tỉnh chọn "Lãnh đạo Viện tỉnh" làm đơn vị. Với vai trò Phó Viện trưởng tỉnh, tick chọn thêm các đơn vị được phân công phụ trách.</p></div></div>'+assignRoleGroupedHtml(people,assignedByUser)+'</section>'
     +'<section class="panel panel-wide"><div class="panel-header"><div><h2>Quy tắc người chấm</h2><p>Không cho phép người dùng tự chấm nhật ký của mình</p></div></div><div class="org-role-list">'
     +'<div class="org-role-row"><strong>Cán bộ, công chức</strong><p>Người đứng đầu đơn vị trực tiếp đánh giá; cấp phó chỉ chấm khi có ủy quyền.</p></div>'
     +'<div class="org-role-row"><strong>Phó lãnh đạo đơn vị</strong><p>Viện trưởng khu vực hoặc Trưởng phòng đánh giá.</p></div>'
@@ -635,6 +680,7 @@ async function ro(){
   document.querySelectorAll('[data-save-role]').forEach(function(b){b.addEventListener('click',function(){saveAccountRole(b.dataset.saveRole)})});
   document.querySelectorAll('[data-toggle-active]').forEach(function(b){b.addEventListener('click',function(){toggleAccountActive(b.dataset.toggleActive,b.dataset.active==='true')})});
   bindRoleSelectToggle();
+  bindAssignRoleSearch();
 }
 
 var ROLE_LABELS={province_head:'Viện trưởng tỉnh',province_deputy:'Phó Viện trưởng tỉnh',unit_head:'Trưởng phòng/Viện trưởng KV',unit_deputy:'Phó phòng/Phó Viện trưởng KV',staff:'Cán bộ/Kiểm sát viên',administrator:'Quản trị viên'};
@@ -660,8 +706,59 @@ function assignRoleTableHtml(people,assignedByUser){
       +'<span class="unit-checklist-empty" data-assigned-empty="'+p.id+'" style="display:'+(isDeputy?'none':'')+'">Chỉ áp dụng cho Phó Viện trưởng tỉnh</span>';
     var isSelf=p.id===U.id;
     var lockBtn=isSelf?'':'<button type="button" class="button button-small '+(p.is_active?'button-danger':'button-secondary')+'" data-toggle-active="'+p.id+'" data-active="'+p.is_active+'">'+(p.is_active?'Khoá':'Mở lại')+'</button>';
-    return '<tr><td><strong>'+esc(p.full_name)+'</strong></td><td><span class="status-pill '+(p.is_active?'status-approved':'status-pending')+'">'+(p.is_active?'Đang hoạt động':'Chờ xác nhận')+'</span></td><td>'+roleSel+'</td><td>'+unitSel+'</td><td>'+checklist+'</td><td class="numeric"><button class="button button-primary button-small" data-save-role="'+p.id+'">Lưu</button> '+lockBtn+'</td></tr>';
+    return '<tr data-person-name="'+esc((p.full_name||'').toLowerCase())+'"><td><strong>'+esc(p.full_name)+'</strong></td><td><span class="status-pill '+(p.is_active?'status-approved':'status-pending')+'">'+(p.is_active?'Đang hoạt động':'Chờ xác nhận')+'</span></td><td>'+roleSel+'</td><td>'+unitSel+'</td><td>'+checklist+'</td><td class="numeric"><button class="button button-primary button-small" data-save-role="'+p.id+'">Lưu</button> '+lockBtn+'</td></tr>';
   }).join('')+'</tbody></table></div>';
+}
+
+// Nhom bang gan vai tro/don vi theo tung don vi (thu tu: Lanh dao Vien
+// tinh, roi Phong, roi Khu vuc - khop thu tu cay to chuc), gap/mo bang
+// <details> de tranh hien toan bo so luong nguoi cung luc, kem o tim ten.
+// Nguoi thieu vai tro HOAC don vi hop le duoc gom rieng vao 1 nhom canh
+// bao dau danh sach thay vi bi rot khoi bang - an toan voi du lieu chua
+// hoan chinh (VD tai khoan vua tao/vua doi don vi giua luc dang xem).
+function assignRoleGroupedHtml(allPeople,assignedByUser){
+  if(!allPeople.length)return '<div class="empty-state compact-empty"><strong>Chưa có tài khoản nào</strong></div>';
+  var validUnitIds={};UNITS.forEach(function(u){validUnitIds[u.id]=true});
+  var isAssigned=function(p){return p.role&&ROLE_LABELS[p.role]&&p.unit_id&&validUnitIds[p.unit_id]};
+  var unassigned=allPeople.filter(function(p){return !isAssigned(p)});
+  var assigned=allPeople.filter(isAssigned);
+  var groupUnits=[];
+  if(PROVINCE_UNIT_ID){
+    var provinceUnit=UNITS.find(function(u){return u.id===PROVINCE_UNIT_ID});
+    if(provinceUnit)groupUnits.push({id:provinceUnit.id,short_name:LEADERSHIP_UNIT_LABEL});
+  }
+  groupUnits=groupUnits.concat(UNITS.filter(function(u){return u.type==='department'}));
+  groupUnits=groupUnits.concat(UNITS.filter(function(u){return u.type==='regional'}));
+
+  var h='<label class="field" style="max-width:320px;margin-bottom:14px"><span>Tìm theo tên</span><input type="text" id="assignRoleSearch" placeholder="Nhập tên..."></label>';
+  if(unassigned.length){
+    h+='<details class="unit-group is-unassigned" open data-role-group><summary><strong>Chưa phân loại (thiếu vai trò hoặc đơn vị)</strong><span>'+unassigned.length+' người</span></summary>'+assignRoleTableHtml(unassigned,assignedByUser)+'</details>';
+  }
+  groupUnits.forEach(function(u){
+    var members=assigned.filter(function(p){return p.unit_id===u.id});
+    if(!members.length)return;
+    h+='<details class="unit-group" data-role-group><summary><strong>'+esc(u.short_name||u.code)+'</strong><span>'+members.length+' người</span></summary>'+assignRoleTableHtml(members,assignedByUser)+'</details>';
+  });
+  return h;
+}
+
+function bindAssignRoleSearch(){
+  var input=$('assignRoleSearch');
+  if(!input)return;
+  input.addEventListener('input',function(){
+    var q=input.value.trim().toLowerCase();
+    document.querySelectorAll('[data-role-group]').forEach(function(group){
+      var rows=group.querySelectorAll('[data-person-name]');
+      var anyMatch=false;
+      rows.forEach(function(row){
+        var match=!q||row.dataset.personName.indexOf(q)>=0;
+        row.style.display=match?'':'none';
+        if(match)anyMatch=true;
+      });
+      if(q)group.open=anyMatch;
+      else if(!group.classList.contains('is-unassigned'))group.open=false;
+    });
+  });
 }
 
 function bindRoleSelectToggle(){
@@ -742,6 +839,28 @@ async function fetchReviewQueue(){
   return pending.filter(function(l){return canReviewLog(l,authorMap[l.author_id])}).map(function(l){l._author=authorMap[l.author_id];return l});
 }
 
+// Gom danh sach cho duyet theo tung tac gia (KSV), xep theo lan nop gan
+// nhat cua tung nguoi; trong 1 nhom sap theo thoi gian nop moi nhat truoc.
+// An toan: neu 1 log khong khop duoc ho so tac gia (VD fetch profiles va
+// fetch work_logs lech thoi diem khi vua co nguoi nop/duoc duyet), gom vao
+// 1 nhom rieng "khong xac dinh tac gia" thay vi lam vo ca danh sach.
+function groupQueueByAuthor(queue){
+  var order=[],byId={};
+  queue.forEach(function(l){
+    var key=l.author_id||'__unknown__';
+    if(!byId[key]){byId[key]={author:l._author||null,items:[]};order.push(key)}
+    byId[key].items.push(l);
+  });
+  var groups=order.map(function(key){return byId[key]});
+  groups.forEach(function(g){g.items.sort(function(a,b){return (submittedAtOf(b)||'').localeCompare(submittedAtOf(a)||'')})});
+  groups.sort(function(a,b){
+    var at=a.items[0]?submittedAtOf(a.items[0]):'';
+    var bt=b.items[0]?submittedAtOf(b.items[0]):'';
+    return (bt||'').localeCompare(at||'');
+  });
+  return groups;
+}
+
 async function rr(){
   $('pageEyebrow').textContent='CHỜ DUYỆT';$('pageTitle').textContent='Duyệt và chấm điểm';
   if(!isLeader()){V='dashboard';render();return}
@@ -754,8 +873,16 @@ async function rr(){
   var selected=queue.find(function(l){return l.id===SELECTED_REVIEW_ID});
   var h='<div class="toolbar"><div><h2>'+queue.length+' nhật ký chờ đánh giá</h2><p class="metric-context">Chỉ hiển thị nhật ký thuộc phạm vi được phân công.</p></div></div>';
   h+='<div class="review-layout"><section><div class="review-queue">';
-  h+=queue.length?queue.map(function(l){
-    return '<button class="queue-item '+(l.id===SELECTED_REVIEW_ID?'is-selected':'')+'" data-review-id="'+l.id+'"><strong>'+esc(l._author.full_name||'')+'</strong>'+(l.revision_count?'<span class="resubmission-badge">Trình lại lần '+l.revision_count+'</span>':'')+'<p>'+esc(l.title)+'</p><span class="queue-meta"><span>'+esc(unitShort(l.unit_id))+'</span><span>'+shortDate(l.log_date)+'</span></span></button>';
+  h+=queue.length?groupQueueByAuthor(queue).map(function(g){
+    var authorName=g.author?esc(g.author.full_name||''):'Không xác định tác giả';
+    var authorUnit=g.author?esc(unitShort(g.author.unit_id)):'';
+    var items=g.items.map(function(l,idx){
+      return '<button class="queue-item '+(l.id===SELECTED_REVIEW_ID?'is-selected':'')+'" data-review-id="'+l.id+'">'
+        +'<span class="queue-index">'+(idx+1)+'</span>'
+        +'<span class="queue-item-body"><p>'+esc(l.title)+'</p><span class="queue-meta">'+(l.revision_count?'<span class="resubmission-badge">Trình lại lần '+l.revision_count+'</span>':'')+'<span>'+shortDateTime(submittedAtOf(l))+'</span></span></span>'
+        +'</button>';
+    }).join('');
+    return '<div class="queue-group"><div class="queue-group-header"><strong>'+authorName+'</strong>'+(authorUnit?'<span>'+authorUnit+'</span>':'')+'</div>'+items+'</div>';
   }).join(''):'<div class="panel empty-state"><strong>Đã xử lý hết</strong><span>Không còn nhật ký chờ đánh giá.</span></div>';
   h+='</div></section><section class="panel review-detail">'+(selected?reviewDetailHtml(selected):'<div class="empty-state"><strong>Không có nhật ký cần xử lý</strong><span>Hãy quay lại khi có nhật ký mới.</span></div>')+'</section></div>';
   $('appView').innerHTML=h;
@@ -846,17 +973,173 @@ async function applyReview(log,status){
 }
 
 // ============================================
+// NHAT KY CONG TAC CUA DON VI - tra cuu lich su day du (khong chi pending)
+// cho lanh dao, theo don vi/pham vi da co san. RLS work_logs (unit/province/
+// assigned) da cho phep xem toan bo trang thai, chi can mo rong truy van.
+// ============================================
+var UJ_MODE='person',UJ_UNIT_FILTER='all',UJ_SEARCH='',UJ_SELECTED_PERSON_ID=null;
+var UJ_PERIOD=ymStr(new Date().getFullYear(),new Date().getMonth());
+var UJ_PEOPLE=[],UJ_LOGS=[];
+
+async function fetchUnitJournalLogs(period){
+  var unitIds=dashboardAvailableUnits().map(function(u){return u.id});
+  if(!unitIds.length)return [];
+  var parts=period.split('-');
+  var start=period+'-01';
+  var end=ymdStr(Number(parts[0]),Number(parts[1]),1);
+  var sel='id,author_id,unit_id,title,result,work_role,duration,evidence,category_id,created_at,updated_at,log_date,status,complexity_score,quality_score,revision_count,review_comment';
+  var r=await fetch(API+'work_logs?unit_id=in.('+unitIds.join(',')+')&log_date=gte.'+start+'&log_date=lt.'+end+'&select='+sel+'&order=log_date.desc,created_at.desc',{headers:authHeaders()});
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  return await r.json();
+}
+
+async function ruj(){
+  $('pageEyebrow').textContent='TRA CỨU';$('pageTitle').textContent='Nhật ký công tác của đơn vị';
+  if(!isLeader()){V='dashboard';render();return}
+  $('appView').innerHTML='<div class="empty-state"><strong>Đang tải...</strong></div>';
+  try{
+    UJ_PEOPLE=await fetchDashboardScopeProfiles();
+    UJ_LOGS=await fetchUnitJournalLogs(UJ_PERIOD);
+  }catch(e){
+    $('appView').innerHTML='<div class="empty-state"><strong>Không tải được dữ liệu</strong><span>'+esc(e.message)+'</span></div>';
+    return;
+  }
+  renderUnitJournalShell();
+}
+
+function ujFilteredPeople(){
+  var list=UJ_UNIT_FILTER==='all'?UJ_PEOPLE:UJ_PEOPLE.filter(function(p){return p.unit_id===UJ_UNIT_FILTER});
+  if(UJ_SEARCH){
+    var q=UJ_SEARCH.toLowerCase();
+    list=list.filter(function(p){return (p.full_name||'').toLowerCase().indexOf(q)>=0});
+  }
+  return list;
+}
+
+function ujFilteredLogs(){
+  return UJ_UNIT_FILTER==='all'?UJ_LOGS:UJ_LOGS.filter(function(l){return l.unit_id===UJ_UNIT_FILTER});
+}
+
+function ujCountsByAuthor(logs){
+  var map={};
+  logs.forEach(function(l){
+    var k=l.author_id;
+    if(!map[k])map[k]={count:0,last:null};
+    map[k].count++;
+    if(!map[k].last||l.log_date>map[k].last)map[k].last=l.log_date;
+  });
+  return map;
+}
+
+// Nhom theo ngay (log_date), moi ngay sap xep theo gio nop moi nhat truoc.
+// An toan: log thieu log_date van duoc gom vao 1 nhom rieng, khong bi rot.
+function groupLogsByDate(logsList){
+  var order=[],byDate={};
+  logsList.forEach(function(l){
+    var key=l.log_date||'__unknown__';
+    if(!byDate[key]){byDate[key]={date:l.log_date||null,items:[]};order.push(key)}
+    byDate[key].items.push(l);
+  });
+  var groups=order.map(function(k){return byDate[k]});
+  groups.forEach(function(g){g.items.sort(function(a,b){return (b.created_at||'').localeCompare(a.created_at||'')})});
+  groups.sort(function(a,b){return (b.date||'').localeCompare(a.date||'')});
+  return groups;
+}
+
+function ujAuthorName(id){
+  var p=UJ_PEOPLE.find(function(x){return x.id===id});
+  return p?p.full_name:'Không xác định';
+}
+
+function renderUnitJournalShell(){
+  var availableUnits=dashboardAvailableUnits();
+  var unitFilterHtml=availableUnits.length>1?'<label class="filter-field"><span>Đơn vị</span><select id="ujUnitFilter">'
+    +'<option value="all">Tất cả đơn vị</option>'+availableUnits.map(function(u){return '<option value="'+u.id+'" '+(UJ_UNIT_FILTER===u.id?'selected':'')+'>'+esc(u.short_name||u.code)+'</option>'}).join('')
+    +'</select></label>':'';
+  var periodFilterHtml='<label class="filter-field"><span>Kỳ</span><select id="ujPeriodFilter">'
+    +recentPeriods().map(function(p){return '<option value="'+p+'" '+(UJ_PERIOD===p?'selected':'')+'>'+esc(periodLabel(p))+'</option>'}).join('')
+    +'</select></label>';
+  var searchHtml=(UJ_MODE==='person'&&!UJ_SELECTED_PERSON_ID)?'<label class="field"><span>Tìm theo tên</span><input type="text" id="ujSearchInput" value="'+esc(UJ_SEARCH)+'" placeholder="Nhập tên..."></label>':'';
+  var h='<div class="toolbar uj-toolbar">'
+    +'<div class="uj-mode-toggle">'
+    +'<button type="button" class="uj-mode-btn '+(UJ_MODE==='person'?'is-active':'')+'" data-uj-mode="person">Theo người</button>'
+    +'<button type="button" class="uj-mode-btn '+(UJ_MODE==='timeline'?'is-active':'')+'" data-uj-mode="timeline">Theo thời gian</button>'
+    +'</div>'+unitFilterHtml+periodFilterHtml+searchHtml+'</div>';
+  h+='<div id="ujContent"></div>';
+  $('appView').innerHTML=h;
+  renderUnitJournalContent();
+  document.querySelectorAll('[data-uj-mode]').forEach(function(b){b.addEventListener('click',function(){UJ_MODE=b.dataset.ujMode;renderUnitJournalShell()})});
+  var unitSel=$('ujUnitFilter');if(unitSel)unitSel.addEventListener('change',function(e){UJ_UNIT_FILTER=e.target.value;UJ_SELECTED_PERSON_ID=null;renderUnitJournalShell()});
+  $('ujPeriodFilter').addEventListener('change',function(e){UJ_PERIOD=e.target.value;ruj()});
+  var searchInput=$('ujSearchInput');
+  if(searchInput)searchInput.addEventListener('input',function(e){
+    UJ_SEARCH=e.target.value;
+    var caret=searchInput.selectionStart;
+    renderUnitJournalContent();
+    var ni=$('ujSearchInput');if(ni){ni.focus();ni.setSelectionRange(caret,caret)}
+  });
+}
+
+function renderUnitJournalContent(){
+  var html;
+  if(UJ_MODE==='timeline')html=renderUjTimelineHtml();
+  else if(UJ_SELECTED_PERSON_ID)html=renderUjPersonDetailHtml(UJ_SELECTED_PERSON_ID);
+  else html=renderUjPersonListHtml();
+  $('ujContent').innerHTML=html;
+  document.querySelectorAll('[data-uj-person]').forEach(function(b){b.addEventListener('click',function(){UJ_SELECTED_PERSON_ID=b.dataset.ujPerson;renderUnitJournalContent()})});
+  var back=$('ujBackToList');if(back)back.addEventListener('click',function(){UJ_SELECTED_PERSON_ID=null;renderUnitJournalContent()});
+  document.querySelectorAll('[data-uj-jump-person]').forEach(function(b){b.addEventListener('click',function(){UJ_MODE='person';UJ_SELECTED_PERSON_ID=b.dataset.ujJumpPerson;renderUnitJournalShell()})});
+}
+
+function renderUjPersonListHtml(){
+  var people=ujFilteredPeople();
+  if(!people.length)return '<div class="empty-state"><strong>Không có ai trong phạm vi này</strong></div>';
+  var counts=ujCountsByAuthor(ujFilteredLogs());
+  return '<div class="uj-person-list">'+people.map(function(p){
+    var c=counts[p.id]||{count:0,last:null};
+    return '<button type="button" class="uj-person-card" data-uj-person="'+p.id+'">'
+      +'<div class="uj-person-info"><strong>'+esc(p.full_name)+'</strong><span>'+esc(p.title||'')+' · '+esc(unitShort(p.unit_id))+'</span></div>'
+      +'<div class="uj-person-stats"><span class="score-pill '+(c.count?'score-mid':'')+'">'+c.count+' nhật ký</span><span class="uj-last-date">'+(c.last?('Gần nhất: '+fullDate(c.last)):'Chưa nộp trong kỳ')+'</span></div>'
+      +'</button>';
+  }).join('')+'</div>';
+}
+
+function renderUjPersonDetailHtml(personId){
+  var person=UJ_PEOPLE.find(function(p){return p.id===personId});
+  var personLogs=UJ_LOGS.filter(function(l){return l.author_id===personId});
+  var groups=groupLogsByDate(personLogs);
+  var h='<div class="uj-back"><button type="button" class="button button-secondary button-small" id="ujBackToList">← Quay lại danh sách</button></div>';
+  h+='<div class="panel-header"><div><h2>'+esc(person?person.full_name:'Không xác định')+'</h2><p>'+esc(person?person.title||'':'')+' · '+esc(person?unitShort(person.unit_id):'')+'</p></div></div>';
+  h+=groups.length?groups.map(function(g){return ujDateGroupHtml(g)}).join(''):'<div class="empty-state"><strong>Không có nhật ký trong kỳ này</strong></div>';
+  return h;
+}
+
+function renderUjTimelineHtml(){
+  var groups=groupLogsByDate(ujFilteredLogs());
+  if(!groups.length)return '<div class="empty-state"><strong>Không có nhật ký trong kỳ này</strong></div>';
+  return groups.map(function(g){return ujDateGroupHtml(g,true)}).join('');
+}
+
+function ujDateGroupHtml(g,showAuthor){
+  var items=g.items.map(function(l,idx){
+    var opts={readOnly:true};
+    if(showAuthor){opts.authorName=ujAuthorName(l.author_id);opts.authorId=l.author_id}
+    return '<div class="uj-numbered-item"><span class="queue-index">'+(idx+1)+'</span>'+journalCardHtml(l,opts)+'</div>';
+  }).join('');
+  return '<div class="uj-date-group"><div class="uj-date-group-header"><strong>'+esc(fullDate(g.date)||'Không xác định ngày')+'</strong><span>'+g.items.length+' việc</span></div><div class="uj-date-items">'+items+'</div></div>';
+}
+
+// ============================================
 // DANH GIA THANG - thang diem 0-100 kem xep loai A/B/C theo quy dinh nganh
 // ============================================
-var CURRENT_PERIOD=new Date().toISOString().slice(0,7);
+var CURRENT_PERIOD=ymStr(new Date().getFullYear(),new Date().getMonth());
 var MONTHLY_ROWS=[],SELECTED_MONTHLY_ID=null,MONTHLY_UNIT_FILTER='all';
 
 function periodLabel(p){var parts=p.split('-');return 'Tháng '+parts[1]+'/'+parts[0]}
 function recentPeriods(){
   var now=new Date(),periods=[];
   for(var i=0;i<6;i++){
-    var d=new Date(now.getFullYear(),now.getMonth()-i,1);
-    periods.push(d.toISOString().slice(0,7));
+    periods.push(ymStr(now.getFullYear(),now.getMonth()-i));
   }
   return periods;
 }
@@ -895,9 +1178,10 @@ async function fetchMonthlyScopeProfiles(){
 
 async function monthlyEvidence(userId){
   var start=CURRENT_PERIOD+'-01';
-  var d=new Date(CURRENT_PERIOD+'-01T00:00:00');
-  var next=new Date(d.getFullYear(),d.getMonth()+1,1);
-  var end=next.toISOString().slice(0,10);
+  var parts=CURRENT_PERIOD.split('-');
+  // parts[1] la thang 1-index (VD "08"); ymdStr nhan thang 0-index nen
+  // Number(parts[1]) (khong -1) chinh la thang KE TIEP theo 0-index.
+  var end=ymdStr(Number(parts[0]),Number(parts[1]),1);
   var items=[];
   try{
     var r=await fetch(API+'work_logs?author_id=eq.'+userId+'&log_date=gte.'+start+'&log_date=lt.'+end+'&select=status,complexity_score,quality_score',{headers:authHeaders()});

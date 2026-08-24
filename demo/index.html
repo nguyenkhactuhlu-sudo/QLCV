@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Bản demo hệ thống quản lý công việc, nhật ký công tác và đánh giá cán bộ VKSND tỉnh">
   <title>Demo quản lý công việc VKSND tỉnh</title>
-  <link rel="stylesheet" href="styles.css?v=20260824-2">
+  <link rel="stylesheet" href="styles.css?v=20260824-3">
 </head>
 <body class="login-active">
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
@@ -93,6 +93,10 @@
           <span class="nav-icon" aria-hidden="true">✓</span>
           <span>Duyệt & chấm điểm</span>
           <span class="nav-count" id="pendingNavCount">0</span>
+        </button>
+        <button class="nav-item unit-journal-nav" data-view="unitJournal">
+          <span class="nav-icon" aria-hidden="true">🗂</span>
+          <span>Nhật ký công tác của đơn vị</span>
         </button>
         <button class="nav-item monthly-nav" data-view="monthly">
           <span class="nav-icon" aria-hidden="true">▤</span>
@@ -220,6 +224,6 @@
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=20260824-2"></script>
+  <script src="app.js?v=20260824-3"></script>
 </body>
 </html>

@@ -229,7 +229,7 @@ const requestedUser = query.get("role");
 const requestedView = query.get("view");
 const state = {
   currentUserId: users.some(user => user.id === requestedUser) ? requestedUser : "u01",
-  currentView: ["dashboard", "journal", "reviews", "monthly", "organization", "administration", "settings"].includes(requestedView) ? requestedView : "dashboard",
+  currentView: ["dashboard", "journal", "reviews", "unitJournal", "monthly", "organization", "administration", "settings"].includes(requestedView) ? requestedView : "dashboard",
   selectedReviewId: null,
   editingJournalId: null,
   selectedMonthlyUserId: null,
@@ -241,7 +241,12 @@ const state = {
   monthlyUnit: "all",
   monthlyPeriod: "2026-06",
   journalStatusFilter: "all",
-  journalSearch: ""
+  journalSearch: "",
+  ujMode: "person",
+  ujUnitFilter: "all",
+  ujSearch: "",
+  ujSelectedPersonId: null,
+  ujPeriod: recentPeriods()[0]
 };
 
 const DEMO_ACCOUNT_IDS = ["u01", "u02", "u03", "u04", "u05", "u08", "u20"];
@@ -311,6 +316,18 @@ function isLeader(user = currentUser()) { return ["province_head", "province_dep
 function isAdministrator(user = currentUser()) { return user.role === "administrator"; }
 function formatDate(date) { return new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(`${date}T00:00:00`)); }
 function shortDate(date) { return new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit" }).format(new Date(`${date}T00:00:00`)); }
+// Dinh dang co dinh "dd/mm/yyyy, hh:mm", tu ghep chuoi (khong dung
+// toLocaleString mac dinh) de khong bao gio bi dao nguoc theo locale trinh
+// duyet cua nguoi xem.
+function shortDateTime(iso) {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const p2 = n => String(n).padStart(2, "0");
+  return `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()}, ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+}
+// Thoi gian "nop" thuc te: neu da tung tra lai (revisionCount>0) tinh theo
+// lan sua/trinh lai gan nhat, con lai la lan tao dau tien.
+function submittedAtOf(log) { return (log.revisionCount ? log.resubmittedAt : log.createdAt) || log.createdAt || log.resubmittedAt; }
 function scoreClass(score) { return score >= 8 ? "score-high" : score >= 6 ? "score-mid" : "score-low"; }
 function statusLabel(status) { return ({ pending: "Chờ đánh giá", approved: "Đã xác nhận", revision: "Cần bổ sung" })[status] || status; }
 function statusClass(status) { return ({ pending: "status-pending", approved: "status-approved", revision: "status-revision" })[status] || ""; }
@@ -503,6 +520,8 @@ function updateNav() {
   const leader = isLeader();
   setVisible(document.querySelector(".review-nav"), leader);
   if (!leader && state.currentView === "reviews") state.currentView = "dashboard";
+  setVisible(document.querySelector(".unit-journal-nav"), leader);
+  if (!leader && state.currentView === "unitJournal") state.currentView = "dashboard";
   const admin = isAdministrator() || currentUser().role === "province_head";
   setVisible(document.querySelector(".admin-nav"), admin);
   if (!admin && state.currentView === "administration") state.currentView = "dashboard";
@@ -627,7 +646,7 @@ function openNotification(button) {
 }
 
 function render() {
-  const renderers = { dashboard: renderDashboard, journal: renderJournal, reviews: renderReviews, monthly: renderMonthly, organization: renderOrganization, administration: renderAdministration, settings: renderSettings };
+  const renderers = { dashboard: renderDashboard, journal: renderJournal, reviews: renderReviews, unitJournal: renderUnitJournal, monthly: renderMonthly, organization: renderOrganization, administration: renderAdministration, settings: renderSettings };
   (renderers[state.currentView] || renderDashboard)();
 }
 
@@ -758,6 +777,16 @@ function renderDashboard() {
       direction: state.dashboardSummarySort.key === key && state.dashboardSummarySort.direction === "desc" ? "asc" : "desc"
     };
     renderDashboard();
+  }));
+  document.querySelectorAll("[data-summary-unit]").forEach(tr => tr.addEventListener("click", event => {
+    if (event.target.closest("[data-summary-sort]")) return;
+    state.ujUnitFilter = tr.dataset.summaryUnit; state.ujSelectedPersonId = null; state.ujMode = "person";
+    state.currentView = "unitJournal"; updateNav(); render();
+  }));
+  document.querySelectorAll("[data-summary-person]").forEach(tr => tr.addEventListener("click", event => {
+    if (event.target.closest("[data-summary-sort]")) return;
+    state.ujSelectedPersonId = tr.dataset.summaryPerson; state.ujMode = "person";
+    state.currentView = "unitJournal"; updateNav(); render();
   }));
 }
 
@@ -931,7 +960,11 @@ function summaryTable(rows, isUnit) {
     const hint = active ? `Đang sắp xếp ${direction === "asc" ? "tăng dần" : "giảm dần"}` : "Nhấn để sắp xếp giảm dần";
     return `<th class="numeric sortable-column" aria-sort="${ariaSort}"><button type="button" class="sort-button ${active ? "is-active" : ""}" data-summary-sort="${sortKey}" title="${hint}"><span>${label}</span><span class="sort-indicator" aria-hidden="true">${symbol}</span></button></th>`;
   };
-  return `<div class="table-sort-help">Chọn tên cột để sắp xếp · nhấn lần nữa để đổi chiều</div><div class="table-wrap"><table><thead><tr><th>${isUnit ? "Đơn vị" : "Cán bộ"}</th>${sortableHeader("Kết quả", "count")}${sortableHeader("Tổng phức tạp", "complexityTotal")}${sortableHeader("Phức tạp BQ", "complexityAvg")}${sortableHeader("Chất lượng", "quality")}${sortableHeader("Tỷ lệ ≥ 8", "highQualityRate")}</tr></thead><tbody>${sortedRows.map(row => `<tr><td>${isUnit ? `<strong>${row.label}</strong><br><span class="metric-context">${row.people} người</span>` : `<div class="person-cell"><span class="mini-avatar">${userById(row.id).initials}</span><div><strong>${row.label}</strong><span>${row.sublabel}</span></div></div>`}</td><td class="numeric">${row.count}</td><td class="numeric">${row.complexityTotal}</td><td class="numeric">${row.complexityAvg.toFixed(1)}</td><td class="numeric"><span class="score-pill ${scoreClass(row.quality)}">${row.quality.toFixed(1)}</span></td><td class="numeric">${(row.highQuality / row.count * 100).toFixed(0)}%</td></tr>`).join("")}</tbody></table></div>`;
+  const clickable = isLeader();
+  return `<div class="table-sort-help">Chọn tên cột để sắp xếp · nhấn lần nữa để đổi chiều${clickable ? " · Nhấn 1 dòng để xem nhật ký công tác" : ""}</div><div class="table-wrap"><table><thead><tr><th>${isUnit ? "Đơn vị" : "Cán bộ"}</th>${sortableHeader("Kết quả", "count")}${sortableHeader("Tổng phức tạp", "complexityTotal")}${sortableHeader("Phức tạp BQ", "complexityAvg")}${sortableHeader("Chất lượng", "quality")}${sortableHeader("Tỷ lệ ≥ 8", "highQualityRate")}</tr></thead><tbody>${sortedRows.map(row => {
+    const rowAttr = clickable ? (isUnit ? ` class="summary-row-clickable" data-summary-unit="${row.id}"` : ` class="summary-row-clickable" data-summary-person="${row.id}"`) : "";
+    return `<tr${rowAttr}><td>${isUnit ? `<strong>${row.label}</strong><br><span class="metric-context">${row.people} người</span>` : `<div class="person-cell"><span class="mini-avatar">${userById(row.id).initials}</span><div><strong>${row.label}</strong><span>${row.sublabel}</span></div></div>`}</td><td class="numeric">${row.count}</td><td class="numeric">${row.complexityTotal}</td><td class="numeric">${row.complexityAvg.toFixed(1)}</td><td class="numeric"><span class="score-pill ${scoreClass(row.quality)}">${row.quality.toFixed(1)}</span></td><td class="numeric">${(row.highQuality / row.count * 100).toFixed(0)}%</td></tr>`;
+  }).join("")}</tbody></table></div>`;
 }
 
 function renderJournal() {
@@ -966,7 +999,7 @@ function renderJournal() {
       </select></label>
       <label class="field"><span>Tìm theo nội dung</span><input type="text" id="journalSearchInput" value="${state.journalSearch}" placeholder="Nhập từ khoá..."></label>
     </div>
-    <div class="journal-list">${filtered.length ? filtered.map(journalCard).join("") : `<div class="empty-state"><strong>Không có nhật ký phù hợp</strong>Thử đổi bộ lọc hoặc ghi nhật ký mới.</div>`}</div>`;
+    <div class="journal-list">${filtered.length ? filtered.map(l => journalCard(l)).join("") : `<div class="empty-state"><strong>Không có nhật ký phù hợp</strong>Thử đổi bộ lọc hoặc ghi nhật ký mới.</div>`}</div>`;
   document.getElementById("newJournal").addEventListener("click", () => openJournalModal());
   document.querySelectorAll("[data-edit-journal]").forEach(button => button.addEventListener("click", () => openJournalModal(button.dataset.editJournal)));
   document.getElementById("journalStatusFilter").addEventListener("change", event => { state.journalStatusFilter = event.target.value; renderJournal(); });
@@ -981,11 +1014,33 @@ function renderJournal() {
   });
 }
 
-function journalCard(log) {
-  const canEdit = log.status === "revision" && log.authorId === currentUser().id;
+function journalCard(log, opts = {}) {
+  const canEdit = log.status === "revision" && log.authorId === currentUser().id && !opts.readOnly;
   const revisionFeedback = log.status === "revision" ? `<div class="revision-feedback"><strong>Lãnh đạo yêu cầu bổ sung</strong><span>${log.comment || "Cần chỉnh sửa, làm rõ kết quả công tác."}</span></div>` : "";
   const resubmission = log.revisionCount ? `<span class="meta-tag">Đã trình lại ${log.revisionCount} lần</span>` : "";
-  return `<article class="journal-card ${log.status === "revision" ? "is-revision" : ""}"><div class="journal-date"><strong>${shortDate(log.date)}</strong>${log.date.slice(0,4)}</div><div class="journal-body"><h3>${log.title}</h3><p>${log.result}</p>${revisionFeedback}<div class="journal-meta"><span class="meta-tag">${log.category}</span><span class="meta-tag">${log.workRole}</span><span class="meta-tag">${log.duration}</span>${resubmission}<span class="status-pill ${statusClass(log.status)}">${statusLabel(log.status)}</span></div></div><div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>${log.complexity ?? "—"}</strong></div><div class="score-box"><span>Chất lượng</span><strong>${log.quality ?? "—"}</strong></div></div>${canEdit ? `<button type="button" class="button button-primary button-small" data-edit-journal="${log.id}">Sửa và trình lại</button>` : ""}</div></article>`;
+  const authorTag = opts.authorName ? (opts.authorId ? `<button type="button" class="meta-tag journal-author-tag" data-uj-jump-person="${opts.authorId}">${opts.authorName}</button>` : `<span class="meta-tag journal-author-tag">${opts.authorName}</span>`) : "";
+  return `<article class="journal-card ${log.status === "revision" ? "is-revision" : ""}"><div class="journal-date"><strong>${shortDate(log.date)}</strong>${log.date.slice(0,4)}</div><div class="journal-body"><h3>${log.title}</h3><p>${log.result}</p>${revisionFeedback}<div class="journal-meta">${authorTag}<span class="meta-tag">${log.category}</span><span class="meta-tag">${log.workRole}</span><span class="meta-tag">${log.duration}</span>${resubmission}<span class="status-pill ${statusClass(log.status)}">${statusLabel(log.status)}</span></div></div><div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>${log.complexity ?? "—"}</strong></div><div class="score-box"><span>Chất lượng</span><strong>${log.quality ?? "—"}</strong></div></div>${canEdit ? `<button type="button" class="button button-primary button-small" data-edit-journal="${log.id}">Sửa và trình lại</button>` : ""}</div></article>`;
+}
+
+// Gom danh sach cho duyet theo tung tac gia (KSV), xep theo lan nop gan
+// nhat cua tung nguoi; trong 1 nhom sap theo thoi gian nop moi nhat truoc.
+// An toan: neu khong tim thay tac gia (du lieu khong khop), gom vao 1 nhom
+// rieng thay vi lam vo danh sach.
+function groupQueueByAuthor(queue) {
+  const order = [], byId = {};
+  queue.forEach(log => {
+    const key = log.authorId || "__unknown__";
+    if (!byId[key]) { byId[key] = { author: userById(log.authorId) || null, items: [] }; order.push(key); }
+    byId[key].items.push(log);
+  });
+  const groups = order.map(key => byId[key]);
+  groups.forEach(g => g.items.sort((a, b) => (submittedAtOf(b) || "").localeCompare(submittedAtOf(a) || "")));
+  groups.sort((a, b) => {
+    const at = a.items[0] ? submittedAtOf(a.items[0]) : "";
+    const bt = b.items[0] ? submittedAtOf(b.items[0]) : "";
+    return (bt || "").localeCompare(at || "");
+  });
+  return groups;
 }
 
 function renderReviews() {
@@ -997,9 +1052,11 @@ function renderReviews() {
   document.getElementById("appView").innerHTML = `
     <div class="toolbar"><div><h2>${queue.length} nhật ký chờ đánh giá</h2><p class="metric-context">Chỉ hiển thị cán bộ, công chức thuộc phạm vi được phân công.</p></div></div>
     <div class="review-layout">
-      <section><div class="review-queue">${queue.length ? queue.map(log => {
-        const author = userById(log.authorId);
-        return `<button class="queue-item ${log.id === state.selectedReviewId ? "is-selected" : ""}" data-review-id="${log.id}"><strong>${author.name}</strong>${log.revisionCount ? `<span class="resubmission-badge">Trình lại lần ${log.revisionCount}</span>` : ""}<p>${log.title}</p><span class="queue-meta"><span>${unitById(log.unitId).short}</span><span>${shortDate(log.date)}</span></span></button>`;
+      <section><div class="review-queue">${queue.length ? groupQueueByAuthor(queue).map(g => {
+        const authorName = g.author ? g.author.name : "Không xác định tác giả";
+        const authorUnit = g.author ? unitById(g.author.unitId).short : "";
+        const items = g.items.map((log, idx) => `<button class="queue-item ${log.id === state.selectedReviewId ? "is-selected" : ""}" data-review-id="${log.id}"><span class="queue-index">${idx + 1}</span><span class="queue-item-body"><p>${log.title}</p><span class="queue-meta">${log.revisionCount ? `<span class="resubmission-badge">Trình lại lần ${log.revisionCount}</span>` : ""}<span>${shortDateTime(submittedAtOf(log))}</span></span></span></button>`).join("");
+        return `<div class="queue-group"><div class="queue-group-header"><strong>${authorName}</strong>${authorUnit ? `<span>${authorUnit}</span>` : ""}</div>${items}</div>`;
       }).join("") : `<div class="panel empty-state"><strong>Đã xử lý hết</strong>Không còn nhật ký chờ đánh giá.</div>`}</div></section>
       <section class="panel review-detail">${selected ? reviewDetail(selected) : `<div class="empty-state"><strong>Không có nhật ký cần xử lý</strong>Hãy quay lại khi có nhật ký mới.</div>`}</section>
     </div>`;
@@ -1083,6 +1140,151 @@ function applyReview(log, status) {
   state.editingJournalId = null;
   showToast(status === "approved" ? "Đã xác nhận và chấm điểm nhật ký." : "Đã gửi yêu cầu bổ sung.");
   renderReviews();
+}
+
+// ============================================
+// NHAT KY CONG TAC CUA DON VI - tra cuu lich su day du (khong chi pending)
+// cho lanh dao, theo don vi/pham vi da co san.
+// ============================================
+function ujScopeUnitIds() { return visibleUnitIds().filter(id => id !== "province"); }
+
+function ujScopePeople() {
+  const user = currentUser();
+  const scopeUnits = ujScopeUnitIds();
+  return users.filter(p => p.role !== "administrator" && scopeUnits.includes(p.unitId) && p.accountStatus !== "pending");
+}
+
+function ujScopeLogs() {
+  const scopeUnits = ujScopeUnitIds();
+  return logs.filter(l => scopeUnits.includes(l.unitId) && l.date.startsWith(state.ujPeriod));
+}
+
+function ujFilteredPeople() {
+  let list = state.ujUnitFilter === "all" ? ujScopePeople() : ujScopePeople().filter(p => p.unitId === state.ujUnitFilter);
+  if (state.ujSearch) {
+    const q = state.ujSearch.toLowerCase();
+    list = list.filter(p => p.name.toLowerCase().includes(q));
+  }
+  return list;
+}
+
+function ujFilteredLogs() {
+  const scoped = ujScopeLogs();
+  return state.ujUnitFilter === "all" ? scoped : scoped.filter(l => l.unitId === state.ujUnitFilter);
+}
+
+function ujCountsByAuthor(logsList) {
+  const map = {};
+  logsList.forEach(l => {
+    if (!map[l.authorId]) map[l.authorId] = { count: 0, last: null };
+    map[l.authorId].count++;
+    if (!map[l.authorId].last || l.date > map[l.authorId].last) map[l.authorId].last = l.date;
+  });
+  return map;
+}
+
+// Nhom theo ngay, moi ngay sap theo gio nop moi nhat truoc. An toan: log
+// thieu ngay van gom vao 1 nhom rieng, khong bi rot khoi danh sach.
+function groupLogsByDate(logsList) {
+  const order = [], byDate = {};
+  logsList.forEach(l => {
+    const key = l.date || "__unknown__";
+    if (!byDate[key]) { byDate[key] = { date: l.date || null, items: [] }; order.push(key); }
+    byDate[key].items.push(l);
+  });
+  const groups = order.map(k => byDate[k]);
+  groups.forEach(g => g.items.sort((a, b) => (submittedAtOf(b) || "").localeCompare(submittedAtOf(a) || "")));
+  groups.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  return groups;
+}
+
+function ujAuthorName(id) {
+  const p = userById(id);
+  return p ? p.name : "Không xác định";
+}
+
+// Ngay day du "dd/mm/yyyy" tu chuoi "YYYY-MM-DD", ghep truc tiep - tranh
+// dao nguoc thu tu theo locale nguoi xem.
+function fullDate(d) { if (!d) return ""; const p = d.split("-"); return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : d; }
+
+function renderUnitJournal() {
+  if (!isLeader()) { state.currentView = "dashboard"; renderDashboard(); return; }
+  updateChrome("Nhật ký công tác của đơn vị", "TRA CỨU");
+  const availableUnits = units.filter(u => ujScopeUnitIds().includes(u.id));
+  const unitFilterHtml = availableUnits.length > 1 ? `<label class="filter-field"><span>Đơn vị</span><select id="ujUnitFilter"><option value="all">Tất cả đơn vị</option>${availableUnits.map(u => `<option value="${u.id}" ${state.ujUnitFilter === u.id ? "selected" : ""}>${u.short}</option>`).join("")}</select></label>` : "";
+  const periodFilterHtml = `<label class="filter-field"><span>Kỳ</span><select id="ujPeriodFilter">${recentPeriods().map(p => `<option value="${p}" ${state.ujPeriod === p ? "selected" : ""}>${periodLabel(p)}</option>`).join("")}</select></label>`;
+  const searchHtml = (state.ujMode === "person" && !state.ujSelectedPersonId) ? `<label class="field"><span>Tìm theo tên</span><input type="text" id="ujSearchInput" value="${state.ujSearch}" placeholder="Nhập tên..."></label>` : "";
+  document.getElementById("appView").innerHTML = `
+    <div class="toolbar uj-toolbar">
+      <div class="uj-mode-toggle">
+        <button type="button" class="uj-mode-btn ${state.ujMode === "person" ? "is-active" : ""}" data-uj-mode="person">Theo người</button>
+        <button type="button" class="uj-mode-btn ${state.ujMode === "timeline" ? "is-active" : ""}" data-uj-mode="timeline">Theo thời gian</button>
+      </div>${unitFilterHtml}${periodFilterHtml}${searchHtml}
+    </div>
+    <div id="ujContent"></div>`;
+  renderUnitJournalContent();
+  document.querySelectorAll("[data-uj-mode]").forEach(b => b.addEventListener("click", () => { state.ujMode = b.dataset.ujMode; renderUnitJournal(); }));
+  const unitSel = document.getElementById("ujUnitFilter");
+  if (unitSel) unitSel.addEventListener("change", e => { state.ujUnitFilter = e.target.value; state.ujSelectedPersonId = null; renderUnitJournal(); });
+  document.getElementById("ujPeriodFilter").addEventListener("change", e => { state.ujPeriod = e.target.value; renderUnitJournal(); });
+  const searchInput = document.getElementById("ujSearchInput");
+  if (searchInput) searchInput.addEventListener("input", e => {
+    state.ujSearch = e.target.value;
+    const caret = searchInput.selectionStart;
+    renderUnitJournalContent();
+    const ni = document.getElementById("ujSearchInput");
+    if (ni) { ni.focus(); ni.setSelectionRange(caret, caret); }
+  });
+}
+
+function renderUnitJournalContent() {
+  let html;
+  if (state.ujMode === "timeline") html = renderUjTimelineHtml();
+  else if (state.ujSelectedPersonId) html = renderUjPersonDetailHtml(state.ujSelectedPersonId);
+  else html = renderUjPersonListHtml();
+  document.getElementById("ujContent").innerHTML = html;
+  document.querySelectorAll("[data-uj-person]").forEach(b => b.addEventListener("click", () => { state.ujSelectedPersonId = b.dataset.ujPerson; renderUnitJournalContent(); }));
+  const back = document.getElementById("ujBackToList");
+  if (back) back.addEventListener("click", () => { state.ujSelectedPersonId = null; renderUnitJournalContent(); });
+  document.querySelectorAll("[data-uj-jump-person]").forEach(b => b.addEventListener("click", () => { state.ujMode = "person"; state.ujSelectedPersonId = b.dataset.ujJumpPerson; renderUnitJournal(); }));
+}
+
+function renderUjPersonListHtml() {
+  const people = ujFilteredPeople();
+  if (!people.length) return `<div class="empty-state"><strong>Không có ai trong phạm vi này</strong></div>`;
+  const counts = ujCountsByAuthor(ujFilteredLogs());
+  return `<div class="uj-person-list">${people.map(p => {
+    const c = counts[p.id] || { count: 0, last: null };
+    return `<button type="button" class="uj-person-card" data-uj-person="${p.id}">
+      <div class="uj-person-info"><strong>${p.name}</strong><span>${p.title} · ${unitById(p.unitId).short}</span></div>
+      <div class="uj-person-stats"><span class="score-pill ${c.count ? "score-mid" : ""}">${c.count} nhật ký</span><span class="uj-last-date">${c.last ? `Gần nhất: ${fullDate(c.last)}` : "Chưa nộp trong kỳ"}</span></div>
+    </button>`;
+  }).join("")}</div>`;
+}
+
+function renderUjPersonDetailHtml(personId) {
+  const person = userById(personId);
+  const personLogs = ujScopeLogs().filter(l => l.authorId === personId);
+  const groups = groupLogsByDate(personLogs);
+  let h = `<div class="uj-back"><button type="button" class="button button-secondary button-small" id="ujBackToList">← Quay lại danh sách</button></div>`;
+  h += `<div class="panel-header"><div><h2>${person ? person.name : "Không xác định"}</h2><p>${person ? person.title : ""} · ${person ? unitById(person.unitId).short : ""}</p></div></div>`;
+  h += groups.length ? groups.map(g => ujDateGroupHtml(g)).join("") : `<div class="empty-state"><strong>Không có nhật ký trong kỳ này</strong></div>`;
+  return h;
+}
+
+function renderUjTimelineHtml() {
+  const groups = groupLogsByDate(ujFilteredLogs());
+  if (!groups.length) return `<div class="empty-state"><strong>Không có nhật ký trong kỳ này</strong></div>`;
+  return groups.map(g => ujDateGroupHtml(g, true)).join("");
+}
+
+function ujDateGroupHtml(g, showAuthor) {
+  const items = g.items.map((l, idx) => {
+    const opts = { readOnly: true };
+    if (showAuthor) { opts.authorName = ujAuthorName(l.authorId); opts.authorId = l.authorId; }
+    return `<div class="uj-numbered-item"><span class="queue-index">${idx + 1}</span>${journalCard(l, opts)}</div>`;
+  }).join("");
+  return `<div class="uj-date-group"><div class="uj-date-group-header"><strong>${fullDate(g.date) || "Không xác định ngày"}</strong><span>${g.items.length} việc</span></div><div class="uj-date-items">${items}</div></div>`;
 }
 
 function monthlyScope() {
@@ -1237,7 +1439,7 @@ function renderOrganization() {
   const assignablePeople = users.filter(person => person.accountStatus !== "pending");
   document.getElementById("appView").innerHTML = `<div class="dashboard-grid">
     <section class="panel panel-wide"><div class="panel-header"><div><h2>Cây tổ chức trong demo</h2><p>Hai nhóm đơn vị ngang cấp, cùng trực thuộc VKSND tỉnh</p></div></div><div class="org-tree"><div class="org-root"><strong>VKSND tỉnh</strong><span>Viện trưởng · Các Phó Viện trưởng</span></div><div class="org-branches"><div class="org-column"><h3>Phòng chuyên trách</h3>${departments.map(orgUnitCard).join("")}</div><div class="org-column"><h3>VKSND khu vực</h3>${regionals.map(orgUnitCard).join("")}</div></div></div></section>
-    <section class="panel panel-wide"><div class="panel-header"><div><h2>Gán vai trò và đơn vị</h2><p>Chỉ định chức vụ và đơn vị cho từng tài khoản. Viện trưởng/Phó Viện trưởng tỉnh chọn "Lãnh đạo Viện tỉnh" làm đơn vị. Với vai trò Phó Viện trưởng tỉnh, tick chọn thêm các đơn vị được phân công phụ trách.</p></div></div>${assignRoleTable(assignablePeople)}</section>
+    <section class="panel panel-wide"><div class="panel-header"><div><h2>Gán vai trò và đơn vị</h2><p>Chỉ định chức vụ và đơn vị cho từng tài khoản, nhóm theo đơn vị. Viện trưởng/Phó Viện trưởng tỉnh chọn "Lãnh đạo Viện tỉnh" làm đơn vị. Với vai trò Phó Viện trưởng tỉnh, tick chọn thêm các đơn vị được phân công phụ trách.</p></div></div>${assignRoleGroupedTable(assignablePeople)}</section>
     <section class="panel panel-wide"><div class="panel-header"><div><h2>Quy tắc người chấm</h2><p>Không cho phép người dùng tự chấm nhật ký của mình</p></div></div><div class="org-role-list">
       <div class="org-role-row"><strong>Cán bộ, công chức</strong><p>Người đứng đầu đơn vị trực tiếp đánh giá; cấp phó chỉ chấm khi có ủy quyền.</p></div>
       <div class="org-role-row"><strong>Phó lãnh đạo đơn vị</strong><p>Viện trưởng khu vực hoặc Trưởng phòng đánh giá.</p></div>
@@ -1247,6 +1449,7 @@ function renderOrganization() {
   document.querySelectorAll("[data-save-role]").forEach(button => button.addEventListener("click", () => saveAccountRole(button.dataset.saveRole)));
   document.querySelectorAll("[data-toggle-active]").forEach(button => button.addEventListener("click", () => toggleAccountActive(button.dataset.toggleActive)));
   bindRoleSelectToggle();
+  bindAssignRoleSearch();
 }
 
 const LEADERSHIP_UNIT_ID = "province";
@@ -1277,8 +1480,52 @@ function assignRoleTable(people) {
     const isSelf = person.id === currentUser().id;
     const active = person.active !== false;
     const lockBtn = isSelf ? "" : `<button type="button" class="button button-small ${active ? "button-danger" : "button-secondary"}" data-toggle-active="${person.id}">${active ? "Khoá" : "Mở lại"}</button>`;
-    return `<tr><td><strong>${person.name}</strong></td><td><span class="status-pill ${active ? "status-approved" : "status-pending"}">${active ? "Đang hoạt động" : "Đã khoá"}</span></td><td>${roleSel}</td><td>${unitSel}</td><td>${checklist}</td><td class="numeric"><button class="button button-primary button-small" data-save-role="${person.id}">Lưu</button> ${lockBtn}</td></tr>`;
+    return `<tr data-person-name="${(person.name || "").toLowerCase()}"><td><strong>${person.name}</strong></td><td><span class="status-pill ${active ? "status-approved" : "status-pending"}">${active ? "Đang hoạt động" : "Đã khoá"}</span></td><td>${roleSel}</td><td>${unitSel}</td><td>${checklist}</td><td class="numeric"><button class="button button-primary button-small" data-save-role="${person.id}">Lưu</button> ${lockBtn}</td></tr>`;
   }).join("")}</tbody></table></div>`;
+}
+
+// Nhom bang gan vai tro/don vi theo tung don vi (thu tu: Lanh dao Vien
+// tinh, roi Phong, roi Khu vuc), gap/mo bang <details>, kem o tim ten.
+// Nguoi thieu vai tro hoac don vi hop le duoc gom rieng vao 1 nhom canh
+// bao dau danh sach thay vi bi rot khoi bang.
+function assignRoleGroupedTable(allPeople) {
+  if (!allPeople.length) return `<div class="empty-state compact-empty"><strong>Chưa có tài khoản nào</strong></div>`;
+  const isAssigned = p => p.role && ROLE_LABELS[p.role] && p.unitId && unitById(p.unitId);
+  const unassigned = allPeople.filter(p => !isAssigned(p));
+  const assigned = allPeople.filter(isAssigned);
+  const groupUnits = [
+    { id: LEADERSHIP_UNIT_ID, short: LEADERSHIP_UNIT_LABEL },
+    ...units.filter(u => u.type === "department"),
+    ...units.filter(u => u.type === "regional")
+  ];
+  let h = `<label class="field" style="max-width:320px;margin-bottom:14px"><span>Tìm theo tên</span><input type="text" id="assignRoleSearch" placeholder="Nhập tên..."></label>`;
+  if (unassigned.length) {
+    h += `<details class="unit-group is-unassigned" open data-role-group><summary><strong>Chưa phân loại (thiếu vai trò hoặc đơn vị)</strong><span>${unassigned.length} người</span></summary>${assignRoleTable(unassigned)}</details>`;
+  }
+  groupUnits.forEach(u => {
+    const members = assigned.filter(p => p.unitId === u.id);
+    if (!members.length) return;
+    h += `<details class="unit-group" data-role-group><summary><strong>${u.short}</strong><span>${members.length} người</span></summary>${assignRoleTable(members)}</details>`;
+  });
+  return h;
+}
+
+function bindAssignRoleSearch() {
+  const input = document.getElementById("assignRoleSearch");
+  if (!input) return;
+  input.addEventListener("input", () => {
+    const q = input.value.trim().toLowerCase();
+    document.querySelectorAll("[data-role-group]").forEach(group => {
+      let anyMatch = false;
+      group.querySelectorAll("[data-person-name]").forEach(row => {
+        const match = !q || row.dataset.personName.includes(q);
+        row.style.display = match ? "" : "none";
+        if (match) anyMatch = true;
+      });
+      if (q) group.open = anyMatch;
+      else if (!group.classList.contains("is-unassigned")) group.open = false;
+    });
+  });
 }
 
 function bindRoleSelectToggle() {

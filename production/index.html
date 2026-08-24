@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Hệ thống quản lý công việc, nhật ký công tác và đánh giá cán bộ VKSND tỉnh">
   <title>QLCV - Hệ thống chính thức</title>
-  <link rel="stylesheet" href="../demo/styles.css?v=20260825-9">
+  <link rel="stylesheet" href="../demo/styles.css?v=20260825-10">
   <script src="./config.js"></script>
   <script src="../supabase-auth.js?v=20260825-4"></script>
 </head>
@@ -85,6 +85,10 @@
           <span class="nav-icon" aria-hidden="true">✓</span>
           <span>Duyệt & chấm điểm</span>
           <span class="nav-count" id="pendingNavCount">0</span>
+        </button>
+        <button class="nav-item unit-journal-nav" data-view="unitJournal">
+          <span class="nav-icon" aria-hidden="true">🗂</span>
+          <span>Nhật ký công tác của đơn vị</span>
         </button>
         <button class="nav-item monthly-nav" data-view="monthly">
           <span class="nav-icon" aria-hidden="true">▤</span>
@@ -204,6 +208,6 @@
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="./app.js?v=20260825-7"></script>
+  <script src="./app.js?v=20260825-8"></script>
 </body>
 </html>
