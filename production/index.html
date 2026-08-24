@@ -215,7 +215,28 @@
     </section>
   </div>
 
+  <div class="modal-backdrop" id="accountModal" hidden>
+    <section class="modal auth-modal" role="dialog" aria-modal="true" aria-labelledby="accountModalTitle">
+      <div class="modal-header">
+        <div><span class="eyebrow">TÀI KHOẢN</span><h2 id="accountModalTitle">Cài đặt tài khoản</h2></div>
+        <button class="icon-button" data-close-account aria-label="Đóng">×</button>
+      </div>
+      <form id="accountNameForm" class="form-grid">
+        <label class="field field-wide"><span>Họ và tên</span><input name="fullName" id="accountFullName" required></label>
+        <div class="form-actions field-wide"><button type="submit" class="button button-primary">Lưu tên</button></div>
+      </form>
+      <form id="accountPasswordForm" class="form-grid" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border, #e2e8f0)">
+        <label class="field"><span>Mật khẩu mới</span><input name="newPassword" type="password" minlength="8" required autocomplete="new-password"></label>
+        <label class="field"><span>Nhập lại mật khẩu mới</span><input name="confirmNewPassword" type="password" minlength="8" required autocomplete="new-password"></label>
+        <div class="form-actions field-wide"><button type="submit" class="button button-primary">Đổi mật khẩu</button></div>
+      </form>
+      <div class="form-actions field-wide" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border, #e2e8f0)">
+        <button type="button" class="button button-danger" id="accountLogout">Đăng xuất</button>
+      </div>
+    </section>
+  </div>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="./app.js?v=20260824-9"></script>
+  <script src="./app.js?v=20260825-1"></script>
 </body>
 </html>

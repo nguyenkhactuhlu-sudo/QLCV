@@ -129,7 +129,10 @@ function ub(){
   var nc0=$('notificationCenter');if(nc0)nc0.hidden=false;
   var mm0=$('mobileMenu');if(mm0)mm0.hidden=false;
 
-  $('avatarInitials').textContent=U.in;$('sessionUserName').textContent=U.n;
+  // Dung 1 anh dai dien chung (logo nganh) thay vi chu cai dau - khong xay
+  // tinh nang tai anh len rieng cho tung nguoi.
+  $('avatarInitials').innerHTML='<img src="../demo/assets/logo-kiem-sat.png" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
+  $('sessionUserName').textContent=U.n;
   var un='';if(UNITS.length&&U.uid){var uu=UNITS.find(function(x){return x.id===U.uid});if(uu)un=uu.short_name||uu.code;}
   $('sessionUserRole').textContent=(U.tl||'')+' . '+(un||'');
   setVisible(document.querySelector('.review-nav'),isLeader());
@@ -463,6 +466,8 @@ async function rd(){
   })});
 }
 
+var JOURNAL_STATUS_FILTER='all',JOURNAL_SEARCH='';
+
 async function rj(){
   $('pageEyebrow').textContent='NHẬT KÝ';$('pageTitle').textContent='Nhật ký công tác';
   if(U.rl==='administrator'){V='dashboard';render();return}
@@ -475,18 +480,47 @@ async function rj(){
     $('appView').innerHTML='<div class="empty-state"><strong>Không tải được nhật ký</strong><span>'+esc(e.message)+'</span></div>';
     return;
   }
+  renderJournalList();
+}
+
+function renderJournalList(){
   var pendingCount=LOGS.filter(function(l){return l.status==='pending'}).length;
   var revisionCount=LOGS.filter(function(l){return l.status==='revision'}).length;
+  var filtered=LOGS.filter(function(l){
+    if(JOURNAL_STATUS_FILTER!=='all'&&l.status!==JOURNAL_STATUS_FILTER)return false;
+    if(JOURNAL_SEARCH){
+      var q=JOURNAL_SEARCH.toLowerCase();
+      var hay=((l.title||'')+' '+(l.result||'')).toLowerCase();
+      if(hay.indexOf(q)<0)return false;
+    }
+    return true;
+  });
   var h='<div class="journal-header"><div><h2>'+esc(U.n)+'</h2><p>'+esc(U.tl||'')+'</p></div><button class="button button-primary" id="nj">+ Ghi nhật ký mới</button></div>';
   h+='<div class="metric-grid">'
     +metricCard('Nhật ký đã gửi',LOGS.length,'Tổng số đã ghi','')
     +metricCard('Đã xác nhận',LOGS.filter(function(l){return l.status==='approved'}).length,'Kết quả được công nhận','green')
     +metricCard('Cần xử lý',pendingCount+revisionCount,pendingCount+' chờ đánh giá · '+revisionCount+' cần bổ sung','gold')
     +'</div>';
-  h+='<div class="journal-list">'+(LOGS.length?LOGS.map(journalCardHtml).join(''):'<div class="empty-state"><strong>Chưa có nhật ký</strong><span>Hãy ghi nhận kết quả công việc đầu tiên.</span></div>')+'</div>';
+  h+='<div class="toolbar"><label class="filter-field"><span>Trạng thái</span><select id="journalStatusFilter">'
+    +'<option value="all" '+(JOURNAL_STATUS_FILTER==='all'?'selected':'')+'>Tất cả</option>'
+    +'<option value="pending" '+(JOURNAL_STATUS_FILTER==='pending'?'selected':'')+'>Chờ đánh giá</option>'
+    +'<option value="approved" '+(JOURNAL_STATUS_FILTER==='approved'?'selected':'')+'>Đã xác nhận</option>'
+    +'<option value="revision" '+(JOURNAL_STATUS_FILTER==='revision'?'selected':'')+'>Cần bổ sung</option>'
+    +'</select></label><label class="field"><span>Tìm theo nội dung</span><input type="text" id="journalSearchInput" value="'+esc(JOURNAL_SEARCH)+'" placeholder="Nhập từ khoá..."></label></div>';
+  h+='<div class="journal-list">'+(filtered.length?filtered.map(journalCardHtml).join(''):'<div class="empty-state"><strong>Không có nhật ký phù hợp</strong><span>Thử đổi bộ lọc hoặc ghi nhật ký mới.</span></div>')+'</div>';
   $('appView').innerHTML=h;
   $('nj').onclick=function(){oj()};
   document.querySelectorAll('[data-edit-journal]').forEach(function(b){b.addEventListener('click',function(){oj(b.dataset.editJournal)})});
+  $('journalStatusFilter').addEventListener('change',function(e){JOURNAL_STATUS_FILTER=e.target.value;renderJournalList()});
+  var searchInput=$('journalSearchInput');
+  searchInput.addEventListener('input',function(e){
+    JOURNAL_SEARCH=e.target.value;
+    var focusPos=searchInput.selectionStart;
+    renderJournalList();
+    var newInput=$('journalSearchInput');
+    newInput.focus();
+    newInput.setSelectionRange(focusPos,focusPos);
+  });
 }
 
 function metricCard(label,value,context,tone){return '<article class="metric-card '+(tone||'')+'"><span class="metric-label">'+esc(label)+'</span><div class="metric-value">'+value+'</div><span class="metric-context">'+esc(context)+'</span></article>'}
@@ -602,6 +636,7 @@ async function ro(){
     +'</div></section></div>';
   $('appView').innerHTML=h;
   document.querySelectorAll('[data-save-role]').forEach(function(b){b.addEventListener('click',function(){saveAccountRole(b.dataset.saveRole)})});
+  document.querySelectorAll('[data-toggle-active]').forEach(function(b){b.addEventListener('click',function(){toggleAccountActive(b.dataset.toggleActive,b.dataset.active==='true')})});
 }
 
 var ROLE_LABELS={province_head:'Viện trưởng tỉnh',province_deputy:'Phó Viện trưởng tỉnh',unit_head:'Trưởng phòng/Viện trưởng KV',unit_deputy:'Phó phòng/Phó Viện trưởng KV',staff:'Cán bộ/Kiểm sát viên',administrator:'Quản trị viên'};
@@ -616,7 +651,9 @@ function assignRoleTableHtml(people,assignedByUser){
     var unitSel='<select data-unit-select="'+p.id+'">'+unitOptions.map(function(u){return '<option value="'+u.id+'" '+(p.unit_id===u.id?'selected':'')+'>'+esc(u.short_name||u.code)+'</option>'}).join('')+'</select>';
     var assigned=assignedByUser[p.id]||[];
     var assignSel='<select multiple size="3" data-assigned-select="'+p.id+'">'+unitOptions.map(function(u){return '<option value="'+u.id+'" '+(assigned.indexOf(u.id)>=0?'selected':'')+'>'+esc(u.short_name||u.code)+'</option>'}).join('')+'</select>';
-    return '<tr><td><strong>'+esc(p.full_name)+'</strong></td><td><span class="status-pill '+(p.is_active?'status-approved':'status-pending')+'">'+(p.is_active?'Đang hoạt động':'Chờ xác nhận')+'</span></td><td>'+roleSel+'</td><td>'+unitSel+'</td><td>'+assignSel+'</td><td class="numeric"><button class="button button-primary button-small" data-save-role="'+p.id+'">Lưu</button></td></tr>';
+    var isSelf=p.id===U.id;
+    var lockBtn=isSelf?'':'<button type="button" class="button button-small '+(p.is_active?'button-danger':'button-secondary')+'" data-toggle-active="'+p.id+'" data-active="'+p.is_active+'">'+(p.is_active?'Khoá':'Mở lại')+'</button>';
+    return '<tr><td><strong>'+esc(p.full_name)+'</strong></td><td><span class="status-pill '+(p.is_active?'status-approved':'status-pending')+'">'+(p.is_active?'Đang hoạt động':'Chờ xác nhận')+'</span></td><td>'+roleSel+'</td><td>'+unitSel+'</td><td>'+assignSel+'</td><td class="numeric"><button class="button button-primary button-small" data-save-role="'+p.id+'">Lưu</button> '+lockBtn+'</td></tr>';
   }).join('')+'</tbody></table></div>';
 }
 
@@ -641,6 +678,18 @@ async function saveAccountRole(id){
     showToast('Đã cập nhật vai trò và đơn vị.');
     ro();
     refreshPendingBadge();
+  }catch(e){showToast('Lỗi: '+e.message)}
+}
+
+async function toggleAccountActive(id,currentlyActive){
+  if(!requireActive())return;
+  if(currentlyActive&&!confirm('Khoá tài khoản này? Người dùng sẽ không đăng nhập sử dụng được cho tới khi mở lại.'))return;
+  try{
+    var r=await fetch(API+'rpc/set_account_active',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_user_id:id,p_active:!currentlyActive})});
+    var d=await r.json();
+    if(!r.ok||d.success===false)throw new Error((d&&d.error)||('HTTP '+r.status));
+    showToast(currentlyActive?'Đã khoá tài khoản.':'Đã mở lại tài khoản.');
+    ro();
   }catch(e){showToast('Lỗi: '+e.message)}
 }
 
@@ -783,6 +832,14 @@ var CURRENT_PERIOD=new Date().toISOString().slice(0,7);
 var MONTHLY_ROWS=[],SELECTED_MONTHLY_ID=null,MONTHLY_UNIT_FILTER='all';
 
 function periodLabel(p){var parts=p.split('-');return 'Tháng '+parts[1]+'/'+parts[0]}
+function recentPeriods(){
+  var now=new Date(),periods=[];
+  for(var i=0;i<6;i++){
+    var d=new Date(now.getFullYear(),now.getMonth()-i,1);
+    periods.push(d.toISOString().slice(0,7));
+  }
+  return periods;
+}
 
 function canApproveMonthly(person){
   if(!person||person.id===U.id)return false;
@@ -876,7 +933,9 @@ async function rm(){
   var selected=rows.find(function(x){return x.person.id===SELECTED_MONTHLY_ID});
   var evidence=selected?await monthlyEvidence(selected.person.id):null;
 
-  var h='<div class="toolbar"><label class="filter-field"><span>Kỳ đánh giá</span><select disabled><option>'+esc(periodLabel(CURRENT_PERIOD))+'</option></select></label>'+unitFilterHtml+'<div class="spacer"></div></div>';
+  var h='<div class="toolbar"><label class="filter-field"><span>Kỳ đánh giá</span><select id="monthlyPeriodSelect">'
+    +recentPeriods().map(function(p){return '<option value="'+p+'" '+(p===CURRENT_PERIOD?'selected':'')+'>'+esc(periodLabel(p))+'</option>'}).join('')
+    +'</select></label>'+unitFilterHtml+'<div class="spacer"></div></div>';
   h+='<div class="metric-grid">'
     +metricCard('Hồ sơ trong phạm vi',rows.length,approved.length+' hồ sơ đã duyệt','')
     +metricCard('Xếp loại A',counts.A,counts.B+' xếp loại B','green')
@@ -890,6 +949,7 @@ async function rm(){
   document.querySelectorAll('[data-monthly-user]').forEach(function(b){b.addEventListener('click',function(){SELECTED_MONTHLY_ID=b.dataset.monthlyUser;rm()})});
   var filterEl=$('monthlyUnitFilter');
   if(filterEl)filterEl.addEventListener('change',function(e){MONTHLY_UNIT_FILTER=e.target.value;SELECTED_MONTHLY_ID=null;rm()});
+  $('monthlyPeriodSelect').addEventListener('change',function(e){CURRENT_PERIOD=e.target.value;SELECTED_MONTHLY_ID=null;rm()});
   if(selected){
     var saveBtn=$('saveMonthlyReview');if(saveBtn)saveBtn.addEventListener('click',function(){saveMonthlyApprove(selected)});
     var selfBtn=$('saveSelfScore');if(selfBtn)selfBtn.addEventListener('click',function(){saveMonthlySelfScore()});
@@ -1058,12 +1118,16 @@ async function ra(){
   $('pageEyebrow').textContent='QUẢN TRỊ';$('pageTitle').textContent='Quản trị tài khoản và mã đăng ký';
   if(!isAdminOrProvinceHead()){V='dashboard';render();return}
   $('appView').innerHTML='<div class="empty-state"><strong>Đang tải...</strong></div>';
-  var codes=[],pendingProfiles=[];
+  var codes=[],pendingProfiles=[],auditLogs=[];
   try{
     var cr=await fetch(API+'registration_codes?select=*&order=created_at.desc',{headers:authHeaders()});
     codes=cr.ok?await cr.json():[];
     var pr=await fetch(API+'profiles?is_active=eq.false&select=id,full_name,role,unit_id,created_at&order=created_at.desc',{headers:authHeaders()});
     pendingProfiles=pr.ok?await pr.json():[];
+    if(U.rl==='administrator'){
+      var alr=await fetch(API+'audit_logs?select=id,action,entity_type,entity_id,created_at,actor:actor_id(full_name)&order=created_at.desc&limit=50',{headers:authHeaders()});
+      auditLogs=alr.ok?await alr.json():[];
+    }
   }catch(e){}
   ADMIN_CODES=codes;ADMIN_PENDING=pendingProfiles;
 
@@ -1078,6 +1142,9 @@ async function ra(){
     +'<div class="code-generator"><label class="filter-field"><span>Đơn vị cấp mã</span><select id="codeUnit">'+unitOptions+'</select></label><button class="button button-primary" id="generateCode">Tạo mã đơn vị</button></div>'
     +registrationCodeTableHtml(codes)+'</section>';
   h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Tài khoản chờ xác nhận</h2><p>Đối chiếu đúng người, đúng đơn vị trước khi kích hoạt</p></div></div>'+pendingAccountTableHtml(pendingProfiles)+'</section>';
+  if(U.rl==='administrator'){
+    h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Nhật ký kiểm toán</h2><p>50 thay đổi gần nhất đối với điểm số, trạng thái, quyền hạn và nhân sự</p></div></div>'+auditLogTableHtml(auditLogs)+'</section>';
+  }
   h+='</div>';
   $('appView').innerHTML=h;
 
@@ -1097,6 +1164,17 @@ function pendingAccountTableHtml(accounts){
   if(!accounts.length)return '<div class="empty-state compact-empty"><strong>Không có tài khoản chờ xử lý</strong><span>Tài khoản đăng ký hợp lệ sẽ xuất hiện tại đây.</span></div>';
   return '<div class="table-wrap"><table><thead><tr><th>Người đăng ký</th><th>Đơn vị</th><th>Ngày đăng ký</th><th></th></tr></thead><tbody>'+accounts.map(function(a){
     return '<tr><td><strong>'+esc(a.full_name)+'</strong></td><td>'+esc(unitShort(a.unit_id))+'</td><td>'+new Date(a.created_at).toLocaleDateString('vi-VN')+'</td><td class="numeric"><button class="button button-primary button-small" data-approve-account="'+a.id+'">Xác nhận tài khoản</button></td></tr>';
+  }).join('')+'</tbody></table></div>';
+}
+
+var AUDIT_ACTION_LABELS={INSERT:'Tạo mới',UPDATE:'Cập nhật',DELETE:'Xoá'};
+var AUDIT_ENTITY_LABELS={work_logs:'Nhật ký công việc',profiles:'Hồ sơ tài khoản',delegations:'Ủy quyền',monthly_reviews:'Đánh giá tháng'};
+
+function auditLogTableHtml(logs){
+  if(!logs.length)return '<div class="empty-state compact-empty"><strong>Chưa có thay đổi nào được ghi nhận</strong></div>';
+  return '<div class="table-wrap"><table><thead><tr><th>Thời điểm</th><th>Người thực hiện</th><th>Thao tác</th><th>Đối tượng</th></tr></thead><tbody>'+logs.map(function(l){
+    var actor=(l.actor&&l.actor.full_name)?l.actor.full_name:'Hệ thống';
+    return '<tr><td>'+new Date(l.created_at).toLocaleString('vi-VN')+'</td><td><strong>'+esc(actor)+'</strong></td><td>'+(AUDIT_ACTION_LABELS[l.action]||esc(l.action))+'</td><td>'+(AUDIT_ENTITY_LABELS[l.entity_type]||esc(l.entity_type))+'</td></tr>';
   }).join('')+'</tbody></table></div>';
 }
 
@@ -1189,8 +1267,47 @@ async function submitRegistration(e){
   btn.disabled=false;
 }
 
+// ============================================
+// CAI DAT TAI KHOAN - doi ten, doi mat khau, dang xuat
+// ============================================
+function openAccountModal(){
+  if(!requireActive())return;
+  $('accountFullName').value=U.n;
+  $('accountPasswordForm').reset();
+  $('accountModal').hidden=false;
+}
+function closeAccountModal(){$('accountModal').hidden=true}
+
+async function submitAccountName(e){
+  e.preventDefault();
+  var name=$('accountFullName').value.trim();
+  if(!name){showToast('Họ tên không được để trống.');return}
+  try{
+    var r=await fetch(API+'rpc/update_own_name',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_full_name:name})});
+    var d=await r.json();
+    if(!r.ok||d.success===false)throw new Error((d&&d.error)||('HTTP '+r.status));
+    U.n=name;$('sessionUserName').textContent=name;
+    showToast('Đã lưu tên hiển thị.');
+  }catch(err){showToast('Lỗi: '+err.message)}
+}
+
+async function submitAccountPassword(e){
+  e.preventDefault();
+  var f=new FormData($('accountPasswordForm'));
+  var pw=f.get('newPassword')||'',confirm=f.get('confirmNewPassword')||'';
+  if(pw.length<8){showToast('Mật khẩu mới cần tối thiểu 8 ký tự.');return}
+  if(pw!==confirm){showToast('Mật khẩu nhập lại chưa khớp.');return}
+  try{
+    var r=await fetch(AUTH+'user',{method:'PUT',headers:{'apikey':KEY,'Authorization':'Bearer '+tkn(),'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
+    var d=await r.json();
+    if(!r.ok)throw new Error(d.error_description||d.msg||d.error||'Đổi mật khẩu thất bại');
+    $('accountPasswordForm').reset();
+    showToast('Đã đổi mật khẩu thành công.');
+  }catch(err){showToast('Lỗi: '+err.message)}
+}
+
 function showToast(m){var t=$('toast');if(t){t.textContent=m;t.classList.add('is-visible');setTimeout(function(){t.classList.remove('is-visible')},3000)}}
-function x(){closeNotificationPanel();cj();localStorage.removeItem('st');U=null;$('appShell').hidden=true;$('loginScreen').hidden=false;document.body.classList.add('login-active')}
+function x(){closeNotificationPanel();cj();closeAccountModal();localStorage.removeItem('st');U=null;$('appShell').hidden=true;$('loginScreen').hidden=false;document.body.classList.add('login-active')}
 
 // Cho supabase-auth.js goi vao sau khi dang nhap/khoi phuc phien, khong can qua su kien rieng
 window.QLCV_afterLogin=initU;
@@ -1210,6 +1327,12 @@ document.addEventListener('DOMContentLoaded',function(){
   $('journalModal').addEventListener('click',function(e){if(e.target.id==='journalModal')cj()});
   $('journalForm').addEventListener('submit',sj);
   $('logoutDemo') && ($('logoutDemo').onclick=x);
+  $('avatarButton') && ($('avatarButton').onclick=openAccountModal);
+  document.querySelectorAll('[data-close-account]').forEach(function(b){b.addEventListener('click',closeAccountModal)});
+  $('accountModal') && $('accountModal').addEventListener('click',function(e){if(e.target.id==='accountModal')closeAccountModal()});
+  $('accountNameForm') && $('accountNameForm').addEventListener('submit',submitAccountName);
+  $('accountPasswordForm') && $('accountPasswordForm').addEventListener('submit',submitAccountPassword);
+  $('accountLogout') && ($('accountLogout').onclick=function(){closeAccountModal();x()});
   $('notificationToggle').addEventListener('click',function(){
     var panel=$('notificationPanel');
     panel.hidden=!panel.hidden;
