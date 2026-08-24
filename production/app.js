@@ -576,10 +576,13 @@ async function ro(){
   $('pageEyebrow').textContent='MÔ HÌNH TỔ CHỨC';$('pageTitle').textContent='Cơ cấu và phân quyền';
   if(!isAdminOrProvinceHead()){V='dashboard';render();return}
   $('appView').innerHTML='<div class="empty-state"><strong>Đang tải...</strong></div>';
-  var people=[];
+  var people=[];var assignedByUser={};
   try{
     var r=await fetch(API+'profiles?select=id,full_name,role,unit_id',{headers:authHeaders()});
     people=r.ok?await r.json():[];
+    var ar=await fetch(API+'unit_assignments?select=user_id,unit_id',{headers:authHeaders()});
+    var assignments=ar.ok?await ar.json():[];
+    assignments.forEach(function(a){(assignedByUser[a.user_id]=assignedByUser[a.user_id]||[]).push(a.unit_id)});
   }catch(e){}
   var departments=UNITS.filter(function(u){return u.type==='department'});
   var regionals=UNITS.filter(function(u){return u.type==='regional'});
@@ -590,7 +593,7 @@ async function ro(){
   }
   var h='<div class="dashboard-grid">'
     +'<section class="panel panel-wide"><div class="panel-header"><div><h2>Cây tổ chức</h2><p>Hai nhóm đơn vị ngang cấp, cùng trực thuộc VKSND tỉnh</p></div></div><div class="org-tree"><div class="org-root"><strong>VKSND tỉnh</strong><span>Viện trưởng · Các Phó Viện trưởng</span></div><div class="org-branches"><div class="org-column"><h3>Phòng chuyên trách</h3>'+departments.map(orgUnitCardHtml).join('')+'</div><div class="org-column"><h3>VKSND khu vực</h3>'+regionals.map(orgUnitCardHtml).join('')+'</div></div></div></section>'
-    +'<section class="panel panel-wide"><div class="panel-header"><div><h2>Gán vai trò và đơn vị</h2><p>Chỉ định đúng chức vụ và đơn vị cho từng tài khoản. Tài khoản đang chờ xác nhận sẽ được kích hoạt luôn khi gán.</p></div></div>'+assignRoleTableHtml(people)+'</section>'
+    +'<section class="panel panel-wide"><div class="panel-header"><div><h2>Gán vai trò và đơn vị</h2><p>Chỉ định đúng chức vụ và đơn vị cho từng tài khoản. Tài khoản đang chờ xác nhận sẽ được kích hoạt luôn khi gán. Với vai trò Phó Viện trưởng tỉnh, chọn thêm các đơn vị được phân công phụ trách (giữ Ctrl/Cmd để chọn nhiều đơn vị).</p></div></div>'+assignRoleTableHtml(people,assignedByUser)+'</section>'
     +'<section class="panel panel-wide"><div class="panel-header"><div><h2>Quy tắc người chấm</h2><p>Không cho phép người dùng tự chấm nhật ký của mình</p></div></div><div class="org-role-list">'
     +'<div class="org-role-row"><strong>Cán bộ, công chức</strong><p>Người đứng đầu đơn vị trực tiếp đánh giá; cấp phó chỉ chấm khi có ủy quyền.</p></div>'
     +'<div class="org-role-row"><strong>Phó lãnh đạo đơn vị</strong><p>Viện trưởng khu vực hoặc Trưởng phòng đánh giá.</p></div>'
@@ -604,14 +607,16 @@ async function ro(){
 var ROLE_LABELS={province_head:'Viện trưởng tỉnh',province_deputy:'Phó Viện trưởng tỉnh',unit_head:'Trưởng phòng/Viện trưởng KV',unit_deputy:'Phó phòng/Phó Viện trưởng KV',staff:'Cán bộ/Kiểm sát viên',administrator:'Quản trị viên'};
 var ROLE_OPTIONS=['staff','unit_deputy','unit_head','province_deputy','province_head','administrator'];
 
-function assignRoleTableHtml(people){
+function assignRoleTableHtml(people,assignedByUser){
   if(!people.length)return '<div class="empty-state compact-empty"><strong>Chưa có tài khoản nào</strong></div>';
   var sorted=people.slice().sort(function(a,b){return (a.is_active===b.is_active)?0:(a.is_active?1:-1)});
   var unitOptions=UNITS.filter(function(u){return u.type!=='province'});
-  return '<div class="table-wrap"><table><thead><tr><th>Họ và tên</th><th>Trạng thái</th><th>Vai trò</th><th>Đơn vị</th><th></th></tr></thead><tbody>'+sorted.map(function(p){
+  return '<div class="table-wrap"><table><thead><tr><th>Họ và tên</th><th>Trạng thái</th><th>Vai trò</th><th>Đơn vị</th><th>Đơn vị phụ trách (nếu là Phó VT tỉnh)</th><th></th></tr></thead><tbody>'+sorted.map(function(p){
     var roleSel='<select data-role-select="'+p.id+'">'+ROLE_OPTIONS.map(function(r){return '<option value="'+r+'" '+(p.role===r?'selected':'')+'>'+ROLE_LABELS[r]+'</option>'}).join('')+'</select>';
     var unitSel='<select data-unit-select="'+p.id+'">'+unitOptions.map(function(u){return '<option value="'+u.id+'" '+(p.unit_id===u.id?'selected':'')+'>'+esc(u.short_name||u.code)+'</option>'}).join('')+'</select>';
-    return '<tr><td><strong>'+esc(p.full_name)+'</strong></td><td><span class="status-pill '+(p.is_active?'status-approved':'status-pending')+'">'+(p.is_active?'Đang hoạt động':'Chờ xác nhận')+'</span></td><td>'+roleSel+'</td><td>'+unitSel+'</td><td class="numeric"><button class="button button-primary button-small" data-save-role="'+p.id+'">Lưu</button></td></tr>';
+    var assigned=assignedByUser[p.id]||[];
+    var assignSel='<select multiple size="3" data-assigned-select="'+p.id+'">'+unitOptions.map(function(u){return '<option value="'+u.id+'" '+(assigned.indexOf(u.id)>=0?'selected':'')+'>'+esc(u.short_name||u.code)+'</option>'}).join('')+'</select>';
+    return '<tr><td><strong>'+esc(p.full_name)+'</strong></td><td><span class="status-pill '+(p.is_active?'status-approved':'status-pending')+'">'+(p.is_active?'Đang hoạt động':'Chờ xác nhận')+'</span></td><td>'+roleSel+'</td><td>'+unitSel+'</td><td>'+assignSel+'</td><td class="numeric"><button class="button button-primary button-small" data-save-role="'+p.id+'">Lưu</button></td></tr>';
   }).join('')+'</tbody></table></div>';
 }
 
@@ -619,11 +624,20 @@ async function saveAccountRole(id){
   if(!requireActive())return;
   var roleSel=document.querySelector('[data-role-select="'+id+'"]');
   var unitSel=document.querySelector('[data-unit-select="'+id+'"]');
+  var assignedSel=document.querySelector('[data-assigned-select="'+id+'"]');
   if(!roleSel||!unitSel)return;
   try{
     var r=await fetch(API+'rpc/assign_account_role',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_user_id:id,p_role:roleSel.value,p_unit_id:unitSel.value})});
     var d=await r.json();
     if(!r.ok||d.success===false)throw new Error((d&&d.error)||('HTTP '+r.status));
+
+    if(roleSel.value==='province_deputy'&&assignedSel){
+      var chosen=Array.from(assignedSel.selectedOptions).map(function(o){return o.value});
+      var r2=await fetch(API+'rpc/set_unit_assignments',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_user_id:id,p_unit_ids:chosen})});
+      var d2=await r2.json();
+      if(!r2.ok||d2.success===false)throw new Error((d2&&d2.error)||('HTTP '+r2.status));
+    }
+
     showToast('Đã cập nhật vai trò và đơn vị.');
     ro();
     refreshPendingBadge();
