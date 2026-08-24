@@ -314,7 +314,10 @@ h3 { margin-bottom: 4px; font-size: 15px; }
 }
 .mobile-menu { display: none; border: 0; background: transparent; font-size: 24px; }
 
-.view-container { max-width: 1540px; margin: 0 auto; padding: 28px 32px 48px; }
+/* padding-top du rong de noi dung khong bi chuong thong bao noi (fixed,
+   top:20px cao 42px) de len - xay ra o cac trang khong co banner/thanh loc
+   ngay dau nhu Nhat ky, Cai dat. */
+.view-container { max-width: 1540px; margin: 0 auto; padding: 76px 32px 48px; }
 .toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin-bottom: 20px; }
 .toolbar .spacer { flex: 1; }
 .filter-field { display: grid; gap: 5px; }

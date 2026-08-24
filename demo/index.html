@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Bản demo hệ thống quản lý công việc, nhật ký công tác và đánh giá cán bộ VKSND tỉnh">
   <title>Demo quản lý công việc VKSND tỉnh</title>
-  <link rel="stylesheet" href="styles.css?v=20260823-8">
+  <link rel="stylesheet" href="styles.css?v=20260824-1">
 </head>
 <body class="login-active">
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
@@ -56,13 +56,28 @@
   </section>
 
   <div class="app-shell" id="appShell" hidden>
+    <div class="notification-center notification-center-floating" id="notificationCenter">
+      <button class="notification-toggle" id="notificationToggle" type="button" aria-label="Mở thông báo" aria-expanded="false" aria-controls="notificationPanel">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>
+        <span class="notification-badge" id="notificationBadge" hidden>0</span>
+      </button>
+      <section class="notification-panel" id="notificationPanel" aria-label="Thông báo mới" hidden>
+        <div class="notification-header"><div><strong>Thông báo</strong><span id="notificationSummary">Tin mới cần xử lý</span></div><button type="button" id="markAllNotificationsRead">Đánh dấu đã đọc</button></div>
+        <div class="notification-list" id="notificationList"></div>
+      </section>
+    </div>
     <aside class="sidebar" id="sidebar">
-      <div class="brand">
+      <div class="brand sidebar-brand-soft">
         <img class="brand-logo" src="assets/logo-kiem-sat.png" alt="Biểu trưng ngành Kiểm sát nhân dân">
         <div>
-          <strong>VKSND TỈNH</strong>
-          <span>Nhật ký & đánh giá công tác</span>
+          <strong>VIỆN KSND TỈNH BẮC NINH</strong>
+          <span>Nhật ký công tác</span>
         </div>
+      </div>
+
+      <div class="sidebar-user-card" id="sidebarUserCard">
+        <strong id="sidebarUserName">Người dùng</strong>
+        <span id="sidebarUserTitle">Vai trò</span>
       </div>
 
       <nav class="nav-list" aria-label="Điều hướng chính">
@@ -70,7 +85,7 @@
           <span class="nav-icon" aria-hidden="true">▦</span>
           <span>Tổng quan</span>
         </button>
-        <button class="nav-item" data-view="journal">
+        <button class="nav-item journal-nav" data-view="journal">
           <span class="nav-icon" aria-hidden="true">✎</span>
           <span>Nhật ký của tôi</span>
         </button>
@@ -83,7 +98,7 @@
           <span class="nav-icon" aria-hidden="true">▤</span>
           <span>Chấm điểm tháng</span>
         </button>
-        <button class="nav-item" data-view="organization">
+        <button class="nav-item org-nav" data-view="organization">
           <span class="nav-icon" aria-hidden="true">⌘</span>
           <span>Cơ cấu & phân quyền</span>
         </button>
@@ -91,40 +106,23 @@
           <span class="nav-icon" aria-hidden="true">⚙</span>
           <span>Quản trị nhân sự</span>
         </button>
+        <button class="nav-item" data-view="settings">
+          <span class="nav-icon" aria-hidden="true">⚒</span>
+          <span>Cài đặt</span>
+        </button>
       </nav>
 
-      <div class="sidebar-note">
-        <span class="status-dot"></span>
-        <div>
-          <strong>Bản trình diễn</strong>
-          <span>Dữ liệu lưu trên trình duyệt</span>
-        </div>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-credit"><span>Bản trình diễn</span><strong>Dữ liệu lưu trên trình duyệt</strong></div>
       </div>
     </aside>
 
     <main class="main-content">
-      <header class="topbar">
+      <header class="topbar topbar-minimal">
         <button class="mobile-menu" id="mobileMenu" aria-label="Mở menu">☰</button>
         <div class="page-heading">
           <span class="eyebrow" id="pageEyebrow">BÁO CÁO ĐIỀU HÀNH</span>
           <h1 id="pageTitle">Tổng quan toàn tỉnh</h1>
-        </div>
-        <div class="topbar-actions">
-          <div class="notification-center" id="notificationCenter">
-            <button class="notification-toggle" id="notificationToggle" type="button" aria-label="Mở thông báo" aria-expanded="false" aria-controls="notificationPanel">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>
-              <span class="notification-badge" id="notificationBadge" hidden>0</span>
-            </button>
-            <section class="notification-panel" id="notificationPanel" aria-label="Thông báo mới" hidden>
-              <div class="notification-header"><div><strong>Thông báo</strong><span id="notificationSummary">Tin mới cần xử lý</span></div><button type="button" id="markAllNotificationsRead">Đánh dấu đã đọc</button></div>
-              <div class="notification-list" id="notificationList"></div>
-            </section>
-          </div>
-          <div class="session-user"><strong id="sessionUserName">Người dùng</strong><span id="sessionUserRole">Vai trò</span></div>
-          <button class="avatar-button" id="avatarButton" aria-label="Thông tin người dùng">
-            <span id="avatarInitials">NM</span>
-          </button>
-          <button class="button button-secondary logout-button" id="logoutDemo" type="button">Đổi tài khoản</button>
         </div>
       </header>
 
@@ -222,6 +220,6 @@
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=20260823-7"></script>
+  <script src="app.js?v=20260824-1"></script>
 </body>
 </html>
