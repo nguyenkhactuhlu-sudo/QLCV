@@ -128,6 +128,9 @@ function ub(){
   var nc0=$('notificationCenter');if(nc0)nc0.hidden=false;
   var mm0=$('mobileMenu');if(mm0)mm0.hidden=false;
 
+  var un0=$('sidebarUserName');if(un0)un0.textContent=U.n;
+  var ut0=$('sidebarUserTitle');if(ut0)ut0.textContent=U.tl||ROLE_LABELS[U.rl]||'';
+
   setVisible(document.querySelector('.review-nav'),isLeader());
   setVisible(document.querySelector('.admin-nav'),isAdminOrProvinceHead());
   // Co cau to chuc chi danh cho Vien truong tinh va quan tri vien.
@@ -1297,6 +1300,7 @@ async function submitAccountName(e){
     var d=await r.json();
     if(!r.ok||d.success===false)throw new Error((d&&d.error)||('HTTP '+r.status));
     U.n=name;
+    var un0=$('sidebarUserName');if(un0)un0.textContent=name;
     showToast('Đã lưu tên hiển thị.');
   }catch(err){showToast('Lỗi: '+err.message)}
 }

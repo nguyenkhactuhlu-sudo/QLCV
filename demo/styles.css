@@ -181,6 +181,17 @@ body.login-active { overflow: hidden; }
 .sidebar-brand-soft .brand-logo { position: relative; z-index: 1; }
 .sidebar-brand-soft > div { position: relative; z-index: 1; }
 
+/* O thong tin nguoi dang dang nhap, dat giua khoi logo va danh sach tab
+   de tranh dang nhap nham tai khoan. */
+.sidebar-user-card {
+  margin: 0 0 18px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.07);
+}
+.sidebar-user-card strong { display: block; overflow: hidden; color: #fff; font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-user-card span { display: block; margin-top: 2px; overflow: hidden; color: rgba(255,255,255,.6); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+
 .nav-list { display: grid; gap: 6px; margin-top: 24px; }
 .nav-item {
   width: 100%;
@@ -197,6 +208,33 @@ body.login-active { overflow: hidden; }
 }
 .nav-item:hover, .nav-item.is-active { color: #fff; background: rgba(255,255,255,.14); }
 .nav-item.is-active { box-shadow: inset 3px 0 0 var(--gold); }
+
+/* Cac tab dieu huong kieu "giay note dan" mem mai hon thay cho vach vang
+   cung nhac - chi ban production dung (".nav-list" von dung chung voi ban
+   demo nen khong sua truc tiep, bao trong ".sidebar-tabs-soft"). Dung
+   selector con chau de dam bao thang do dac ta hon ".nav-item.is-active"
+   goc, khong phu thuoc thu tu khai bao. */
+.sidebar-tabs-soft.nav-list { gap: 9px; }
+.sidebar-tabs-soft .nav-item { border-radius: 6px 14px 14px 6px; transition: transform .15s ease, background .15s ease; }
+.sidebar-tabs-soft .nav-item:hover { background: rgba(255,255,255,.1); }
+.sidebar-tabs-soft .nav-item.is-active {
+  position: relative;
+  background: rgba(255,255,255,.16);
+  box-shadow: 0 6px 16px rgba(6,59,115,.3);
+  transform: rotate(-.4deg);
+}
+.sidebar-tabs-soft .nav-item.is-active::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: 18px;
+  width: 24px;
+  height: 9px;
+  border-radius: 2px;
+  background: rgba(212,175,55,.7);
+  box-shadow: 0 1px 3px rgba(0,0,0,.22);
+  transform: rotate(-5deg);
+}
 .nav-icon { width: 20px; font-size: 18px; text-align: center; }
 .nav-count {
   min-width: 22px;
@@ -225,7 +263,8 @@ body.login-active { overflow: hidden; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #6ee7a8; box-shadow: 0 0 0 3px rgba(110,231,168,.17); }
 
 /* Chan sidebar - dong chu ghi nguon, khong con hien ten/vai tro dang nhap */
-.sidebar-footer { margin-top: auto; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.12); }
+.sidebar-footer { position: relative; margin-top: auto; padding-top: 16px; }
+.sidebar-footer::before { content: ""; position: absolute; top: 0; left: 4px; right: 4px; height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,.22) 50%, transparent); }
 .sidebar-footer-credit span { display: block; color: rgba(255,255,255,.5); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
 .sidebar-footer-credit strong { display: block; margin-top: 3px; color: rgba(255,255,255,.88); font-size: 12px; font-weight: 600; }
 
