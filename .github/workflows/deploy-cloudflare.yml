@@ -1,0 +1,44 @@
+name: Deploy production len Cloudflare Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "production/**"
+      - "demo/styles.css"
+      - "demo/assets/**"
+      - "supabase-auth.js"
+      - ".github/workflows/deploy-cloudflare.yml"
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dong goi ban production (gop file dung chung, sua duong dan, cache-busting theo commit)
+        run: |
+          set -e
+          mkdir -p deploy/assets
+          cp production/index.html deploy/index.html
+          cp production/app.js deploy/app.js
+          cp production/config.js deploy/config.js
+          cp supabase-auth.js deploy/supabase-auth.js
+          cp demo/styles.css deploy/styles.css
+          cp -r demo/assets/* deploy/assets/
+          SHORT_SHA="${GITHUB_SHA::7}"
+          sed -i \
+            -e "s#\\.\\./demo/styles\\.css?v=[^\"]*#./styles.css?v=${SHORT_SHA}#" \
+            -e "s#\\.\\./supabase-auth\\.js?v=[^\"]*#./supabase-auth.js?v=${SHORT_SHA}#" \
+            -e "s#\\./app\\.js?v=[^\"]*#./app.js?v=${SHORT_SHA}#" \
+            -e "s#\\.\\./demo/assets/#./assets/#g" \
+            deploy/index.html
+          grep -n "\.\./demo\|\.\./supabase-auth" deploy/index.html && exit 1 || echo "Duong dan da duoc sua dung."
+
+      - name: Deploy len Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy deploy --project-name=qlcv --branch=main --commit-dirty=true
