@@ -126,7 +126,7 @@
           <button class="avatar-button" id="avatarButton" aria-label="Thông tin người dùng">
             <span id="avatarInitials">NM</span>
           </button>
-          <button class="button button-secondary logout-button" id="logoutDemo" type="button">Đổi tài khoản</button>
+          <button class="button button-secondary logout-button" id="settingsButton" type="button">Cài đặt</button>
         </div>
       </header>
 
@@ -221,22 +221,30 @@
         <div><span class="eyebrow">TÀI KHOẢN</span><h2 id="accountModalTitle">Cài đặt tài khoản</h2></div>
         <button class="icon-button" data-close-account aria-label="Đóng">×</button>
       </div>
-      <form id="accountNameForm" class="form-grid">
-        <label class="field field-wide"><span>Họ và tên</span><input name="fullName" id="accountFullName" required></label>
-        <div class="form-actions field-wide"><button type="submit" class="button button-primary">Lưu tên</button></div>
-      </form>
-      <form id="accountPasswordForm" class="form-grid" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border, #e2e8f0)">
-        <label class="field"><span>Mật khẩu mới</span><input name="newPassword" type="password" minlength="8" required autocomplete="new-password"></label>
-        <label class="field"><span>Nhập lại mật khẩu mới</span><input name="confirmNewPassword" type="password" minlength="8" required autocomplete="new-password"></label>
-        <div class="form-actions field-wide"><button type="submit" class="button button-primary">Đổi mật khẩu</button></div>
-      </form>
-      <div class="form-actions field-wide" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border, #e2e8f0)">
-        <button type="button" class="button button-danger" id="accountLogout">Đăng xuất</button>
+      <div class="panel" style="padding:18px;margin-bottom:14px">
+        <h3 style="margin:0 0 12px">Họ và tên</h3>
+        <form id="accountNameForm" class="form-grid">
+          <label class="field field-wide"><span>Họ và tên hiển thị</span><input name="fullName" id="accountFullName" required></label>
+          <div class="form-actions field-wide"><button type="submit" class="button button-primary">Lưu tên</button></div>
+        </form>
+      </div>
+      <div class="panel" style="padding:18px;margin-bottom:14px">
+        <h3 style="margin:0 0 12px">Đổi mật khẩu</h3>
+        <form id="accountPasswordForm" class="form-grid">
+          <label class="field"><span>Mật khẩu mới</span><input name="newPassword" type="password" minlength="8" required autocomplete="new-password"></label>
+          <label class="field"><span>Nhập lại mật khẩu mới</span><input name="confirmNewPassword" type="password" minlength="8" required autocomplete="new-password"></label>
+          <div class="form-actions field-wide"><button type="submit" class="button button-primary">Đổi mật khẩu</button></div>
+        </form>
+      </div>
+      <div class="panel" style="padding:18px">
+        <div class="form-actions field-wide">
+          <button type="button" class="button button-danger" id="accountLogout">Đăng xuất</button>
+        </div>
       </div>
     </section>
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="./app.js?v=20260825-1"></script>
+  <script src="./app.js?v=20260825-2"></script>
 </body>
 </html>

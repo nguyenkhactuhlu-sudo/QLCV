@@ -1326,7 +1326,7 @@ document.addEventListener('DOMContentLoaded',function(){
   document.querySelectorAll('[data-close-modal]').forEach(function(b){b.addEventListener('click',cj)});
   $('journalModal').addEventListener('click',function(e){if(e.target.id==='journalModal')cj()});
   $('journalForm').addEventListener('submit',sj);
-  $('logoutDemo') && ($('logoutDemo').onclick=x);
+  $('settingsButton') && ($('settingsButton').onclick=openAccountModal);
   $('avatarButton') && ($('avatarButton').onclick=openAccountModal);
   document.querySelectorAll('[data-close-account]').forEach(function(b){b.addEventListener('click',closeAccountModal)});
   $('accountModal') && $('accountModal').addEventListener('click',function(e){if(e.target.id==='accountModal')closeAccountModal()});
