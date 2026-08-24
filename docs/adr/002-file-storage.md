@@ -1,0 +1,1 @@
+﻿# ADR 002 - Kho luu tep dinh kem`n`nTrang thai: Duoc chap thuan (co phuong an du phong)`n`nQuyet dinh: Uu tien 1 - Supabase Storage (de cau hinh, cung he sinh thai).`nUu tien 2 - Google Drive Shared Drive (neu co san Workspace).`n`nPhuong an du phong: Supabase Storage vi khong can OAuth rieng, RLS ap dung truc tiep.

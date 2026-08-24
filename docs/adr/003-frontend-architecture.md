@@ -1,0 +1,1 @@
+﻿# ADR 003 - Kien truc frontend`n`nTrang thai: Duoc chap thuan`n`nQuyet dinh: Dung Vite + JavaScript ES modules.`nKhong dung framework lon (React/Vue/Angular).`n`nHe qua:`n- GiU nguyen thiet ke HTML/CSS hien co`n- Chia src/ thanh cac module doc lap`n- Co the chuyen adapter tu demo sang Supabase bang env config

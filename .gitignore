@@ -1,17 +1,40 @@
-# Tệp nguồn và dữ liệu nội bộ không phát hành
-*.pdf
-*.xlsx
+﻿# Dependencies
+node_modules/
 
-# Tệp tạm của Microsoft Office
-~$*
+# Build output
+dist/
 
-# Thư mục dựng và kiểm tra cục bộ
-.docx_qa/
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test
+coverage/
+
+# Tep tam (temp files)
 tmp/
 __pycache__/
 *.pyc
+.docx_qa/
 
-# Công cụ sinh tài liệu chỉ dùng cục bộ
+# Documents
+*.pdf
+*.xlsx
+
+# Build scripts
 build_*.py
 export_docx_pdf.py
 pdf2image.py
@@ -19,5 +42,9 @@ run_render_docx.py
 soffice.cmd
 soffice_word_export.ps1
 
-# Bản tài liệu cũ đã được thay thế
+# Old docs
 outputs/*.docx
+
+# Scripts
+write_docs.py
+write_docs_run.py

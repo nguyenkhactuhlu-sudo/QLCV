@@ -1,0 +1,228 @@
+﻿<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Bản demo hệ thống quản lý công việc, nhật ký công tác và đánh giá cán bộ VKSND tỉnh">
+  <title>QLCV - Hệ thống chính thức</title>
+  <link rel="stylesheet" href="../demo/styles.css?v=20260823-8">
+<script>window.VITE_DEMO_MODE=false;window.VITE_SUPABASE_URL="https://bmdwpiticfrqhsjolxkl.supabase.co";window.VITE_SUPABASE_ANON_KEY="sb_publishable_29o4aITrh7BPX28RFdE31g_qXVjCHGd";</script><script src="../supabase-auth.js"></script>
+</head>
+<body class="login-active">
+  <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
+    <img class="login-lotus" src="../demo/assets/lotus.webp" alt="" aria-hidden="true">
+    <div class="login-layout">
+      <div class="login-brand-panel">
+        <div class="login-emblem-stage" aria-hidden="true">
+          <span class="login-wave"></span>
+          <span class="login-wave"></span>
+          <span class="login-wave"></span>
+          <span class="login-wave"></span>
+          <span class="login-wave"></span>
+          <div class="login-emblem-glass"><img src="../demo/assets/logo-kiem-sat.png" alt=""></div>
+        </div>
+        <div class="login-brand-copy">
+          <span>VIỆN KIỂM SÁT NHÂN DÂN TỈNH BẮC NINH</span>
+          <h1>Hệ thống nhật ký<br>và đánh giá công việc</h1>
+          <p>Ghi nhận kết quả hằng ngày · Đánh giá đúng thẩm quyền · Điều hành bằng số liệu</p>
+        </div>
+      </div>
+
+      <div class="login-card">
+        <div class="login-card-heading">
+          <span class="eyebrow">BẢN TRÌNH DIỄN</span>
+          <h2 id="loginTitle">Đăng nhập hệ thống</h2>
+          <p>Chọn một tài khoản mẫu. Mật khẩu tương ứng đã được điền sẵn để thuận tiện trình chiếu.</p>
+        </div>
+        <form id="demoLoginForm" class="login-form">
+          <label class="field">
+            <span>Tài khoản demo</span>
+            <select id="loginUserSelect" aria-label="Chọn tài khoản đăng nhập"></select>
+          </label>
+          <label class="field">
+            <span>Mật khẩu</span>
+            <div class="password-field"><input id="loginPassword" type="password" autocomplete="current-password" required><button type="button" id="toggleLoginPassword" aria-label="Hiện mật khẩu">Hiện</button></div>
+          </label>
+          <div class="saved-password-note"><span>✓</span><p><strong>Mật khẩu demo đã lưu sẵn</strong><small>Chỉ dùng để mô phỏng, không phải cơ chế bảo mật thật.</small></p></div>
+          <button class="button button-primary login-submit" type="submit">Đăng nhập</button>
+        </form>
+        <div class="quick-account-section">
+          <div class="quick-account-heading"><span>Chọn nhanh vai trò</span><small>Bấm để điền tài khoản</small></div>
+          <div class="quick-account-grid" id="demoAccountCards"></div>
+        </div>
+        <div class="login-register"><span>Chưa có tài khoản?</span><button type="button" id="openRegister">Đăng ký bằng mã đơn vị</button></div>
+      </div>
+    </div>
+    <div class="login-footer"><span>Bản demo phục vụ xem xét phương án</span><span>Dữ liệu thao tác chỉ lưu trên trình duyệt</span></div>
+  </section>
+
+  <div class="app-shell" id="appShell" hidden>
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <img class="brand-logo" src="../demo/assets/logo-kiem-sat.png" alt="Biểu trưng ngành Kiểm sát nhân dân">
+        <div>
+          <strong>VKSND TỈNH</strong>
+          <span>Nhật ký & đánh giá công tác</span>
+        </div>
+      </div>
+
+      <nav class="nav-list" aria-label="Điều hướng chính">
+        <button class="nav-item is-active" data-view="dashboard">
+          <span class="nav-icon" aria-hidden="true">▦</span>
+          <span>Tổng quan</span>
+        </button>
+        <button class="nav-item" data-view="journal">
+          <span class="nav-icon" aria-hidden="true">✎</span>
+          <span>Nhật ký của tôi</span>
+        </button>
+        <button class="nav-item review-nav" data-view="reviews">
+          <span class="nav-icon" aria-hidden="true">✓</span>
+          <span>Duyệt & chấm điểm</span>
+          <span class="nav-count" id="pendingNavCount">0</span>
+        </button>
+        <button class="nav-item monthly-nav" data-view="monthly">
+          <span class="nav-icon" aria-hidden="true">▤</span>
+          <span>Chấm điểm tháng</span>
+        </button>
+        <button class="nav-item" data-view="organization">
+          <span class="nav-icon" aria-hidden="true">⌘</span>
+          <span>Cơ cấu & phân quyền</span>
+        </button>
+        <button class="nav-item admin-nav" data-view="administration">
+          <span class="nav-icon" aria-hidden="true">⚙</span>
+          <span>Quản trị nhân sự</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-note">
+        <span class="status-dot"></span>
+        <div>
+          <strong>Bản trình diễn</strong>
+          <span>Dữ liệu lưu trên trình duyệt</span>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <button class="mobile-menu" id="mobileMenu" aria-label="Mở menu">☰</button>
+        <div class="page-heading">
+          <span class="eyebrow" id="pageEyebrow">BÁO CÁO ĐIỀU HÀNH</span>
+          <h1 id="pageTitle">Tổng quan toàn tỉnh</h1>
+        </div>
+        <div class="topbar-actions">
+          <div class="notification-center" id="notificationCenter">
+            <button class="notification-toggle" id="notificationToggle" type="button" aria-label="Mở thông báo" aria-expanded="false" aria-controls="notificationPanel">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>
+              <span class="notification-badge" id="notificationBadge" hidden>0</span>
+            </button>
+            <section class="notification-panel" id="notificationPanel" aria-label="Thông báo mới" hidden>
+              <div class="notification-header"><div><strong>Thông báo</strong><span id="notificationSummary">Tin mới cần xử lý</span></div><button type="button" id="markAllNotificationsRead">Đánh dấu đã đọc</button></div>
+              <div class="notification-list" id="notificationList"></div>
+            </section>
+          </div>
+          <div class="session-user"><strong id="sessionUserName">Người dùng</strong><span id="sessionUserRole">Vai trò</span></div>
+          <button class="avatar-button" id="avatarButton" aria-label="Thông tin người dùng">
+            <span id="avatarInitials">NM</span>
+          </button>
+          <button class="button button-secondary logout-button" id="logoutDemo" type="button">Đổi tài khoản</button>
+        </div>
+      </header>
+
+      <section id="appView" class="view-container" aria-live="polite"></section>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="journalModal" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="journalModalTitle">
+      <div class="modal-header">
+        <div>
+          <span class="eyebrow">NHẬT KÝ HẰNG NGÀY</span>
+          <h2 id="journalModalTitle">Ghi nhận kết quả công việc</h2>
+        </div>
+        <button class="icon-button" data-close-modal aria-label="Đóng">×</button>
+      </div>
+      <form id="journalForm" class="form-grid">
+        <div class="revision-notice field-wide" id="journalRevisionNotice" hidden>
+          <strong>Yêu cầu của lãnh đạo</strong>
+          <span id="journalRevisionComment"></span>
+        </div>
+        <label class="field">
+          <span>Ngày thực hiện</span>
+          <input type="date" name="workDate" required>
+        </label>
+        <label class="field">
+          <span>Lĩnh vực công tác</span>
+          <select name="category" required>
+            <option value="">Chọn lĩnh vực</option>
+            <option>Thực hành quyền công tố</option>
+            <option>Kiểm sát điều tra</option>
+            <option>Kiểm sát xét xử</option>
+            <option>Kiểm sát thi hành án</option>
+            <option>Khiếu nại, tố cáo</option>
+            <option>Tham mưu, tổng hợp</option>
+            <option>Công nghệ thông tin</option>
+          </select>
+        </label>
+        <label class="field field-wide">
+          <span>Nội dung công việc đã hoàn thành</span>
+          <textarea name="title" rows="3" required placeholder="Mô tả ngắn gọn công việc và phạm vi xử lý"></textarea>
+        </label>
+        <label class="field field-wide">
+          <span>Kết quả hoặc sản phẩm đầu ra</span>
+          <textarea name="result" rows="3" required placeholder="Nêu rõ văn bản, báo cáo, hồ sơ hoặc kết quả đã hoàn thành"></textarea>
+        </label>
+        <label class="field">
+          <span>Vai trò thực hiện</span>
+          <select name="workRole" required>
+            <option>Chủ trì</option>
+            <option>Phối hợp</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Thời gian thực hiện</span>
+          <select name="duration" required>
+            <option>Dưới 2 giờ</option>
+            <option>2–4 giờ</option>
+            <option>Trên 4 giờ</option>
+            <option>Nhiều ngày</option>
+          </select>
+        </label>
+        <label class="field field-wide">
+          <span>Mã hồ sơ/tài liệu minh chứng <em>(không bắt buộc)</em></span>
+          <input type="text" name="evidence" placeholder="Ví dụ: HS-2026-018 hoặc đường dẫn nội bộ">
+        </label>
+        <div class="form-actions field-wide">
+          <button type="button" class="button button-secondary" data-close-modal>Hủy</button>
+          <button type="submit" class="button button-primary" id="journalSubmitButton">Gửi nhật ký</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="registerModal" hidden>
+    <section class="modal auth-modal" role="dialog" aria-modal="true" aria-labelledby="registerModalTitle">
+      <div class="modal-header">
+        <div>
+          <span class="eyebrow">ĐĂNG KÝ ĐÚNG ĐƠN VỊ</span>
+          <h2 id="registerModalTitle">Tạo tài khoản bằng mã đăng ký</h2>
+        </div>
+        <button class="icon-button" data-close-register aria-label="Đóng">×</button>
+      </div>
+      <form id="registerForm" class="form-grid">
+        <div class="registration-explainer field-wide"><strong>Mã đăng ký xác định đơn vị</strong><span>Người dùng không tự chọn đơn vị hoặc quyền lãnh đạo. Tài khoản mới có quyền cán bộ mặc định và chờ xác nhận.</span></div>
+        <label class="field field-wide"><span>Họ và tên</span><input name="fullName" required autocomplete="name" placeholder="Nhập đúng họ tên trong danh sách cán bộ"></label>
+        <label class="field field-wide"><span>Email đăng nhập</span><input name="email" type="email" required autocomplete="email" placeholder="ten.nguoidung@..." ></label>
+        <label class="field field-wide"><span>Mã đăng ký do đơn vị cấp</span><input name="registrationCode" required autocomplete="off" placeholder="Ví dụ: P1-2026-A7K9"></label>
+        <label class="field"><span>Mật khẩu</span><input name="password" type="password" minlength="8" required autocomplete="new-password"></label>
+        <label class="field"><span>Nhập lại mật khẩu</span><input name="confirmPassword" type="password" minlength="8" required autocomplete="new-password"></label>
+        <div class="demo-code field-wide"><span>Mã thử nhanh:</span><button type="button" data-demo-code="P1-2026-A7K9">P1-2026-A7K9</button><button type="button" data-demo-code="KV1-2026-M4N8">KV1-2026-M4N8</button></div>
+        <div class="form-actions field-wide"><button type="button" class="button button-secondary" data-close-register>Hủy</button><button type="submit" class="button button-primary">Đăng ký tài khoản</button></div>
+      </form>
+    </section>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script>window.VITE_DEMO_MODE=false;window.VITE_SUPABASE_URL="https://bmdwpiticfrqhsjolxkl.supabase.co";window.VITE_SUPABASE_ANON_KEY="sb_publishable_29o4aITrh7BPX28RFdE31g_qXVjCHGd";</script><script src="../supabase-auth.js"></script><script src="./app.js?v=20260823-7"></script>
+</body>
+</html>

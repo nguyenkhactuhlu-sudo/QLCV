@@ -415,7 +415,7 @@ h3 { margin-bottom: 4px; font-size: 15px; }
 .dashboard-bento .panel-header::after { content: "⋮"; position: absolute; top: -4px; right: 0; color: #9aa2ab; font-size: 13px; }
 .dashboard-bento .bento-tile:hover .panel-header::before { transform: translate(-7px, 6px) scale(1.06); opacity: 1; }
 .dashboard-bento .panel-header h2 { margin: 0; color: #3e4650; font-size: 11px; font-weight: 600; }
-.dashboard-bento .panel-header p { margin-top: 2px; font-size: 10px; }
+.dashboard-bento .panel-header p { margin-top: 2px; font-size: 8px; }
 .bento-trend { grid-column: span 6; align-self: stretch; }
 .bento-side-stack { grid-column: span 6; display: grid; grid-template-columns: 1fr; gap: 12px; align-items: start; }
 .bento-side-stack .bento-tile { padding: 12px; }
@@ -632,7 +632,7 @@ tbody tr:hover { background: #fbfbfc; }
 .insight-strip div { min-width: 270px; }
 .insight-strip strong { display: block; margin-top: 3px; }
 .insight-strip p { margin: 0; color: var(--muted); font-size: 12px; }
-.chart-unit { flex: 0 0 auto; padding: 4px 8px; border-radius: 6px; color: var(--muted); background: var(--surface-soft); font-size: 11px; }
+.chart-unit { flex: 0 0 auto; padding: 4px 8px; border-radius: 6px; color: var(--muted); background: var(--surface-soft); font-size: 10px; }
 .trend-chart { width: 100%; min-height: 260px; overflow: visible; }
 .trend-plot { fill: #fff; stroke: #dfe3e8; stroke-width: .8; }
 .trend-chart .grid-line { stroke: #e9ecef; stroke-width: .7; }
@@ -647,7 +647,7 @@ tbody tr:hover { background: #fbfbfc; }
 .trend-point.complexity { stroke: #28aeb1; }
 .trend-value { fill: var(--text); font-size: 10px; font-weight: 700; }
 .trend-summary { display: flex; flex-wrap: wrap; gap: 6px; margin: -2px 0 3px; }
-.trend-delta { display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px; border-radius: 999px; color: var(--muted); background: rgba(255,255,255,.7); font-size: 10px; }
+.trend-delta { display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px; border-radius: 999px; color: var(--muted); background: rgba(255,255,255,.7); font-size: 8px; }
 .trend-delta i { width: 13px; height: 1px; background: #536fba; }
 .trend-delta.complexity i { background: #28aeb1; }
 .trend-delta.up { color: var(--green); }
@@ -657,7 +657,7 @@ tbody tr:hover { background: #fbfbfc; }
 .legend-line { width: 18px; height: 1px; display: inline-block; background: #536fba; }
 .legend-line.complexity { background: repeating-linear-gradient(90deg, #28aeb1 0 5px, transparent 5px 8px); }
 .chart-caption { margin-top: 10px; color: var(--muted); font-size: 10px; }
-.chart-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 8px; color: var(--muted); font-size: 11px; }
+.chart-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 8px; color: var(--muted); font-size: 10px; }
 .chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend-swatch { width: 9px; height: 9px; display: inline-block; border-radius: 2px; }
 .swatch-green { background: var(--green); }
@@ -691,12 +691,12 @@ tbody tr:hover { background: #fbfbfc; }
 .compact-pie > div { grid-area: 1 / 1; position: relative; text-align: center; }
 .compact-pie strong, .compact-pie span { display: block; }
 .compact-pie strong { color: #40505d; font-size: 16px; font-weight: 600; }
-.compact-pie span { color: var(--muted); font-size: 9px; }
+.compact-pie span { color: var(--muted); font-size: 7px; }
 .compact-pie-legend { min-width: 0; display: grid; gap: 4px; }
-.compact-pie-legend > div { min-width: 0; display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: 5px; font-size: 10px; }
+.compact-pie-legend > div { min-width: 0; display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; align-items: center; gap: 5px; font-size: 8px; }
 .compact-pie-legend span { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
-.compact-pie-legend strong { font-size: 11px; white-space: nowrap; }
-.compact-pie-legend small { color: var(--muted); font-size: 9px; font-weight: 500; }
+.compact-pie-legend strong { font-size: 9px; white-space: nowrap; }
+.compact-pie-legend small { color: var(--muted); font-size: 7px; font-weight: 500; }
 .review-progress-compact { display: grid; gap: 10px; }
 .review-progress-track { height: 14px; display: flex; overflow: hidden; border-radius: 999px; background: #edf0f3; box-shadow: inset 0 1px 2px rgba(31,42,55,.08); }
 .review-progress-track span { display: block; height: 100%; }

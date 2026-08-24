@@ -1,0 +1,17 @@
+# Monitoring config for QLCV
+# Alert rules
+
+# High error rate (>5% in 5 min)
+alert: high_error_rate
+expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+for: 5m
+
+# Slow queries (>2s avg in 5 min)
+alert: slow_queries
+expr: rate(postgres_query_duration_ms[5m]) > 2000
+for: 5m
+
+# Quota warnings
+alert: quota_warning
+expr: supabase_storage_usage_bytes > 500000000  # 500MB
+for: 10m

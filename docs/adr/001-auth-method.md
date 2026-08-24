@@ -1,0 +1,1 @@
+﻿# ADR 001 - Phuong thuc dang nhap`n`nTrang thai: Duoc chap thuan`n`nQuyet dinh: Dung email/password + magic link cua Supabase Auth cho pilot.`nKhong dung Google OAuth do chua co mien to chuc thong nhat.`n`nHe qua:`n- Can co the moi bang ma dang ky`n- Tai khoan moi o trang thai cho duyet`n- Co the chuyen sang SSO sau pilot

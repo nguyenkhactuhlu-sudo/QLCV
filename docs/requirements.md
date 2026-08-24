@@ -1,0 +1,1 @@
+﻿# Yeu cau nghiep vu - He thong Nhat ky va Danh gia cong viec VKSND tinh`n`n> Phien ban: 1.0  `n> Ngay: 23/08/2026  `n> Trang thai: Da duyet`n`n## 1. Tong quan`nHe thong quan ly nhat ky cong tac va danh gia ket qua cong viec hang ngay.
