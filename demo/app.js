@@ -1651,7 +1651,27 @@ async function exportMonthlyExcel(period) {
   showToast("Đã xuất file Excel.");
 }
 
-function monthlyReportHtml(period) {
+const PDF_EXPORT_CSS = `
+  .pdf-export-root { font-family: "Times New Roman", Times, serif; font-size: 12pt; color: #111; background: #fff; padding: 14mm; box-sizing: border-box; }
+  .pdf-export-root .letterhead { display: flex; justify-content: space-between; margin-bottom: 16px; }
+  .pdf-export-root .letterhead div { text-align: center; }
+  .pdf-export-root .letterhead strong { display: block; text-decoration: underline; }
+  .pdf-export-root h1 { text-align: center; font-size: 15pt; margin: 4px 0; }
+  .pdf-export-root .subtitle { text-align: center; font-weight: bold; margin: 2px 0; }
+  .pdf-export-root .period { text-align: center; font-style: italic; margin: 2px 0 16px; }
+  .pdf-export-root table { width: 100%; border-collapse: collapse; }
+  .pdf-export-root th, .pdf-export-root td { border: 1px solid #333; padding: 4px 6px; font-size: 10.5pt; }
+  .pdf-export-root th { text-align: center; font-weight: bold; }
+  .pdf-export-root td.c { text-align: center; }
+  .pdf-export-root tr { break-inside: avoid; page-break-inside: avoid; }
+  .pdf-export-root .section-row td { font-weight: bold; text-align: left; background: #f3f3f3; }
+  .pdf-export-root .signature { margin-top: 26px; width: 100%; }
+  .pdf-export-root .signature td { border: none; text-align: center; }
+  .pdf-export-root .sig-title { font-weight: bold; }
+  .pdf-export-root .sig-date { font-style: italic; }
+`;
+
+function monthlyReportBodyHtml(period) {
   const sections = monthlyExportSections(period);
   const head = users.find(person => person.role === "province_head");
   const [reportYear, reportMonth] = period.split("-");
@@ -1665,25 +1685,7 @@ function monthlyReportHtml(period) {
     }).join("");
     return `<tr class="section-row"><td colspan="8">${section.title}</td></tr>${body}`;
   }).join("");
-  return `<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>Tổng hợp chấm điểm ${periodLabel(period)}</title><style>
-    @page { size: A3 landscape; margin: 14mm; }
-    body { font-family: "Times New Roman", Times, serif; font-size: 12pt; color: #111; }
-    .letterhead { display: flex; justify-content: space-between; margin-bottom: 16px; }
-    .letterhead div { text-align: center; }
-    .letterhead strong { display: block; text-decoration: underline; }
-    h1 { text-align: center; font-size: 15pt; margin: 4px 0; }
-    .subtitle { text-align: center; font-weight: bold; margin: 2px 0; }
-    .period { text-align: center; font-style: italic; margin: 2px 0 16px; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { border: 1px solid #333; padding: 4px 6px; font-size: 10.5pt; }
-    th { text-align: center; font-weight: bold; }
-    td.c { text-align: center; }
-    .section-row td { font-weight: bold; text-align: left; background: #f3f3f3; }
-    .signature { margin-top: 26px; width: 100%; }
-    .signature td { border: none; text-align: center; }
-    .sig-title { font-weight: bold; }
-    .sig-date { font-style: italic; }
-  </style></head><body>
+  return `
     <div class="letterhead">
       <div><strong>VIỆN KIỂM SÁT NHÂN DÂN TỐI CAO</strong><span>VIỆN KIỂM SÁT NHÂN DÂN TỈNH BẮC NINH</span></div>
       <div><strong>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><span style="text-decoration:underline">Độc lập - Tự do - Hạnh phúc</span></div>
@@ -1696,16 +1698,61 @@ function monthlyReportHtml(period) {
       <tr><th>Chức vụ</th><th>Chức danh</th><th>Điểm</th><th>Xếp loại</th></tr></thead>
       <tbody>${rowsHtml}</tbody>
     </table>
-    <table class="signature"><tr><td style="width:50%"></td><td style="width:50%"><span class="sig-date">Bắc Ninh, ngày ${today.getDate()} tháng ${today.getMonth() + 1} năm ${today.getFullYear()}</span><br><span class="sig-title">VIỆN TRƯỞNG</span><br><br><br><br><strong>${head ? head.name : ""}</strong></td></tr></table>
-    <script>window.onload = () => setTimeout(() => window.print(), 200);<\/script>
-  </body></html>`;
+    <table class="signature"><tr><td style="width:50%"></td><td style="width:50%"><span class="sig-date">Bắc Ninh, ngày ${today.getDate()} tháng ${today.getMonth() + 1} năm ${today.getFullYear()}</span><br><span class="sig-title">VIỆN TRƯỞNG</span><br><br><br><br><strong>${head ? head.name : ""}</strong></td></tr></table>`;
 }
 
-function exportMonthlyPdf(period) {
-  const blob = new Blob([monthlyReportHtml(period)], { type: "text/html" });
-  const url = URL.createObjectURL(blob);
-  window.open(url, "_blank");
-  showToast("Đã mở bản in — chọn \"Lưu dưới dạng PDF\" trong hộp thoại in của trình duyệt.");
+// Xuat PDF that (tai xuong 1 lan bam), khong qua hop thoai in cua trinh
+// duyet - dung html2canvas de "chup" chinh xac phan da render bang CSS
+// Times New Roman cua trinh duyet (chu tieng Viet luon dung, khong can
+// nhung font rieng cho jsPDF), roi tu cat thanh nhieu trang qua jsPDF.
+// Dung truc tiep html2canvas+jsPDF (khong qua html2pdf.js) vi ham
+// toContainer() cua html2pdf.js bien phan tu muc tieu thanh con cua 1 wrapper
+// position:absolute rieng cua no - phan tu muc tieu van con "position" inline
+// nen bi dua ra khoi luong binh thuong va khong dong gop chieu cao cho
+// wrapper do, khien html2canvas do duoc chieu cao = 0 va xuat ra PDF trang.
+async function exportMonthlyPdf(period) {
+  if (typeof html2canvas === "undefined" || typeof window.jspdf === "undefined") { showToast("Chưa tải được thư viện xuất PDF, thử lại sau."); return; }
+  let styleEl = document.getElementById("pdfExportStyle");
+  if (!styleEl) {
+    styleEl = document.createElement("style");
+    styleEl.id = "pdfExportStyle";
+    styleEl.textContent = PDF_EXPORT_CSS;
+    document.head.appendChild(styleEl);
+  }
+  const container = document.createElement("div");
+  container.className = "pdf-export-root";
+  container.style.position = "fixed";
+  container.style.left = "0";
+  container.style.top = "0";
+  container.style.zIndex = "-1";
+  container.style.width = "1600px";
+  container.innerHTML = monthlyReportBodyHtml(period);
+  document.body.appendChild(container);
+  try {
+    const canvas = await html2canvas(container, { scale: 2, useCORS: true });
+    const imgData = canvas.toDataURL("image/jpeg", 0.98);
+    const pdf = new window.jspdf.jsPDF({ unit: "mm", format: "a3", orientation: "landscape" });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidthMm = pageWidth;
+    const imgHeightMm = canvas.height * imgWidthMm / canvas.width;
+    let heightLeft = imgHeightMm;
+    let position = 0;
+    pdf.addImage(imgData, "JPEG", 0, position, imgWidthMm, imgHeightMm);
+    heightLeft -= pageHeight;
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeightMm;
+      pdf.addPage();
+      pdf.addImage(imgData, "JPEG", 0, position, imgWidthMm, imgHeightMm);
+      heightLeft -= pageHeight;
+    }
+    pdf.save(`tong-hop-cham-diem-${period}-demo.pdf`);
+    showToast("Đã xuất file PDF.");
+  } catch (e) {
+    showToast("Lỗi khi xuất PDF: " + e.message);
+  } finally {
+    container.remove();
+  }
 }
 
 const ROLE_LABELS = { province_head: "Viện trưởng tỉnh", province_deputy: "Phó Viện trưởng tỉnh", unit_head: "Trưởng phòng/Viện trưởng KV", unit_deputy: "Phó phòng/Phó Viện trưởng KV", staff: "Cán bộ/Kiểm sát viên", administrator: "Quản trị viên" };
