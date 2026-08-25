@@ -702,7 +702,7 @@ function unitShort(id){var u=UNITS.find(function(x){return x.id===id});return u?
 // cong tac" la viec DA lam. Khong can RPC vi RLS 1 policy la du (khong co
 // phan quyen xem cheo nhu work_logs/monthly_reviews).
 // ============================================
-var NOTES_MONTH=null,NOTES_SELECTED_DATE=null,NOTES_CACHE=[];
+var NOTES_MONTH=null,NOTES_SELECTED_DATE=null,NOTES_CACHE=[],STICKY_CACHE=[];
 
 function notesGridDates(monthStr){
   var parts=monthStr.split('-'),year=Number(parts[0]),month=Number(parts[1]);
@@ -743,12 +743,20 @@ async function rn(){
   if(gridDates.indexOf(NOTES_SELECTED_DATE)<0)NOTES_SELECTED_DATE=gridDates[0];
   $('appView').innerHTML='<div class="empty-state"><strong>Đang tải...</strong></div>';
   try{
-    NOTES_CACHE=await fetchPersonalNotes(gridDates[0],gridDates[gridDates.length-1]);
+    var results=await Promise.all([fetchPersonalNotes(gridDates[0],gridDates[gridDates.length-1]),fetchStickyNotes()]);
+    NOTES_CACHE=results[0];
+    STICKY_CACHE=results[1];
   }catch(e){
     $('appView').innerHTML='<div class="empty-state"><strong>Không tải được ghi chú</strong><span>'+esc(e.message)+'</span></div>';
     return;
   }
   renderNotesView(gridDates);
+}
+
+async function fetchStickyNotes(){
+  var r=await fetch(API+'sticky_notes?user_id=eq.'+U.id+'&order=created_at.asc',{headers:authHeaders()});
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  return await r.json();
 }
 
 function renderNotesView(gridDates){
@@ -766,6 +774,7 @@ function renderNotesView(gridDates){
   h+=gridDates.map(function(dateStr){return calendarDayCellHtml(dateStr,notesByDate[dateStr]||[],todayStr2)}).join('');
   h+='</div></section>';
   h+='<section class="panel monthly-detail">'+notesDetailHtml(NOTES_SELECTED_DATE,notesByDate[NOTES_SELECTED_DATE]||[],todayStr2)+'</section></div>';
+  h+=stickyBoardHtml();
   $('appView').innerHTML=h;
   $('newNote').addEventListener('click',function(){openNoteModal(NOTES_SELECTED_DATE)});
   $('notesPrevMonth').addEventListener('click',function(){NOTES_MONTH=shiftMonth(NOTES_MONTH,-1);rn()});
@@ -776,6 +785,86 @@ function renderNotesView(gridDates){
   document.querySelectorAll('[data-edit-note]').forEach(function(b){b.addEventListener('click',function(){openNoteModal(null,b.dataset.editNote)})});
   document.querySelectorAll('[data-delete-note]').forEach(function(b){b.addEventListener('click',function(){deleteNote(b.dataset.deleteNote)})});
   document.querySelectorAll('[data-toggle-note-done]').forEach(function(cb){cb.addEventListener('change',function(){toggleNoteDone(cb.dataset.toggleNoteDone,cb.checked)})});
+  bindStickyBoard(gridDates);
+}
+
+// ============================================
+// GHI CHU TU DO (khong gan ngay) - "sticky notes", tu xep theo luoi, keo
+// goc duoi-phai tung o de doi kich thuoc bang co che resize goc cua trinh
+// duyet.
+// ============================================
+function stickyBoardHtml(){
+  return '<section class="panel sticky-board-panel">'
+    +'<div class="panel-header"><div><h2>Việc chưa có hạn cụ thể</h2><p>Ghi chú tự do, không gắn ngày — kéo góc dưới-phải để đổi kích thước</p></div><button class="button button-secondary" id="newSticky">+ Thêm ô ghi chú</button></div>'
+    +'<div class="sticky-board">'+(STICKY_CACHE.length?STICKY_CACHE.map(stickyNoteHtml).join(''):'<p class="metric-context">Chưa có ghi chú nào.</p>')+'</div>'
+    +'</section>';
+}
+
+function stickyNoteHtml(note){
+  return '<div class="sticky-note" style="width:'+(note.width||220)+'px;height:'+(note.height||160)+'px" data-sticky-id="'+note.id+'">'
+    +'<button type="button" class="sticky-note-delete" data-delete-sticky="'+note.id+'" aria-label="Xoá ghi chú">×</button>'
+    +'<textarea class="sticky-note-text" data-sticky-text="'+note.id+'" placeholder="Ghi việc chưa có hạn...">'+esc(note.content||'')+'</textarea>'
+    +'</div>';
+}
+
+function bindStickyBoard(gridDates){
+  var newSticky=$('newSticky');
+  if(newSticky)newSticky.addEventListener('click',async function(){
+    try{
+      var r=await fetch(API+'sticky_notes',{method:'POST',headers:authHeaders({'Content-Type':'application/json','Prefer':'return=representation'}),body:JSON.stringify({user_id:U.id,content:'',width:220,height:160})});
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      var created=await r.json();
+      STICKY_CACHE.push(created[0]);
+      renderNotesView(gridDates);
+    }catch(e){showToast('Lỗi: '+e.message)}
+  });
+  document.querySelectorAll('[data-delete-sticky]').forEach(function(b){b.addEventListener('click',async function(){
+    var id=b.dataset.deleteSticky;
+    try{
+      var r=await fetch(API+'sticky_notes?id=eq.'+id,{method:'DELETE',headers:authHeaders()});
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      STICKY_CACHE=STICKY_CACHE.filter(function(n){return n.id!==id});
+      renderNotesView(gridDates);
+    }catch(e){showToast('Lỗi: '+e.message)}
+  })});
+  document.querySelectorAll('[data-sticky-text]').forEach(function(textarea){
+    var debounceTimer;
+    textarea.addEventListener('input',function(){
+      clearTimeout(debounceTimer);
+      debounceTimer=setTimeout(async function(){
+        var id=textarea.dataset.stickyText;
+        try{
+          await fetch(API+'sticky_notes?id=eq.'+id,{method:'PATCH',headers:authHeaders({'Content-Type':'application/json','Prefer':'return=minimal'}),body:JSON.stringify({content:textarea.value})});
+          var note=STICKY_CACHE.find(function(n){return n.id===id});
+          if(note)note.content=textarea.value;
+        }catch(e){}
+      },400);
+    });
+  });
+  document.querySelectorAll('.sticky-note').forEach(function(el){
+    var debounceTimer;
+    var observer=new ResizeObserver(function(entries){
+      var entry=entries[0];
+      // "* { box-sizing: border-box }" toan cuc -> style.width/height dat khi
+      // ve lai la KICH THUOC BORDER-BOX, phai luu dung border-box (khong
+      // dung contentRect - loai tru padding, se lam o "co lai" moi lan
+      // resize+tai lai trang do padding bi tru lap).
+      var box=entry.borderBoxSize&&entry.borderBoxSize[0];
+      var width=box?box.inlineSize:el.offsetWidth;
+      var height=box?box.blockSize:el.offsetHeight;
+      clearTimeout(debounceTimer);
+      debounceTimer=setTimeout(async function(){
+        var id=el.dataset.stickyId;
+        var w=Math.round(width),h=Math.round(height);
+        try{
+          await fetch(API+'sticky_notes?id=eq.'+id,{method:'PATCH',headers:authHeaders({'Content-Type':'application/json','Prefer':'return=minimal'}),body:JSON.stringify({width:w,height:h})});
+          var note=STICKY_CACHE.find(function(n){return n.id===id});
+          if(note){note.width=w;note.height=h}
+        }catch(e){}
+      },400);
+    });
+    observer.observe(el);
+  });
 }
 
 function calendarDayCellHtml(dateStr,dayNotes,todayStr2){

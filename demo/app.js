@@ -6,6 +6,7 @@ const REGISTRATION_CODE_STORAGE_KEY = "vks-registration-codes-demo-v1";
 const REGISTERED_ACCOUNT_STORAGE_KEY = "vks-registered-accounts-demo-v1";
 const NOTIFICATION_READ_STORAGE_KEY = "vks-notification-read-demo-v1";
 const PERSONAL_NOTES_STORAGE_KEY = "vks-personal-notes-demo-v1";
+const STICKY_NOTES_STORAGE_KEY = "vks-sticky-notes-demo-v1";
 
 const units = [
   { id: "province", name: "VKSND tỉnh", short: "VKSND tỉnh", type: "province", parentId: null },
@@ -291,6 +292,7 @@ let registrationCodes = loadJson(REGISTRATION_CODE_STORAGE_KEY, sampleRegistrati
 let registeredAccounts = loadJson(REGISTERED_ACCOUNT_STORAGE_KEY, []);
 let notificationReadState = loadJson(NOTIFICATION_READ_STORAGE_KEY, {});
 let personalNotes = loadJson(PERSONAL_NOTES_STORAGE_KEY, samplePersonalNotes);
+let stickyNotes = loadJson(STICKY_NOTES_STORAGE_KEY, []);
 registeredAccounts.forEach(account => {
   if (!users.some(user => user.id === account.id)) users.push(account);
 });
@@ -337,6 +339,10 @@ function saveLogs() {
 
 function savePersonalNotes() {
   localStorage.setItem(PERSONAL_NOTES_STORAGE_KEY, JSON.stringify(personalNotes));
+}
+
+function saveStickyNotes() {
+  localStorage.setItem(STICKY_NOTES_STORAGE_KEY, JSON.stringify(stickyNotes));
 }
 
 function currentUser() { return users.find(user => user.id === state.currentUserId); }
@@ -1136,7 +1142,8 @@ function renderNotes() {
         </div>
       </section>
       <section class="panel monthly-detail">${notesDetailHtml(state.notesSelectedDate, notesByDate[state.notesSelectedDate] || [])}</section>
-    </div>`;
+    </div>
+    ${stickyBoardHtml()}`;
   document.getElementById("newNote").addEventListener("click", () => openNoteModal(state.notesSelectedDate));
   document.getElementById("notesPrevMonth").addEventListener("click", () => { state.notesMonth = shiftMonth(state.notesMonth, -1); renderNotes(); });
   document.getElementById("notesNextMonth").addEventListener("click", () => { state.notesMonth = shiftMonth(state.notesMonth, 1); renderNotes(); });
@@ -1147,6 +1154,78 @@ function renderNotes() {
   document.querySelectorAll("[data-edit-note]").forEach(button => button.addEventListener("click", () => openNoteModal(null, button.dataset.editNote)));
   document.querySelectorAll("[data-delete-note]").forEach(button => button.addEventListener("click", () => deleteNote(button.dataset.deleteNote)));
   document.querySelectorAll("[data-toggle-note-done]").forEach(checkbox => checkbox.addEventListener("change", () => toggleNoteDone(checkbox.dataset.toggleNoteDone)));
+  bindStickyBoard();
+}
+
+// ============================================
+// GHI CHU TU DO (khong gan ngay) - "sticky notes", tu xep theo luoi, keo
+// goc duoi-phai tung o de doi kich thuoc bang co che resize goc cua trinh
+// duyet (khong dinh vi tu do, khong can thu vien keo-tha).
+// ============================================
+function stickyNotesForCurrentUser() {
+  return stickyNotes.filter(note => note.userId === currentUser().id);
+}
+
+function stickyBoardHtml() {
+  const mine = stickyNotesForCurrentUser();
+  return `<section class="panel sticky-board-panel">
+    <div class="panel-header"><div><h2>Việc chưa có hạn cụ thể</h2><p>Ghi chú tự do, không gắn ngày — kéo góc dưới-phải để đổi kích thước</p></div><button class="button button-secondary" id="newSticky">+ Thêm ô ghi chú</button></div>
+    <div class="sticky-board">${mine.length ? mine.map(stickyNoteHtml).join("") : `<p class="metric-context">Chưa có ghi chú nào.</p>`}</div>
+  </section>`;
+}
+
+function stickyNoteHtml(note) {
+  return `<div class="sticky-note" style="width:${note.width || 220}px;height:${note.height || 160}px" data-sticky-id="${note.id}">
+    <button type="button" class="sticky-note-delete" data-delete-sticky="${note.id}" aria-label="Xoá ghi chú">×</button>
+    <textarea class="sticky-note-text" data-sticky-text="${note.id}" placeholder="Ghi việc chưa có hạn...">${note.content || ""}</textarea>
+  </div>`;
+}
+
+function bindStickyBoard() {
+  const newSticky = document.getElementById("newSticky");
+  if (newSticky) newSticky.addEventListener("click", () => {
+    stickyNotes.push({ id: `SN-${Date.now()}`, userId: currentUser().id, content: "", width: 220, height: 160, createdAt: new Date().toISOString() });
+    saveStickyNotes();
+    renderNotes();
+  });
+  document.querySelectorAll("[data-delete-sticky]").forEach(button => button.addEventListener("click", () => {
+    stickyNotes = stickyNotes.filter(note => note.id !== button.dataset.deleteSticky);
+    saveStickyNotes();
+    renderNotes();
+  }));
+  document.querySelectorAll("[data-sticky-text]").forEach(textarea => {
+    let debounceTimer;
+    textarea.addEventListener("input", () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        const note = stickyNotes.find(item => item.id === textarea.dataset.stickyText);
+        if (note) { note.content = textarea.value; saveStickyNotes(); }
+      }, 400);
+    });
+  });
+  document.querySelectorAll(".sticky-note").forEach(el => {
+    let debounceTimer;
+    const observer = new ResizeObserver(entries => {
+      const entry = entries[0];
+      // "* { box-sizing: border-box }" toan cuc -> style.width/height dat khi
+      // ve lai la KICH THUOC BORDER-BOX, phai luu dung border-box (khong
+      // dung contentRect - loai tru padding, se lam o "co lai" moi lan
+      // resize+tai lai trang do padding bi tru lap).
+      const box = entry.borderBoxSize && entry.borderBoxSize[0];
+      const width = box ? box.inlineSize : el.offsetWidth;
+      const height = box ? box.blockSize : el.offsetHeight;
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        const note = stickyNotes.find(item => item.id === el.dataset.stickyId);
+        if (note) {
+          note.width = Math.round(width);
+          note.height = Math.round(height);
+          saveStickyNotes();
+        }
+      }, 400);
+    });
+    observer.observe(el);
+  });
 }
 
 function calendarDayCellHtml(dateStr, dayNotes) {
@@ -2366,6 +2445,7 @@ function submitJournal(event) {
 function resetDemo() {
   logs = structuredClone(sampleLogs);
   personalNotes = structuredClone(samplePersonalNotes);
+  stickyNotes = [];
   monthlyReviews = structuredClone(sampleMonthly.concat(generateMonthlyHistory()));
   users.splice(0, users.length, ...users.filter(user => !user.id.startsWith("reg-")));
   registeredAccounts = [];
@@ -2380,6 +2460,7 @@ function resetDemo() {
   ];
   saveLogs();
   savePersonalNotes();
+  saveStickyNotes();
   localStorage.setItem(MONTHLY_STORAGE_KEY, JSON.stringify(monthlyReviews));
   localStorage.setItem(REGISTERED_ACCOUNT_STORAGE_KEY, JSON.stringify(registeredAccounts));
   localStorage.setItem(REGISTRATION_CODE_STORAGE_KEY, JSON.stringify(registrationCodes));
