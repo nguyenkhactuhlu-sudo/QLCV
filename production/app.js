@@ -545,8 +545,8 @@ function renderJournalList(){
   var filtered=LOGS.filter(function(l){
     if(JOURNAL_STATUS_FILTER!=='all'&&l.status!==JOURNAL_STATUS_FILTER)return false;
     if(JOURNAL_SEARCH){
-      var q=JOURNAL_SEARCH.toLowerCase();
-      var hay=((l.title||'')+' '+(l.result||'')).toLowerCase();
+      var q=JOURNAL_SEARCH.normalize('NFC').toLowerCase();
+      var hay=((l.title||'')+' '+(l.result||'')).normalize('NFC').toLowerCase();
       if(hay.indexOf(q)<0)return false;
     }
     return true;
@@ -633,8 +633,8 @@ function cj(){$('journalModal').hidden=true;document.body.style.overflow='';EDIT
 // sua/trinh lai), liet ke nhat ky cua chinh nguoi dung (LOGS da la cua
 // chinh U tu rj()), moi nhat truoc, loc song theo tu khoa.
 function renderCopyJournalList(query){
-  var q=(query||'').trim().toLowerCase();
-  var mine=LOGS.filter(function(l){return !q||((l.title||'')+' '+(l.result||'')).toLowerCase().indexOf(q)>=0})
+  var q=(query||'').trim().normalize('NFC').toLowerCase();
+  var mine=LOGS.filter(function(l){return !q||((l.title||'')+' '+(l.result||'')).normalize('NFC').toLowerCase().indexOf(q)>=0})
     .slice().sort(function(a,b){return (b.log_date||'').localeCompare(a.log_date||'')});
   var list=$('copyJournalList');
   list.innerHTML=mine.length?mine.slice(0,30).map(function(l){
@@ -757,7 +757,7 @@ function assignRoleTableHtml(people,assignedByUser){
       +'<span class="unit-checklist-empty" data-assigned-empty="'+p.id+'" style="display:'+(isDeputy?'none':'')+'">Chỉ áp dụng cho Phó Viện trưởng tỉnh</span>';
     var isSelf=p.id===U.id;
     var lockBtn=isSelf?'':'<button type="button" class="button button-small '+(p.is_active?'button-danger':'button-secondary')+'" data-toggle-active="'+p.id+'" data-active="'+p.is_active+'">'+(p.is_active?'Khoá':'Mở lại')+'</button>';
-    return '<tr data-person-name="'+esc((p.full_name||'').toLowerCase())+'"><td><strong>'+esc(p.full_name)+'</strong></td><td><span class="status-pill '+(p.is_active?'status-approved':'status-pending')+'">'+(p.is_active?'Đang hoạt động':'Chờ xác nhận')+'</span></td><td>'+roleSel+'</td><td>'+unitSel+'</td><td>'+checklist+'</td><td class="numeric"><button class="button button-primary button-small" data-save-role="'+p.id+'">Lưu</button> '+lockBtn+'</td></tr>';
+    return '<tr data-person-name="'+esc((p.full_name||'').normalize('NFC').toLowerCase())+'"><td><strong>'+esc(p.full_name)+'</strong></td><td><span class="status-pill '+(p.is_active?'status-approved':'status-pending')+'">'+(p.is_active?'Đang hoạt động':'Chờ xác nhận')+'</span></td><td>'+roleSel+'</td><td>'+unitSel+'</td><td>'+checklist+'</td><td class="numeric"><button class="button button-primary button-small" data-save-role="'+p.id+'">Lưu</button> '+lockBtn+'</td></tr>';
   }).join('')+'</tbody></table></div>';
 }
 
@@ -797,7 +797,7 @@ function bindAssignRoleSearch(){
   var input=$('assignRoleSearch');
   if(!input)return;
   input.addEventListener('input',function(){
-    var q=input.value.trim().toLowerCase();
+    var q=input.value.trim().normalize('NFC').toLowerCase();
     document.querySelectorAll('[data-role-group]').forEach(function(group){
       var rows=group.querySelectorAll('[data-person-name]');
       var anyMatch=false;
@@ -1061,8 +1061,8 @@ async function ruj(){
 function ujFilteredPeople(){
   var list=UJ_UNIT_FILTER==='all'?UJ_PEOPLE:UJ_PEOPLE.filter(function(p){return p.unit_id===UJ_UNIT_FILTER});
   if(UJ_SEARCH){
-    var q=UJ_SEARCH.toLowerCase();
-    list=list.filter(function(p){return (p.full_name||'').toLowerCase().indexOf(q)>=0});
+    var q=UJ_SEARCH.normalize('NFC').toLowerCase();
+    list=list.filter(function(p){return (p.full_name||'').normalize('NFC').toLowerCase().indexOf(q)>=0});
   }
   return list;
 }

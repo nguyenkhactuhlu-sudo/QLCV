@@ -1003,8 +1003,8 @@ function renderJournal() {
   const filtered = mine.filter(item => {
     if (state.journalStatusFilter !== "all" && item.status !== state.journalStatusFilter) return false;
     if (state.journalSearch) {
-      const q = state.journalSearch.toLowerCase();
-      const hay = `${item.title} ${item.result}`.toLowerCase();
+      const q = state.journalSearch.normalize("NFC").toLowerCase();
+      const hay = `${item.title} ${item.result}`.normalize("NFC").toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -1192,8 +1192,8 @@ function ujScopeLogs() {
 function ujFilteredPeople() {
   let list = state.ujUnitFilter === "all" ? ujScopePeople() : ujScopePeople().filter(p => p.unitId === state.ujUnitFilter);
   if (state.ujSearch) {
-    const q = state.ujSearch.toLowerCase();
-    list = list.filter(p => p.name.toLowerCase().includes(q));
+    const q = state.ujSearch.normalize("NFC").toLowerCase();
+    list = list.filter(p => p.name.normalize("NFC").toLowerCase().includes(q));
   }
   return list;
 }
@@ -1762,7 +1762,7 @@ function assignRoleTable(people) {
     const isSelf = person.id === currentUser().id;
     const active = person.active !== false;
     const lockBtn = isSelf ? "" : `<button type="button" class="button button-small ${active ? "button-danger" : "button-secondary"}" data-toggle-active="${person.id}">${active ? "Khoá" : "Mở lại"}</button>`;
-    return `<tr data-person-name="${(person.name || "").toLowerCase()}"><td><strong>${person.name}</strong></td><td><span class="status-pill ${active ? "status-approved" : "status-pending"}">${active ? "Đang hoạt động" : "Đã khoá"}</span></td><td>${roleSel}</td><td>${unitSel}</td><td>${checklist}</td><td class="numeric"><button class="button button-primary button-small" data-save-role="${person.id}">Lưu</button> ${lockBtn}</td></tr>`;
+    return `<tr data-person-name="${(person.name || "").normalize("NFC").toLowerCase()}"><td><strong>${person.name}</strong></td><td><span class="status-pill ${active ? "status-approved" : "status-pending"}">${active ? "Đang hoạt động" : "Đã khoá"}</span></td><td>${roleSel}</td><td>${unitSel}</td><td>${checklist}</td><td class="numeric"><button class="button button-primary button-small" data-save-role="${person.id}">Lưu</button> ${lockBtn}</td></tr>`;
   }).join("")}</tbody></table></div>`;
 }
 
@@ -1796,7 +1796,7 @@ function bindAssignRoleSearch() {
   const input = document.getElementById("assignRoleSearch");
   if (!input) return;
   input.addEventListener("input", () => {
-    const q = input.value.trim().toLowerCase();
+    const q = input.value.trim().normalize("NFC").toLowerCase();
     document.querySelectorAll("[data-role-group]").forEach(group => {
       let anyMatch = false;
       group.querySelectorAll("[data-person-name]").forEach(row => {
@@ -2059,9 +2059,9 @@ function openJournalModal(logId = null) {
 // loc song theo tu khoa.
 function renderCopyJournalList(query) {
   const user = currentUser();
-  const q = query.trim().toLowerCase();
+  const q = query.trim().normalize("NFC").toLowerCase();
   const mine = logs.filter(log => log.authorId === user.id)
-    .filter(log => !q || `${log.title} ${log.result}`.toLowerCase().includes(q))
+    .filter(log => !q || `${log.title} ${log.result}`.normalize("NFC").toLowerCase().includes(q))
     .sort((a, b) => b.date.localeCompare(a.date));
   const list = document.getElementById("copyJournalList");
   list.innerHTML = mine.length ? mine.slice(0, 30).map(log => `<button type="button" class="copy-journal-item" data-copy-journal="${log.id}"><strong>${log.title}</strong><span>${shortDate(log.date)} · ${log.category}</span></button>`).join("") : `<div class="empty-state compact-empty"><strong>Không tìm thấy nhật ký phù hợp</strong></div>`;
