@@ -2193,7 +2193,6 @@ function renderAdministration() {
         ${registrationCodeTable()}
       </section>
       <section class="panel panel-wide"><div class="panel-header"><div><h2>Tài khoản chờ xác nhận</h2><p>Đơn vị đã được xác định từ mã; quản trị chỉ đối chiếu danh sách nhân sự và kích hoạt</p></div></div>${pendingAccountTable(pendingAccounts)}</section>
-      <section class="panel panel-wide"><div class="panel-header"><div><h2>Người đứng đầu các đơn vị</h2><p>Quyền đánh giá được suy ra từ chức vụ và khoảng thời gian hiệu lực</p></div></div>${headTable(heads)}</section>
       <section class="panel panel-wide"><div class="panel-header"><div><h2>Nhật ký thay đổi</h2><p>Không xóa lịch sử thay đổi nhân sự và phân quyền</p></div></div><div class="audit-list">${auditEvents.slice().reverse().map(event => `<div class="audit-row"><span class="audit-time">${new Date(event.at).toLocaleString("vi-VN")}</span><div><strong>${event.action}</strong><p>${event.detail}</p></div><span>${event.actor}</span></div>`).join("")}</div></section>
     </div>`;
   document.getElementById("applyTransfer").addEventListener("click", applyPersonnelTransfer);
@@ -2250,10 +2249,6 @@ function approveRegisteredAccount(accountId) {
   localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(auditEvents));
   showToast("Đã xác nhận tài khoản với quyền cán bộ mặc định.");
   renderAdministration();
-}
-
-function headTable(heads) {
-  return `<div class="table-wrap"><table><thead><tr><th>Đơn vị</th><th>Người đứng đầu</th><th>Chức vụ</th><th>Hiệu lực</th><th>Quyền chính</th></tr></thead><tbody>${heads.sort((a, b) => unitById(a.unitId).short.localeCompare(unitById(b.unitId).short, "vi")).map(person => `<tr><td><strong>${unitById(person.unitId).short}</strong></td><td>${person.name}</td><td>${person.title}</td><td><span class="status-pill status-approved">Đang hiệu lực</span></td><td>Đánh giá đơn vị; duyệt tháng</td></tr>`).join("")}</tbody></table></div>`;
 }
 
 function applyPersonnelTransfer() {
