@@ -196,6 +196,7 @@ function render(){
   if(U&&U.pending){showPendingScreen();return}
   if(V==='dashboard')rd();
   else if(V==='journal')rj();
+  else if(V==='notes')rn();
   else if(V==='reviews')rr();
   else if(V==='unitJournal')ruj();
   else if(V==='monthly')rm();
@@ -695,6 +696,179 @@ async function sj(e){
 }
 
 function unitShort(id){var u=UNITS.find(function(x){return x.id===id});return u?(u.short_name||u.code):'—'}
+// ============================================
+// GHI CHU CONG VIEC CA NHAN - lich thang + khung chi tiet, rieng tu tuyet
+// doi cho tung nguoi dung (RLS: user_id = auth.uid()), khac han "Nhat ky
+// cong tac" la viec DA lam. Khong can RPC vi RLS 1 policy la du (khong co
+// phan quyen xem cheo nhu work_logs/monthly_reviews).
+// ============================================
+var NOTES_MONTH=null,NOTES_SELECTED_DATE=null,NOTES_CACHE=[];
+
+function notesGridDates(monthStr){
+  var parts=monthStr.split('-'),year=Number(parts[0]),month=Number(parts[1]);
+  var firstOfMonth=new Date(year,month-1,1);
+  var startWeekday=(firstOfMonth.getDay()+6)%7;
+  var gridStart=new Date(year,month-1,1-startWeekday);
+  var dates=[];
+  for(var i=0;i<42;i++){
+    var d=new Date(gridStart);
+    d.setDate(gridStart.getDate()+i);
+    dates.push(ymdStr(d.getFullYear(),d.getMonth(),d.getDate()));
+  }
+  return dates;
+}
+
+function shiftMonth(monthStr,delta){
+  var parts=monthStr.split('-'),year=Number(parts[0]),month=Number(parts[1]);
+  return ymStr(year,month-1+delta);
+}
+
+function fullDateLabelVi(dateStr){
+  var days=['Chủ Nhật','Thứ Hai','Thứ Ba','Thứ Tư','Thứ Năm','Thứ Sáu','Thứ Bảy'];
+  var d=new Date(dateStr+'T00:00:00');
+  return days[d.getDay()]+', '+fullDate(dateStr);
+}
+
+async function fetchPersonalNotes(startDate,endDate){
+  var r=await fetch(API+'personal_notes?user_id=eq.'+U.id+'&note_date=gte.'+startDate+'&note_date=lte.'+endDate+'&order=note_date.asc,created_at.asc',{headers:authHeaders()});
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  return await r.json();
+}
+
+async function rn(){
+  $('pageEyebrow').textContent='KẾ HOẠCH CÁ NHÂN';$('pageTitle').textContent='Ghi chú công việc';
+  if(!NOTES_MONTH)NOTES_MONTH=ymStr(new Date().getFullYear(),new Date().getMonth());
+  if(!NOTES_SELECTED_DATE){var t0=new Date();NOTES_SELECTED_DATE=ymdStr(t0.getFullYear(),t0.getMonth(),t0.getDate())}
+  var gridDates=notesGridDates(NOTES_MONTH);
+  if(gridDates.indexOf(NOTES_SELECTED_DATE)<0)NOTES_SELECTED_DATE=gridDates[0];
+  $('appView').innerHTML='<div class="empty-state"><strong>Đang tải...</strong></div>';
+  try{
+    NOTES_CACHE=await fetchPersonalNotes(gridDates[0],gridDates[gridDates.length-1]);
+  }catch(e){
+    $('appView').innerHTML='<div class="empty-state"><strong>Không tải được ghi chú</strong><span>'+esc(e.message)+'</span></div>';
+    return;
+  }
+  renderNotesView(gridDates);
+}
+
+function renderNotesView(gridDates){
+  var notesByDate={};
+  NOTES_CACHE.forEach(function(note){
+    if(!notesByDate[note.note_date])notesByDate[note.note_date]=[];
+    notesByDate[note.note_date].push(note);
+  });
+  var t=new Date();
+  var todayStr2=ymdStr(t.getFullYear(),t.getMonth(),t.getDate());
+  var h='<div class="journal-header"><div><h2>Ghi chú công việc</h2><p>Kế hoạch cá nhân — chỉ bạn nhìn thấy</p></div><button class="button button-primary" id="newNote">+ Thêm ghi chú</button></div>';
+  h+='<div class="toolbar"><div class="month-nav"><button type="button" class="icon-button" id="notesPrevMonth" aria-label="Tháng trước">‹</button><strong>'+esc(periodLabel(NOTES_MONTH))+'</strong><button type="button" class="icon-button" id="notesNextMonth" aria-label="Tháng sau">›</button></div><div class="spacer"></div><button class="button button-secondary" id="notesToday">Hôm nay</button></div>';
+  h+='<div class="monthly-layout"><section class="panel monthly-table-panel"><div class="calendar-grid">';
+  h+=['T2','T3','T4','T5','T6','T7','CN'].map(function(w){return '<div class="calendar-weekday">'+w+'</div>'}).join('');
+  h+=gridDates.map(function(dateStr){return calendarDayCellHtml(dateStr,notesByDate[dateStr]||[],todayStr2)}).join('');
+  h+='</div></section>';
+  h+='<section class="panel monthly-detail">'+notesDetailHtml(NOTES_SELECTED_DATE,notesByDate[NOTES_SELECTED_DATE]||[],todayStr2)+'</section></div>';
+  $('appView').innerHTML=h;
+  $('newNote').addEventListener('click',function(){openNoteModal(NOTES_SELECTED_DATE)});
+  $('notesPrevMonth').addEventListener('click',function(){NOTES_MONTH=shiftMonth(NOTES_MONTH,-1);rn()});
+  $('notesNextMonth').addEventListener('click',function(){NOTES_MONTH=shiftMonth(NOTES_MONTH,1);rn()});
+  $('notesToday').addEventListener('click',function(){var t2=new Date();NOTES_MONTH=ymStr(t2.getFullYear(),t2.getMonth());NOTES_SELECTED_DATE=ymdStr(t2.getFullYear(),t2.getMonth(),t2.getDate());rn()});
+  document.querySelectorAll('[data-notes-day]').forEach(function(cell){cell.addEventListener('click',function(){NOTES_SELECTED_DATE=cell.dataset.notesDay;renderNotesView(gridDates)})});
+  var newForDay=$('newNoteForDay');if(newForDay)newForDay.addEventListener('click',function(){openNoteModal(NOTES_SELECTED_DATE)});
+  document.querySelectorAll('[data-edit-note]').forEach(function(b){b.addEventListener('click',function(){openNoteModal(null,b.dataset.editNote)})});
+  document.querySelectorAll('[data-delete-note]').forEach(function(b){b.addEventListener('click',function(){deleteNote(b.dataset.deleteNote)})});
+  document.querySelectorAll('[data-toggle-note-done]').forEach(function(cb){cb.addEventListener('change',function(){toggleNoteDone(cb.dataset.toggleNoteDone,cb.checked)})});
+}
+
+function calendarDayCellHtml(dateStr,dayNotes,todayStr2){
+  var inMonth=dateStr.indexOf(NOTES_MONTH)===0;
+  var isToday=dateStr===todayStr2;
+  var isSelected=dateStr===NOTES_SELECTED_DATE;
+  var dayNumber=Number(dateStr.slice(8,10));
+  var visible=dayNotes.slice(0,3);
+  var rest=dayNotes.length-visible.length;
+  var chips=visible.map(function(note){
+    var overdue=note.note_date<todayStr2&&!note.is_done;
+    return '<span class="calendar-day-chip '+(note.is_done?'is-done':'')+' '+(overdue?'is-overdue':'')+'">'+esc(note.title)+'</span>';
+  }).join('');
+  return '<button type="button" class="calendar-day '+(inMonth?'':'is-other-month')+' '+(isToday?'is-today':'')+' '+(isSelected?'is-selected':'')+'" data-notes-day="'+dateStr+'">'
+    +'<span class="calendar-day-number">'+dayNumber+'</span>'+chips+(rest>0?'<span class="calendar-day-more">+'+rest+' khác</span>':'')
+    +'</button>';
+}
+
+function notesDetailHtml(dateStr,dayNotes,todayStr2){
+  var sorted=dayNotes.slice().sort(function(a,b){return (a.created_at||'').localeCompare(b.created_at||'')});
+  var h='<div class="panel-header"><div><span class="eyebrow">CHI TIẾT NGÀY</span><h2>'+esc(fullDateLabelVi(dateStr))+'</h2></div></div>';
+  h+='<div class="note-list">'+(sorted.length?sorted.map(function(note){return noteCardHtml(note,todayStr2)}).join(''):'<div class="empty-state compact-empty"><strong>Chưa có ghi chú</strong><span>Chưa có việc gì được ghi cho ngày này.</span></div>')+'</div>';
+  h+='<div class="form-actions" style="padding-top:14px"><button type="button" class="button button-secondary" id="newNoteForDay">+ Thêm ghi chú cho ngày này</button></div>';
+  return h;
+}
+
+function noteCardHtml(note,todayStr2){
+  var overdue=note.note_date<todayStr2&&!note.is_done;
+  return '<article class="note-card '+(note.is_done?'is-done':'')+' '+(overdue?'is-overdue':'')+'">'
+    +'<label class="note-card-check"><input type="checkbox" data-toggle-note-done="'+note.id+'" '+(note.is_done?'checked':'')+'><span>'+esc(note.title)+'</span></label>'
+    +(note.content?'<p>'+esc(note.content)+'</p>':'')
+    +'<div class="note-card-actions"><button type="button" class="button button-secondary button-small" data-edit-note="'+note.id+'">Sửa</button><button type="button" class="button button-danger button-small" data-delete-note="'+note.id+'">Xoá</button></div>'
+    +'</article>';
+}
+
+function openNoteModal(dateStr,noteId){
+  var form=$('noteForm');form.reset();
+  var note=noteId?NOTES_CACHE.find(function(n){return n.id===noteId}):null;
+  $('noteModalTitle').textContent=note?'Sửa ghi chú công việc':'Thêm ghi chú công việc';
+  $('noteSubmitButton').textContent=note?'Lưu thay đổi':'Lưu ghi chú';
+  form.dataset.editingNoteId=note?note.id:'';
+  form.elements.noteDate.value=note?note.note_date:(dateStr||NOTES_SELECTED_DATE);
+  form.elements.title.value=note?note.title:'';
+  form.elements.content.value=note?(note.content||''):'';
+  $('noteModal').hidden=false;
+  form.elements.title.focus();
+}
+function closeNoteModal(){$('noteModal').hidden=true}
+
+async function submitNote(e){
+  e.preventDefault();
+  var f=new FormData($('noteForm'));
+  var editingId=$('noteForm').dataset.editingNoteId;
+  var noteDate=f.get('noteDate');
+  var title=(f.get('title')||'').trim();
+  var content=(f.get('content')||'').trim();
+  if(!noteDate||!title)return;
+  var btn=$('noteSubmitButton');btn.disabled=true;
+  try{
+    if(editingId){
+      var r=await fetch(API+'personal_notes?id=eq.'+editingId,{method:'PATCH',headers:authHeaders({'Content-Type':'application/json','Prefer':'return=minimal'}),body:JSON.stringify({note_date:noteDate,title:title,content:content||null})});
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      showToast('Đã cập nhật ghi chú.');
+    }else{
+      var r2=await fetch(API+'personal_notes',{method:'POST',headers:authHeaders({'Content-Type':'application/json','Prefer':'return=minimal'}),body:JSON.stringify({user_id:U.id,note_date:noteDate,title:title,content:content||null})});
+      if(!r2.ok)throw new Error('HTTP '+r2.status);
+      showToast('Đã thêm ghi chú.');
+    }
+    closeNoteModal();
+    NOTES_SELECTED_DATE=noteDate;
+    if(noteDate.indexOf(NOTES_MONTH)!==0)NOTES_MONTH=noteDate.slice(0,7);
+    rn();
+  }catch(err){showToast('Lỗi: '+err.message)}
+  btn.disabled=false;
+}
+
+async function toggleNoteDone(noteId,checked){
+  try{
+    var r=await fetch(API+'personal_notes?id=eq.'+noteId,{method:'PATCH',headers:authHeaders({'Content-Type':'application/json','Prefer':'return=minimal'}),body:JSON.stringify({is_done:checked})});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    rn();
+  }catch(e){showToast('Lỗi: '+e.message)}
+}
+
+async function deleteNote(noteId){
+  try{
+    var r=await fetch(API+'personal_notes?id=eq.'+noteId,{method:'DELETE',headers:authHeaders()});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    showToast('Đã xoá ghi chú.');
+    rn();
+  }catch(e){showToast('Lỗi: '+e.message)}
+}
+
 
 // ============================================
 // CO CAU TO CHUC - chi xem, khong dong den tai khoan/nhan su that
@@ -2053,6 +2227,9 @@ document.addEventListener('DOMContentLoaded',function(){
   $('exportPeriodSelect').addEventListener('change',function(e){renderExportSummary(e.target.value)});
   $('exportExcelButton').addEventListener('click',function(){exportMonthlyExcel($('exportPeriodSelect').value)});
   $('exportPdfButton').addEventListener('click',function(){exportMonthlyPdf($('exportPeriodSelect').value)});
+  document.querySelectorAll('[data-close-note]').forEach(function(b){b.addEventListener('click',closeNoteModal)});
+  $('noteModal').addEventListener('click',function(e){if(e.target.id==='noteModal')closeNoteModal()});
+  $('noteForm').addEventListener('submit',submitNote);
   $('notificationToggle').addEventListener('click',function(){
     var panel=$('notificationPanel');
     panel.hidden=!panel.hidden;

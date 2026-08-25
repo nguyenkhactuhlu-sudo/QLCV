@@ -84,6 +84,10 @@
           <span class="nav-icon" aria-hidden="true">✎</span>
           <span>Nhật ký của tôi</span>
         </button>
+        <button class="nav-item" data-view="notes">
+          <span class="nav-icon" aria-hidden="true">🗓</span>
+          <span>Ghi chú công việc</span>
+        </button>
         <button class="nav-item review-nav" data-view="reviews">
           <span class="nav-icon" aria-hidden="true">✓</span>
           <span>Duyệt & chấm điểm</span>
@@ -196,6 +200,27 @@
     </section>
   </div>
 
+  <div class="modal-backdrop" id="noteModal" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="noteModalTitle">
+      <div class="modal-header">
+        <div>
+          <span class="eyebrow">GHI CHÚ CÁ NHÂN</span>
+          <h2 id="noteModalTitle">Thêm ghi chú công việc</h2>
+        </div>
+        <button class="icon-button" data-close-note aria-label="Đóng">×</button>
+      </div>
+      <form id="noteForm" class="form-grid">
+        <label class="field"><span>Ngày</span><input type="date" name="noteDate" required></label>
+        <label class="field field-wide"><span>Tiêu đề (hiện ngắn gọn trên lịch)</span><input type="text" name="title" maxlength="80" required placeholder="Ví dụ: Nộp báo cáo quý III"></label>
+        <label class="field field-wide"><span>Mô tả chi tiết <em>(không bắt buộc)</em></span><textarea name="content" rows="4" placeholder="Ghi rõ nội dung, đầu việc cần chuẩn bị..."></textarea></label>
+        <div class="form-actions field-wide">
+          <button type="button" class="button button-secondary" data-close-note>Hủy</button>
+          <button type="submit" class="button button-primary" id="noteSubmitButton">Lưu ghi chú</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
   <div class="modal-backdrop" id="registerModal" hidden>
     <section class="modal auth-modal" role="dialog" aria-modal="true" aria-labelledby="registerModalTitle">
       <div class="modal-header">
@@ -239,6 +264,6 @@
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="./app.js?v=20260825-9"></script>
+  <script src="./app.js?v=20260825-10"></script>
 </body>
 </html>

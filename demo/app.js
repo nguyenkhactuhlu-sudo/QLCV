@@ -5,6 +5,7 @@ const AUDIT_STORAGE_KEY = "vks-audit-demo-v1";
 const REGISTRATION_CODE_STORAGE_KEY = "vks-registration-codes-demo-v1";
 const REGISTERED_ACCOUNT_STORAGE_KEY = "vks-registered-accounts-demo-v1";
 const NOTIFICATION_READ_STORAGE_KEY = "vks-notification-read-demo-v1";
+const PERSONAL_NOTES_STORAGE_KEY = "vks-personal-notes-demo-v1";
 
 const units = [
   { id: "province", name: "VKSND tỉnh", short: "VKSND tỉnh", type: "province", parentId: null },
@@ -244,7 +245,7 @@ const requestedUser = query.get("role");
 const requestedView = query.get("view");
 const state = {
   currentUserId: users.some(user => user.id === requestedUser) ? requestedUser : "u01",
-  currentView: ["dashboard", "journal", "reviews", "unitJournal", "monthly", "organization", "administration", "settings"].includes(requestedView) ? requestedView : "dashboard",
+  currentView: ["dashboard", "journal", "notes", "reviews", "unitJournal", "monthly", "organization", "administration", "settings"].includes(requestedView) ? requestedView : "dashboard",
   selectedReviewId: null,
   editingJournalId: null,
   selectedMonthlyUserId: null,
@@ -261,7 +262,9 @@ const state = {
   ujUnitFilter: "all",
   ujSearch: "",
   ujSelectedPersonId: null,
-  ujPeriod: recentPeriods()[0]
+  ujPeriod: recentPeriods()[0],
+  notesMonth: DEMO_TODAY.slice(0, 7),
+  notesSelectedDate: DEMO_TODAY
 };
 
 const DEMO_ACCOUNT_IDS = ["u01", "u02", "u03", "u04", "u05", "u08", "u20"];
@@ -275,11 +278,19 @@ const demoCredentials = {
   u20: { password: "Admin@2026", label: "Quản trị" }
 };
 
+const samplePersonalNotes = [
+  { id: "PN001", userId: "u01", noteDate: "2026-08-25", title: "Duyệt báo cáo quý III", content: "Xem và ký duyệt báo cáo tổng hợp quý III trước khi gửi VKSND tối cao.", isDone: false },
+  { id: "PN002", userId: "u01", noteDate: "2026-08-18", title: "Họp giao ban khu vực", content: "Chuẩn bị nội dung họp giao ban với các VKSND khu vực.", isDone: false },
+  { id: "PN003", userId: "u03", noteDate: "2026-08-24", title: "Nộp kế hoạch kiểm sát tháng 9", content: "Hoàn thiện và nộp kế hoạch công tác kiểm sát điều tra tháng 9 cho lãnh đạo Viện.", isDone: false },
+  { id: "PN004", userId: "u03", noteDate: "2026-08-20", title: "Rà soát hồ sơ án tồn đọng", content: "Đã rà soát xong 5 hồ sơ án tồn đọng của phòng.", isDone: true }
+].map(note => ({ ...note, createdAt: `${note.noteDate}T08:00:00` }));
+
 let logs = loadLogs();
 let monthlyReviews = loadJson(MONTHLY_STORAGE_KEY, sampleMonthly.concat(generateMonthlyHistory()));
 let registrationCodes = loadJson(REGISTRATION_CODE_STORAGE_KEY, sampleRegistrationCodes);
 let registeredAccounts = loadJson(REGISTERED_ACCOUNT_STORAGE_KEY, []);
 let notificationReadState = loadJson(NOTIFICATION_READ_STORAGE_KEY, {});
+let personalNotes = loadJson(PERSONAL_NOTES_STORAGE_KEY, samplePersonalNotes);
 registeredAccounts.forEach(account => {
   if (!users.some(user => user.id === account.id)) users.push(account);
 });
@@ -322,6 +333,10 @@ function loadLogs() {
 
 function saveLogs() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
+}
+
+function savePersonalNotes() {
+  localStorage.setItem(PERSONAL_NOTES_STORAGE_KEY, JSON.stringify(personalNotes));
 }
 
 function currentUser() { return users.find(user => user.id === state.currentUserId); }
@@ -448,6 +463,11 @@ function initialize() {
   document.getElementById("exportPeriodSelect").addEventListener("change", event => renderExportSummary(event.target.value));
   document.getElementById("exportExcelButton").addEventListener("click", () => exportMonthlyExcel(document.getElementById("exportPeriodSelect").value));
   document.getElementById("exportPdfButton").addEventListener("click", () => exportMonthlyPdf(document.getElementById("exportPeriodSelect").value));
+  document.querySelectorAll("[data-close-note]").forEach(button => button.addEventListener("click", closeNoteModal));
+  document.getElementById("noteModal").addEventListener("click", event => {
+    if (event.target.id === "noteModal") closeNoteModal();
+  });
+  document.getElementById("noteForm").addEventListener("submit", submitNote);
   document.getElementById("openRegister").addEventListener("click", openRegisterModal);
   document.querySelectorAll("[data-close-register]").forEach(button => button.addEventListener("click", closeRegisterModal));
   document.getElementById("registerModal").addEventListener("click", event => {
@@ -674,7 +694,7 @@ function openNotification(button) {
 }
 
 function render() {
-  const renderers = { dashboard: renderDashboard, journal: renderJournal, reviews: renderReviews, unitJournal: renderUnitJournal, monthly: renderMonthly, organization: renderOrganization, administration: renderAdministration, settings: renderSettings };
+  const renderers = { dashboard: renderDashboard, journal: renderJournal, notes: renderNotes, reviews: renderReviews, unitJournal: renderUnitJournal, monthly: renderMonthly, organization: renderOrganization, administration: renderAdministration, settings: renderSettings };
   (renderers[state.currentView] || renderDashboard)();
 }
 
@@ -1056,6 +1076,167 @@ function journalCard(log, opts = {}) {
 // nhat cua tung nguoi; trong 1 nhom sap theo thoi gian nop moi nhat truoc.
 // An toan: neu khong tim thay tac gia (du lieu khong khop), gom vao 1 nhom
 // rieng thay vi lam vo danh sach.
+// ============================================
+// GHI CHU CONG VIEC CA NHAN - lich thang + khung chi tiet, rieng tu tuyet
+// doi cho tung nguoi dung (khac han "Nhat ky cong tac" la viec DA lam).
+// ============================================
+function personalNotesForCurrentUser() {
+  return personalNotes.filter(note => note.userId === currentUser().id);
+}
+
+// Luoi 6 hang x 7 cot (T2->CN), bao gom ca ngay dem dau/cuoi thang lien ke
+// de nguoi dung van them/xem ghi chu duoc o ranh gioi thang.
+function notesGridDates(monthStr) {
+  const [year, month] = monthStr.split("-").map(Number);
+  const firstOfMonth = new Date(year, month - 1, 1);
+  const startWeekday = (firstOfMonth.getDay() + 6) % 7;
+  const gridStart = new Date(year, month - 1, 1 - startWeekday);
+  return Array.from({ length: 42 }, (_, index) => {
+    const d = new Date(gridStart);
+    d.setDate(gridStart.getDate() + index);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  });
+}
+
+function shiftMonth(monthStr, delta) {
+  const [year, month] = monthStr.split("-").map(Number);
+  const d = new Date(year, month - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function fullDateLabelVi(dateStr) {
+  const days = ["Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"];
+  const d = new Date(`${dateStr}T00:00:00`);
+  return `${days[d.getDay()]}, ${formatDate(dateStr)}`;
+}
+
+function renderNotes() {
+  const mine = personalNotesForCurrentUser();
+  const gridDates = notesGridDates(state.notesMonth);
+  if (!gridDates.includes(state.notesSelectedDate)) {
+    state.notesSelectedDate = state.notesMonth === DEMO_TODAY.slice(0, 7) ? DEMO_TODAY : `${state.notesMonth}-01`;
+  }
+  const notesByDate = {};
+  mine.forEach(note => {
+    (notesByDate[note.noteDate] ||= []).push(note);
+  });
+  updateChrome("Ghi chú công việc", "KẾ HOẠCH CÁ NHÂN");
+  document.getElementById("appView").innerHTML = `
+    <div class="journal-header"><div><h2>Ghi chú công việc</h2><p>Kế hoạch cá nhân — chỉ bạn nhìn thấy</p></div><button class="button button-primary" id="newNote">+ Thêm ghi chú</button></div>
+    <div class="toolbar">
+      <div class="month-nav"><button type="button" class="icon-button" id="notesPrevMonth" aria-label="Tháng trước">‹</button><strong>${periodLabel(state.notesMonth)}</strong><button type="button" class="icon-button" id="notesNextMonth" aria-label="Tháng sau">›</button></div>
+      <div class="spacer"></div>
+      <button class="button button-secondary" id="notesToday">Hôm nay</button>
+    </div>
+    <div class="monthly-layout">
+      <section class="panel monthly-table-panel">
+        <div class="calendar-grid">
+          ${["T2", "T3", "T4", "T5", "T6", "T7", "CN"].map(w => `<div class="calendar-weekday">${w}</div>`).join("")}
+          ${gridDates.map(dateStr => calendarDayCellHtml(dateStr, notesByDate[dateStr] || [])).join("")}
+        </div>
+      </section>
+      <section class="panel monthly-detail">${notesDetailHtml(state.notesSelectedDate, notesByDate[state.notesSelectedDate] || [])}</section>
+    </div>`;
+  document.getElementById("newNote").addEventListener("click", () => openNoteModal(state.notesSelectedDate));
+  document.getElementById("notesPrevMonth").addEventListener("click", () => { state.notesMonth = shiftMonth(state.notesMonth, -1); renderNotes(); });
+  document.getElementById("notesNextMonth").addEventListener("click", () => { state.notesMonth = shiftMonth(state.notesMonth, 1); renderNotes(); });
+  document.getElementById("notesToday").addEventListener("click", () => { state.notesMonth = DEMO_TODAY.slice(0, 7); state.notesSelectedDate = DEMO_TODAY; renderNotes(); });
+  document.querySelectorAll("[data-notes-day]").forEach(cell => cell.addEventListener("click", () => { state.notesSelectedDate = cell.dataset.notesDay; renderNotes(); }));
+  const newForDay = document.getElementById("newNoteForDay");
+  if (newForDay) newForDay.addEventListener("click", () => openNoteModal(state.notesSelectedDate));
+  document.querySelectorAll("[data-edit-note]").forEach(button => button.addEventListener("click", () => openNoteModal(null, button.dataset.editNote)));
+  document.querySelectorAll("[data-delete-note]").forEach(button => button.addEventListener("click", () => deleteNote(button.dataset.deleteNote)));
+  document.querySelectorAll("[data-toggle-note-done]").forEach(checkbox => checkbox.addEventListener("change", () => toggleNoteDone(checkbox.dataset.toggleNoteDone)));
+}
+
+function calendarDayCellHtml(dateStr, dayNotes) {
+  const inMonth = dateStr.startsWith(state.notesMonth);
+  const isToday = dateStr === DEMO_TODAY;
+  const isSelected = dateStr === state.notesSelectedDate;
+  const dayNumber = Number(dateStr.slice(8, 10));
+  const visible = dayNotes.slice(0, 3);
+  const rest = dayNotes.length - visible.length;
+  const chips = visible.map(note => {
+    const overdue = note.noteDate < DEMO_TODAY && !note.isDone;
+    return `<span class="calendar-day-chip ${note.isDone ? "is-done" : ""} ${overdue ? "is-overdue" : ""}">${note.title}</span>`;
+  }).join("");
+  return `<button type="button" class="calendar-day ${inMonth ? "" : "is-other-month"} ${isToday ? "is-today" : ""} ${isSelected ? "is-selected" : ""}" data-notes-day="${dateStr}">
+    <span class="calendar-day-number">${dayNumber}</span>${chips}${rest > 0 ? `<span class="calendar-day-more">+${rest} khác</span>` : ""}
+  </button>`;
+}
+
+function notesDetailHtml(dateStr, dayNotes) {
+  const sorted = dayNotes.slice().sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return `<div class="panel-header"><div><span class="eyebrow">CHI TIẾT NGÀY</span><h2>${fullDateLabelVi(dateStr)}</h2></div></div>
+    <div class="note-list">${sorted.length ? sorted.map(note => noteCardHtml(note)).join("") : `<div class="empty-state compact-empty"><strong>Chưa có ghi chú</strong><span>Chưa có việc gì được ghi cho ngày này.</span></div>`}</div>
+    <div class="form-actions" style="padding-top:14px"><button type="button" class="button button-secondary" id="newNoteForDay">+ Thêm ghi chú cho ngày này</button></div>`;
+}
+
+function noteCardHtml(note) {
+  const overdue = note.noteDate < DEMO_TODAY && !note.isDone;
+  return `<article class="note-card ${note.isDone ? "is-done" : ""} ${overdue ? "is-overdue" : ""}">
+    <label class="note-card-check"><input type="checkbox" data-toggle-note-done="${note.id}" ${note.isDone ? "checked" : ""}><span>${note.title}</span></label>
+    ${note.content ? `<p>${note.content}</p>` : ""}
+    <div class="note-card-actions"><button type="button" class="button button-secondary button-small" data-edit-note="${note.id}">Sửa</button><button type="button" class="button button-danger button-small" data-delete-note="${note.id}">Xoá</button></div>
+  </article>`;
+}
+
+function openNoteModal(dateStr, noteId = null) {
+  const form = document.getElementById("noteForm");
+  form.reset();
+  const note = noteId ? personalNotes.find(item => item.id === noteId) : null;
+  document.getElementById("noteModalTitle").textContent = note ? "Sửa ghi chú công việc" : "Thêm ghi chú công việc";
+  document.getElementById("noteSubmitButton").textContent = note ? "Lưu thay đổi" : "Lưu ghi chú";
+  form.dataset.editingNoteId = note ? note.id : "";
+  form.elements.noteDate.value = note ? note.noteDate : (dateStr || state.notesSelectedDate);
+  form.elements.title.value = note ? note.title : "";
+  form.elements.content.value = note ? note.content || "" : "";
+  document.getElementById("noteModal").hidden = false;
+  form.elements.title.focus();
+}
+
+function closeNoteModal() {
+  document.getElementById("noteModal").hidden = true;
+}
+
+function submitNote(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  const editingId = form.dataset.editingNoteId;
+  const noteDate = data.get("noteDate");
+  const title = String(data.get("title") || "").trim();
+  const content = String(data.get("content") || "").trim();
+  if (!noteDate || !title) return;
+  if (editingId) {
+    const note = personalNotes.find(item => item.id === editingId);
+    if (note) Object.assign(note, { noteDate, title, content });
+  } else {
+    personalNotes.push({ id: `PN-${Date.now()}`, userId: currentUser().id, noteDate, title, content, isDone: false, createdAt: new Date().toISOString() });
+  }
+  savePersonalNotes();
+  closeNoteModal();
+  state.notesSelectedDate = noteDate;
+  if (!noteDate.startsWith(state.notesMonth)) state.notesMonth = noteDate.slice(0, 7);
+  showToast(editingId ? "Đã cập nhật ghi chú." : "Đã thêm ghi chú.");
+  renderNotes();
+}
+
+function toggleNoteDone(noteId) {
+  const note = personalNotes.find(item => item.id === noteId);
+  if (!note) return;
+  note.isDone = !note.isDone;
+  savePersonalNotes();
+  renderNotes();
+}
+
+function deleteNote(noteId) {
+  personalNotes = personalNotes.filter(item => item.id !== noteId);
+  savePersonalNotes();
+  showToast("Đã xoá ghi chú.");
+  renderNotes();
+}
+
 function groupQueueByAuthor(queue) {
   const order = [], byId = {};
   queue.forEach(log => {
@@ -2184,6 +2365,7 @@ function submitJournal(event) {
 
 function resetDemo() {
   logs = structuredClone(sampleLogs);
+  personalNotes = structuredClone(samplePersonalNotes);
   monthlyReviews = structuredClone(sampleMonthly.concat(generateMonthlyHistory()));
   users.splice(0, users.length, ...users.filter(user => !user.id.startsWith("reg-")));
   registeredAccounts = [];
@@ -2197,6 +2379,7 @@ function resetDemo() {
     { at: "2026-08-18T14:30:00", actor: "Phạm Hải Anh", action: "Phân công lãnh đạo phụ trách", detail: "Phạm vi Phòng 1, Phòng 7 và Khu vực 1" }
   ];
   saveLogs();
+  savePersonalNotes();
   localStorage.setItem(MONTHLY_STORAGE_KEY, JSON.stringify(monthlyReviews));
   localStorage.setItem(REGISTERED_ACCOUNT_STORAGE_KEY, JSON.stringify(registeredAccounts));
   localStorage.setItem(REGISTRATION_CODE_STORAGE_KEY, JSON.stringify(registrationCodes));
@@ -2215,6 +2398,8 @@ function resetDemo() {
   state.monthlyPeriod = "2026-06";
   state.journalStatusFilter = "all";
   state.journalSearch = "";
+  state.notesMonth = DEMO_TODAY.slice(0, 7);
+  state.notesSelectedDate = DEMO_TODAY;
   showToast("Đã khôi phục dữ liệu mẫu.");
   render();
 }
