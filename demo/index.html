@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Bản demo hệ thống quản lý công việc, nhật ký công tác và đánh giá cán bộ VKSND tỉnh">
   <title>Demo quản lý công việc VKSND tỉnh</title>
-  <link rel="stylesheet" href="styles.css?v=20260824-3">
+  <link rel="stylesheet" href="styles.css?v=20260825-1">
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4/dist/exceljs.min.js"></script>
 </head>
 <body class="login-active">
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
@@ -148,6 +149,13 @@
           <strong>Yêu cầu của lãnh đạo</strong>
           <span id="journalRevisionComment"></span>
         </div>
+        <div class="field-wide copy-journal-block" id="copyJournalBlock">
+          <button type="button" class="button button-secondary" id="toggleCopyJournal">🔍 Tìm và sao chép nhật ký cũ</button>
+          <div class="copy-journal-panel" id="copyJournalPanel" hidden>
+            <label class="field"><span>Tìm theo nội dung</span><input type="text" id="copyJournalSearch" placeholder="Nhập từ khoá..."></label>
+            <div class="copy-journal-list" id="copyJournalList"></div>
+          </div>
+        </div>
         <label class="field">
           <span>Ngày thực hiện</span>
           <input type="date" name="workDate" required>
@@ -223,7 +231,28 @@
     </section>
   </div>
 
+  <div class="modal-backdrop" id="exportModal" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="exportModalTitle">
+      <div class="modal-header">
+        <div>
+          <span class="eyebrow">BÁO CÁO THÁNG</span>
+          <h2 id="exportModalTitle">Xuất báo cáo chấm điểm tháng</h2>
+        </div>
+        <button class="icon-button" data-close-export aria-label="Đóng">×</button>
+      </div>
+      <div class="form-grid" style="padding:0 24px 24px">
+        <label class="field field-wide"><span>Kỳ xuất báo cáo</span><select id="exportPeriodSelect"></select></label>
+        <div class="field-wide" id="exportSummary"></div>
+        <div class="field-wide" id="exportIncompleteGroups"></div>
+        <div class="form-actions field-wide">
+          <button type="button" class="button button-secondary" id="exportExcelButton">Xuất Excel (chỉnh sửa được)</button>
+          <button type="button" class="button button-primary" id="exportPdfButton">Xuất PDF (để in)</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=20260824-3"></script>
+  <script src="app.js?v=20260825-1"></script>
 </body>
 </html>

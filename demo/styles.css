@@ -858,6 +858,7 @@ tbody tr:hover { background: #fbfbfc; }
 .grade-a { color: var(--green); background: var(--green-soft); }
 .grade-b { color: var(--blue); background: var(--blue-soft); }
 .grade-c { color: var(--orange); background: var(--orange-soft); }
+.grade-d { color: var(--red); background: var(--red-soft); }
 .grade-pending { color: var(--muted); background: var(--surface-soft); }
 .evidence-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .evidence-grid > div { padding: 10px; border-radius: 9px; background: var(--surface-soft); text-align: center; }
@@ -909,6 +910,19 @@ tbody tr:hover { background: #fbfbfc; }
 .unit-group.is-unassigned { border-color: rgba(212,175,55,.5); }
 .unit-group.is-unassigned summary { background: var(--gold-soft, #fff8e7); }
 .unit-group.is-unassigned summary strong { color: #7a5b00; }
+
+.copy-journal-block { display: flex; flex-direction: column; gap: 10px; margin-bottom: 4px; }
+.copy-journal-panel { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
+.copy-journal-panel[hidden] { display: none; }
+.copy-journal-list { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; }
+.copy-journal-item { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; text-align: left; color: var(--text); background: #fff; cursor: pointer; }
+.copy-journal-item:hover { border-color: var(--primary); background: var(--primary-light); }
+.copy-journal-item span { color: var(--muted); font-size: 11px; }
+
+.export-summary-notice { margin-bottom: 10px; }
+.export-missing-list { display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; }
+.export-missing-row { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; }
+.export-missing-row span { color: var(--muted); }
 
 @media (max-width: 1100px) {
   .login-layout { grid-template-columns: minmax(0, .9fr) minmax(380px, 1.1fr); gap: 30px; }

@@ -5,6 +5,10 @@ function $(i){return document.getElementById(i)}
 // thuoc tinh "hidden" mac dinh cua trinh duyet - phai ep display truc tiep
 // thi an/hien moi thuc su co tac dung.
 function setVisible(el,visible){if(el)el.style.display=visible?'':'none'}
+// "URL" bi bien "var URL=window.VITE_SUPABASE_URL" ben duoi ghi de len tan
+// goc (window.URL), phai luu lai tham chieu goc truoc khi bi ghi de de con
+// dung URL.createObjectURL/revokeObjectURL cho tinh nang xuat file.
+var NativeURL=window.URL;
 var URL=window.VITE_SUPABASE_URL;
 var KEY=window.VITE_SUPABASE_ANON_KEY;
 var API=URL+'/rest/v1/';var AUTH=URL+'/auth/v1/';
@@ -81,6 +85,18 @@ function submittedAtOf(l){return (l.revision_count?l.updated_at:l.created_at)||l
 // bieu do xu huong, pham vi ngay cham diem thang...).
 function ymStr(y,m){var mm=((m%12)+12)%12,yy=y+Math.floor(m/12);return yy+'-'+String(mm+1).padStart(2,'0')}
 function ymdStr(y,m,d){return ymStr(y,m)+'-'+String(d).padStart(2,'0')}
+function todayStr(){var d=new Date();return ymdStr(d.getFullYear(),d.getMonth(),d.getDate())}
+
+// Thang xep loai chinh thuc, ap dung cho toan bo nguoi dung: 90-100=A,
+// 80-89=B, 70-79=C, tu 69 tro xuong=D.
+function classificationFromScore(score){
+  var v=Number(score);
+  if(!isFinite(v))return null;
+  if(v>=90)return 'A';
+  if(v>=80)return 'B';
+  if(v>=70)return 'C';
+  return 'D';
+}
 
 // Duoc goi boi supabase-auth.js ngay sau khi dang nhap thanh cong,
 // hoac boi buoc kiem tra phien lam viec khi tai lai trang.
@@ -535,7 +551,9 @@ function renderJournalList(){
     }
     return true;
   });
-  var h='<div class="journal-header"><div><h2>'+esc(U.n)+'</h2><p>'+esc(U.tl||'')+'</p></div><button class="button button-primary" id="nj">+ Ghi nhật ký mới</button></div>';
+  var noJournalToday=!LOGS.some(function(l){return l.log_date===todayStr()});
+  var h=noJournalToday?'<div class="demo-notice journal-reminder-notice"><strong>Nhắc nhở</strong><span>Hôm nay bạn chưa ghi nhật ký công tác. Hãy ghi lại kết quả trong ngày để không bỏ sót khi chấm điểm cuối tháng.</span></div>':'';
+  h+='<div class="journal-header"><div><h2>'+esc(U.n)+'</h2><p>'+esc(U.tl||'')+'</p></div><button class="button button-primary" id="nj">+ Ghi nhật ký mới</button></div>';
   h+='<div class="metric-grid">'
     +metricCard('Nhật ký đã gửi',LOGS.length,'Tổng số đã ghi','')
     +metricCard('Đã xác nhận',LOGS.filter(function(l){return l.status==='approved'}).length,'Kết quả được công nhận','green')
@@ -602,10 +620,43 @@ function oj(logId){
   }else{
     form.elements.workDate.valueAsDate=new Date();
   }
+  setVisible($('copyJournalBlock'),!canEdit);
+  $('copyJournalPanel').hidden=true;
+  $('copyJournalSearch').value='';
+  renderCopyJournalList('');
   $('journalModal').hidden=false;document.body.style.overflow='hidden';
   (canEdit?form.elements.title:form.elements.category).focus();
 }
 function cj(){$('journalModal').hidden=true;document.body.style.overflow='';EDITING_ID=null}
+
+// Tim va sao chep nhat ky cu: chi hien trong form tao MOI (khong phai
+// sua/trinh lai), liet ke nhat ky cua chinh nguoi dung (LOGS da la cua
+// chinh U tu rj()), moi nhat truoc, loc song theo tu khoa.
+function renderCopyJournalList(query){
+  var q=(query||'').trim().toLowerCase();
+  var mine=LOGS.filter(function(l){return !q||((l.title||'')+' '+(l.result||'')).toLowerCase().indexOf(q)>=0})
+    .slice().sort(function(a,b){return (b.log_date||'').localeCompare(a.log_date||'')});
+  var list=$('copyJournalList');
+  list.innerHTML=mine.length?mine.slice(0,30).map(function(l){
+    return '<button type="button" class="copy-journal-item" data-copy-journal="'+l.id+'"><strong>'+esc(l.title)+'</strong><span>'+shortDate(l.log_date)+' · '+esc(catName(l.category_id))+'</span></button>';
+  }).join(''):'<div class="empty-state compact-empty"><strong>Không tìm thấy nhật ký phù hợp</strong></div>';
+  list.querySelectorAll('[data-copy-journal]').forEach(function(b){b.addEventListener('click',function(){applyCopyJournal(b.dataset.copyJournal)})});
+}
+
+function applyCopyJournal(logId){
+  var log=LOGS.find(function(l){return l.id===logId});
+  if(!log)return;
+  var form=$('journalForm');
+  populateCategorySelect();
+  form.elements.category.value=log.category_id;
+  form.elements.title.value=log.title;
+  form.elements.result.value=log.result;
+  form.elements.workRole.value=log.work_role;
+  form.elements.duration.value=log.duration;
+  form.elements.evidence.value=log.evidence||'';
+  $('copyJournalPanel').hidden=true;
+  showToast('Đã sao chép nội dung từ nhật ký cũ — kiểm tra lại trước khi gửi.');
+}
 
 async function sj(e){
   e.preventDefault();
@@ -1239,7 +1290,7 @@ async function rm(){
 
   var h='<div class="toolbar"><label class="filter-field"><span>Kỳ đánh giá</span><select id="monthlyPeriodSelect">'
     +recentPeriods().map(function(p){return '<option value="'+p+'" '+(p===CURRENT_PERIOD?'selected':'')+'>'+esc(periodLabel(p))+'</option>'}).join('')
-    +'</select></label>'+unitFilterHtml+'<div class="spacer"></div></div>';
+    +'</select></label>'+unitFilterHtml+'<div class="spacer"></div><button class="button button-secondary" id="exportMonthly">Xuất báo cáo tháng</button></div>';
   h+='<div class="metric-grid">'
     +metricCard('Hồ sơ trong phạm vi',rows.length,approved.length+' hồ sơ đã duyệt','')
     +metricCard('Xếp loại A',counts.A,counts.B+' xếp loại B','green')
@@ -1254,9 +1305,21 @@ async function rm(){
   var filterEl=$('monthlyUnitFilter');
   if(filterEl)filterEl.addEventListener('change',function(e){MONTHLY_UNIT_FILTER=e.target.value;SELECTED_MONTHLY_ID=null;rm()});
   $('monthlyPeriodSelect').addEventListener('change',function(e){CURRENT_PERIOD=e.target.value;SELECTED_MONTHLY_ID=null;rm()});
+  $('exportMonthly').addEventListener('click',openExportModal);
   if(selected){
     var saveBtn=$('saveMonthlyReview');if(saveBtn)saveBtn.addEventListener('click',function(){saveMonthlyApprove(selected)});
+    var officialScoreInput=$('officialScore'),classificationSelect=$('classification');
+    if(officialScoreInput&&classificationSelect)officialScoreInput.addEventListener('input',function(){
+      var suggestion=classificationFromScore(officialScoreInput.value);
+      if(suggestion)classificationSelect.value=suggestion;
+    });
     var selfBtn=$('saveSelfScore');if(selfBtn)selfBtn.addEventListener('click',function(){saveMonthlySelfScore()});
+    var headSelfBtn=$('saveHeadSelfEvaluation');if(headSelfBtn)headSelfBtn.addEventListener('click',saveHeadSelfEvaluation);
+    var headSelfScoreInput=$('headSelfScore'),headSelfClassificationSelect=$('headSelfClassification');
+    if(headSelfScoreInput&&headSelfClassificationSelect)headSelfScoreInput.addEventListener('input',function(){
+      var suggestion=classificationFromScore(headSelfScoreInput.value);
+      if(suggestion)headSelfClassificationSelect.value=suggestion;
+    });
   }
 }
 
@@ -1279,9 +1342,25 @@ function monthlyDetailHtml(x,evidence){
     +'<div class="evidence-grid"><div><span>Nhật ký</span><strong>'+evidence.total+'</strong></div><div><span>Được công nhận</span><strong>'+evidence.approved+'</strong></div><div><span>Tổng phức tạp</span><strong>'+evidence.complexity+'</strong></div><div><span>Chất lượng trọng số</span><strong>'+(evidence.quality?evidence.quality.toFixed(1):'—')+'</strong></div></div>'
     +'<div class="detail-section"><h3>Căn cứ hỗ trợ quyết định</h3><p class="metric-context">Dữ liệu nhật ký chỉ là căn cứ tham khảo; người có thẩm quyền vẫn quyết định điểm chính thức và xếp loại theo quy định.</p><div class="progress-line"><span>Tỷ lệ nhật ký đã xử lý</span><strong>'+evidence.reviewRate.toFixed(0)+'%</strong><div class="bar-track"><div class="bar-fill green" style="width:'+evidence.reviewRate+'%"></div></div></div></div>'
     +'<div class="detail-section"><div class="detail-grid"><div class="detail-item"><span>Điểm tự chấm</span><strong>'+(row.self_score!=null?row.self_score:'Chưa có')+'</strong></div><div class="detail-item"><span>Điểm được duyệt</span><strong>'+(row.official_score!=null?row.official_score:'Chưa duyệt')+'</strong></div></div></div>'
-    +(mayApprove?('<div class="detail-section"><div class="form-grid compact-form"><label class="field"><span>Điểm chính thức</span><input id="officialScore" type="number" min="0" max="100" step="0.25" value="'+(row.official_score!=null?row.official_score:(row.self_score!=null?row.self_score:0))+'"></label><label class="field"><span>Xếp loại</span><select id="classification"><option '+(row.classification==='A'?'selected':'')+'>A</option><option '+(row.classification==='B'?'selected':'')+'>B</option><option '+(row.classification==='C'?'selected':'')+'>C</option></select></label><label class="field field-wide"><span>Nhận xét/giải trình điều chỉnh</span><textarea id="monthlyNote" rows="2">'+esc(row.note||'')+'</textarea></label></div><div class="review-actions"><button class="button button-primary" id="saveMonthlyReview">Duyệt và lưu</button></div></div>'):'')
-    +(isSelf?('<div class="detail-section"><label class="field"><span>Điểm tự chấm của cá nhân</span><input id="selfScore" type="number" min="0" max="100" step="0.25" value="'+(row.self_score!=null?row.self_score:0)+'"></label><div class="review-actions"><button class="button button-primary" id="saveSelfScore">Lưu điểm tự chấm</button></div></div>'):'')
+    +(mayApprove?('<div class="detail-section"><div class="form-grid compact-form"><label class="field"><span>Điểm chính thức</span><input id="officialScore" type="number" min="0" max="100" step="0.25" value="'+(row.official_score!=null?row.official_score:(row.self_score!=null?row.self_score:0))+'"></label><label class="field"><span>Xếp loại</span><select id="classification"><option '+(row.classification==='A'?'selected':'')+'>A</option><option '+(row.classification==='B'?'selected':'')+'>B</option><option '+(row.classification==='C'?'selected':'')+'>C</option><option '+(row.classification==='D'?'selected':'')+'>D</option></select></label><label class="field field-wide"><span>Nhận xét/giải trình điều chỉnh</span><textarea id="monthlyNote" rows="2">'+esc(row.note||'')+'</textarea></label></div><div class="review-actions"><button class="button button-primary" id="saveMonthlyReview">Duyệt và lưu</button></div></div>'):'')
+    +(isSelf&&person.role==='province_head'?('<div class="detail-section"><p class="metric-context">Viện trưởng tỉnh không có cấp trên trong hệ thống nên tự chấm điểm và tự xếp loại; không có điểm duyệt chính thức.</p><div class="form-grid compact-form"><label class="field"><span>Điểm tự chấm</span><input id="headSelfScore" type="number" min="0" max="100" step="0.25" value="'+(row.self_score!=null?row.self_score:0)+'"></label><label class="field"><span>Xếp loại</span><select id="headSelfClassification"><option '+(row.classification==='A'?'selected':'')+'>A</option><option '+(row.classification==='B'?'selected':'')+'>B</option><option '+(row.classification==='C'?'selected':'')+'>C</option><option '+(row.classification==='D'?'selected':'')+'>D</option></select></label></div><div class="review-actions"><button class="button button-primary" id="saveHeadSelfEvaluation">Lưu điểm và xếp loại</button></div></div>'):'')
+    +(isSelf&&person.role!=='province_head'?('<div class="detail-section"><label class="field"><span>Điểm tự chấm của cá nhân</span><input id="selfScore" type="number" min="0" max="100" step="0.25" value="'+(row.self_score!=null?row.self_score:0)+'"></label><div class="review-actions"><button class="button button-primary" id="saveSelfScore">Lưu điểm tự chấm</button></div></div>'):'')
     +(!mayApprove&&!isSelf?'<div class="permission-note">Vai trò hiện tại chỉ được xem hồ sơ này; không có quyền thay đổi kết quả.</div>':'');
+}
+
+async function saveHeadSelfEvaluation(){
+  if(!requireActive())return;
+  var val=Number($('headSelfScore').value);
+  var classification=$('headSelfClassification').value;
+  if(!isFinite(val)||val<0||val>100){showToast('Điểm tự chấm phải nằm trong khoảng 0–100.');return}
+  var btn=$('saveHeadSelfEvaluation');btn.disabled=true;
+  try{
+    var r=await fetch(API+'rpc/save_province_head_self_evaluation',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_period:CURRENT_PERIOD,p_score:val,p_classification:classification})});
+    var d=await r.json();
+    if(!r.ok||d.success===false)throw new Error((d&&d.error)||('HTTP '+r.status));
+    showToast('Đã lưu điểm tự chấm và tự xếp loại.');
+    rm();
+  }catch(e){showToast('Lỗi: '+e.message);btn.disabled=false}
 }
 
 async function saveMonthlySelfScore(){
@@ -1314,6 +1393,276 @@ async function saveMonthlyApprove(x){
     showToast('Đã lưu điểm chính thức và xếp loại.');
     rm();
   }catch(e){showToast('Lỗi: '+e.message);btn.disabled=false}
+}
+
+// ============================================
+// XUAT BAO CAO THANG - hop thoai chon ky, canh bao thieu du lieu, xuat
+// Excel (chinh sua duoc) hoac PDF (de in, tranh sua du lieu).
+// ============================================
+var EXPORT_SCOPE_CACHE=null;
+
+async function monthlyExportScope(period){
+  var people=await fetchMonthlyScopeProfiles();
+  var ids=people.map(function(p){return p.id});
+  var reviews=[];
+  if(ids.length){
+    try{
+      var r=await fetch(API+'monthly_reviews?period=eq.'+period+'&user_id=in.('+ids.join(',')+')',{headers:authHeaders()});
+      reviews=r.ok?await r.json():[];
+    }catch(e){}
+  }
+  return people.map(function(p){return {person:p,review:reviews.find(function(rv){return rv.user_id===p.id})||null}});
+}
+
+async function getExportScope(period){
+  if(EXPORT_SCOPE_CACHE&&EXPORT_SCOPE_CACHE.period===period)return EXPORT_SCOPE_CACHE.scope;
+  var scope=await monthlyExportScope(period);
+  EXPORT_SCOPE_CACHE={period:period,scope:scope};
+  return scope;
+}
+
+function monthlyExportSections(scope){
+  var groupA=scope.filter(function(x){return ['province_head','province_deputy','unit_head'].indexOf(x.person.role)>=0})
+    .sort(function(a,b){return (a.person.full_name||'').localeCompare(b.person.full_name||'','vi')});
+  var groupB=scope.filter(function(x){return ['unit_deputy','staff'].indexOf(x.person.role)>=0})
+    .sort(function(a,b){return unitShort(a.person.unit_id).localeCompare(unitShort(b.person.unit_id),'vi')||(a.person.full_name||'').localeCompare(b.person.full_name||'','vi')});
+  return [
+    {title:'I. VIỆN TRƯỞNG VIỆN KSND TỈNH BẮC NINH ĐÁNH GIÁ, CHẤM ĐIỂM, XẾP LOẠI',items:groupA},
+    {title:'II. THỦ TRƯỞNG ĐƠN VỊ CƠ SỞ ĐÁNH GIÁ, CHẤM ĐIỂM, XẾP LOẠI CÁN BỘ, CÔNG CHỨC',items:groupB}
+  ];
+}
+
+// Diem duyet chinh thuc cua Vien truong tinh khong tinh la "thieu" - theo
+// thiet ke, ho tu cham va tu xep loai, khong ai duyet chinh thuc cho ho.
+function monthlyExportCompleteness(scope){
+  var missingSelf=0,missingOfficial=0,missingClassification=0,officialApplicable=0,byUnit={};
+  scope.forEach(function(x){
+    var person=x.person,review=x.review,missing=[];
+    if(!review||review.self_score==null){missing.push('chưa tự chấm điểm');missingSelf++}
+    if(person.role!=='province_head'){
+      officialApplicable++;
+      if(!review||review.official_score==null){missing.push('chưa có điểm duyệt chính thức');missingOfficial++}
+    }
+    if(!review||review.classification==null){missing.push('chưa xếp loại');missingClassification++}
+    if(missing.length){
+      if(!byUnit[person.unit_id])byUnit[person.unit_id]=[];
+      byUnit[person.unit_id].push({person:person,missing:missing});
+    }
+  });
+  return {total:scope.length,missingSelf:missingSelf,missingOfficial:missingOfficial,missingClassification:missingClassification,officialApplicable:officialApplicable,byUnit:byUnit};
+}
+
+async function openExportModal(){
+  var select=$('exportPeriodSelect');
+  select.innerHTML=recentPeriods().map(function(p){return '<option value="'+p+'" '+(p===CURRENT_PERIOD?'selected':'')+'>'+esc(periodLabel(p))+'</option>'}).join('');
+  $('exportModal').hidden=false;
+  await renderExportSummary(select.value);
+}
+
+function closeExportModal(){$('exportModal').hidden=true}
+
+async function renderExportSummary(period){
+  $('exportSummary').innerHTML='<div class="demo-notice export-summary-notice"><strong>Đang kiểm tra dữ liệu…</strong></div>';
+  $('exportIncompleteGroups').innerHTML='';
+  var scope;
+  try{scope=await getExportScope(period)}catch(e){$('exportSummary').innerHTML='<div class="empty-state"><strong>Lỗi tải dữ liệu</strong><span>'+esc(e.message)+'</span></div>';return}
+  var stats=monthlyExportCompleteness(scope);
+  $('exportSummary').innerHTML='<div class="demo-notice export-summary-notice"><strong>Kiểm tra trước khi xuất</strong><span>'+(stats.total-stats.missingSelf)+'/'+stats.total+' đã tự chấm điểm · '+(stats.officialApplicable-stats.missingOfficial)+'/'+stats.officialApplicable+' đã có điểm duyệt chính thức · '+(stats.total-stats.missingClassification)+'/'+stats.total+' đã xếp loại. Người còn thiếu sẽ để trống ô tương ứng khi xuất, không chờ.</span></div>';
+  var unitIds=Object.keys(stats.byUnit).sort(function(a,b){return unitShort(a).localeCompare(unitShort(b),'vi')});
+  $('exportIncompleteGroups').innerHTML=unitIds.length?unitIds.map(function(unitId){
+    var items=stats.byUnit[unitId];
+    return '<details class="unit-group"><summary><strong>'+esc(unitShort(unitId))+'</strong><span>'+items.length+' người còn thiếu</span></summary><div class="export-missing-list">'+items.map(function(item){return '<div class="export-missing-row"><strong>'+esc(item.person.full_name)+'</strong><span>'+esc(item.missing.join(', '))+'</span></div>'}).join('')+'</div></details>';
+  }).join(''):'<div class="empty-state compact-empty"><strong>Đã đầy đủ dữ liệu</strong><span>Tất cả nhân sự trong phạm vi đã tự chấm điểm, được duyệt điểm chính thức và xếp loại.</span></div>';
+}
+
+async function fetchProvinceHeadName(){
+  try{
+    var r=await fetch(API+'profiles?role=eq.province_head&select=full_name&limit=1',{headers:authHeaders()});
+    var d=r.ok?await r.json():[];
+    return d[0]?d[0].full_name:'';
+  }catch(e){return ''}
+}
+
+var EXCEL_BORDER={top:{style:'thin'},left:{style:'thin'},bottom:{style:'thin'},right:{style:'thin'}};
+
+async function exportMonthlyExcel(period){
+  var scope,headName;
+  try{
+    scope=await getExportScope(period);
+    headName=await fetchProvinceHeadName();
+  }catch(e){showToast('Lỗi: '+e.message);return}
+  var sections=monthlyExportSections(scope);
+  var workbook=new ExcelJS.Workbook();
+  var sheet=workbook.addWorksheet('Tổng hợp',{pageSetup:{orientation:'landscape',fitToPage:true}});
+  sheet.columns=[{width:6},{width:26},{width:20},{width:18},{width:24},{width:12},{width:10},{width:10}];
+
+  var r=1;
+  sheet.mergeCells('A'+r+':D'+r);
+  sheet.getCell('A'+r).value='VIỆN KIỂM SÁT NHÂN DÂN TỐI CAO';
+  sheet.getCell('A'+r).font={bold:true,underline:true,name:'Times New Roman',size:12};
+  sheet.mergeCells('E'+r+':H'+r);
+  sheet.getCell('E'+r).value='CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM';
+  sheet.getCell('E'+r).font={bold:true,name:'Times New Roman',size:12};
+  sheet.getCell('E'+r).alignment={horizontal:'center'};
+  r++;
+  sheet.mergeCells('A'+r+':D'+r);
+  sheet.getCell('A'+r).value='VIỆN KIỂM SÁT NHÂN DÂN TỈNH BẮC NINH';
+  sheet.getCell('A'+r).font={bold:true,underline:true,name:'Times New Roman',size:12};
+  sheet.mergeCells('E'+r+':H'+r);
+  sheet.getCell('E'+r).value='Độc lập - Tự do - Hạnh phúc';
+  sheet.getCell('E'+r).font={bold:true,underline:true,name:'Times New Roman',size:12};
+  sheet.getCell('E'+r).alignment={horizontal:'center'};
+  r+=2;
+  sheet.mergeCells('A'+r+':H'+r);
+  sheet.getCell('A'+r).value='THÔNG BÁO';
+  sheet.getCell('A'+r).font={bold:true,size:14,name:'Times New Roman'};
+  sheet.getCell('A'+r).alignment={horizontal:'center'};
+  r++;
+  sheet.mergeCells('A'+r+':H'+r);
+  sheet.getCell('A'+r).value='Tổng hợp kết quả đánh giá, chấm điểm, xếp loại công chức và người lao động';
+  sheet.getCell('A'+r).font={bold:true,name:'Times New Roman',size:12};
+  sheet.getCell('A'+r).alignment={horizontal:'center'};
+  r++;
+  var periodParts=period.split('-'),exportYear=periodParts[0],exportMonth=periodParts[1];
+  sheet.mergeCells('A'+r+':H'+r);
+  sheet.getCell('A'+r).value='tháng '+Number(exportMonth)+' năm '+exportYear;
+  sheet.getCell('A'+r).font={italic:true,name:'Times New Roman',size:12};
+  sheet.getCell('A'+r).alignment={horizontal:'center'};
+  r+=2;
+
+  var headerRow1=r,headerRow2=r+1;
+  sheet.mergeCells('A'+headerRow1+':A'+headerRow2); sheet.getCell('A'+headerRow1).value='Số TT';
+  sheet.mergeCells('B'+headerRow1+':B'+headerRow2); sheet.getCell('B'+headerRow1).value='Họ và tên';
+  sheet.mergeCells('C'+headerRow1+':D'+headerRow1); sheet.getCell('C'+headerRow1).value='Chức vụ, chức danh';
+  sheet.getCell('C'+headerRow2).value='Chức vụ';
+  sheet.getCell('D'+headerRow2).value='Chức danh';
+  sheet.mergeCells('E'+headerRow1+':E'+headerRow2); sheet.getCell('E'+headerRow1).value='Đơn vị công tác';
+  sheet.mergeCells('F'+headerRow1+':F'+headerRow2); sheet.getCell('F'+headerRow1).value='Điểm tự chấm';
+  sheet.mergeCells('G'+headerRow1+':H'+headerRow1); sheet.getCell('G'+headerRow1).value='Điểm được duyệt chính thức';
+  sheet.getCell('G'+headerRow2).value='Điểm';
+  sheet.getCell('H'+headerRow2).value='Xếp loại';
+  ['A','B','C','D','E','F','G','H'].forEach(function(col){[headerRow1,headerRow2].forEach(function(row){
+    var cell=sheet.getCell(col+row);
+    cell.font={bold:true,name:'Times New Roman',size:11};
+    cell.alignment={horizontal:'center',vertical:'middle',wrapText:true};
+    cell.border=EXCEL_BORDER;
+  })});
+  r=headerRow2+1;
+
+  var stt=1;
+  sections.forEach(function(section){
+    if(!section.items.length)return;
+    sheet.mergeCells('A'+r+':H'+r);
+    var titleCell=sheet.getCell('A'+r);
+    titleCell.value=section.title;
+    titleCell.font={bold:true,name:'Times New Roman',size:11};
+    r++;
+    section.items.forEach(function(x){
+      var person=x.person,review=x.review;
+      sheet.getCell('A'+r).value=stt++;
+      sheet.getCell('B'+r).value=person.full_name;
+      sheet.getCell('C'+r).value=person.title||'';
+      sheet.getCell('D'+r).value=person.professional_title||'';
+      sheet.getCell('E'+r).value=unitShort(person.unit_id);
+      sheet.getCell('F'+r).value=(review&&review.self_score!=null)?review.self_score:'';
+      sheet.getCell('G'+r).value=person.role==='province_head'?'':((review&&review.official_score!=null)?review.official_score:'');
+      sheet.getCell('H'+r).value=(review&&review.classification)?review.classification:'';
+      ['A','B','C','D','E','F','G','H'].forEach(function(col){
+        var cell=sheet.getCell(col+r);
+        cell.border=EXCEL_BORDER;
+        cell.font={name:'Times New Roman',size:11};
+        if(['A','F','G','H'].indexOf(col)>=0)cell.alignment={horizontal:'center'};
+      });
+      r++;
+    });
+  });
+
+  r++;
+  var today=new Date();
+  sheet.mergeCells('E'+r+':H'+r);
+  sheet.getCell('E'+r).value='Bắc Ninh, ngày '+today.getDate()+' tháng '+(today.getMonth()+1)+' năm '+today.getFullYear();
+  sheet.getCell('E'+r).font={italic:true,name:'Times New Roman',size:11};
+  sheet.getCell('E'+r).alignment={horizontal:'center'};
+  r++;
+  sheet.mergeCells('E'+r+':H'+r);
+  sheet.getCell('E'+r).value='VIỆN TRƯỞNG';
+  sheet.getCell('E'+r).font={bold:true,name:'Times New Roman',size:12};
+  sheet.getCell('E'+r).alignment={horizontal:'center'};
+  r+=3;
+  sheet.mergeCells('E'+r+':H'+r);
+  sheet.getCell('E'+r).value=headName||'';
+  sheet.getCell('E'+r).font={bold:true,name:'Times New Roman',size:12};
+  sheet.getCell('E'+r).alignment={horizontal:'center'};
+
+  var buffer=await workbook.xlsx.writeBuffer();
+  var link=document.createElement('a');
+  link.href=NativeURL.createObjectURL(new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+  link.download='tong-hop-cham-diem-'+period+'.xlsx';
+  link.click();
+  NativeURL.revokeObjectURL(link.href);
+  showToast('Đã xuất file Excel.');
+}
+
+function monthlyReportHtml(period,scope,headName){
+  var sections=monthlyExportSections(scope);
+  var periodParts=period.split('-'),reportYear=periodParts[0],reportMonth=periodParts[1];
+  var today=new Date();
+  var stt=0;
+  var rowsHtml=sections.map(function(section){
+    if(!section.items.length)return '';
+    var body=section.items.map(function(x){
+      var person=x.person,review=x.review;
+      stt++;
+      return '<tr><td class="c">'+stt+'</td><td>'+esc(person.full_name)+'</td><td>'+esc(person.title||'')+'</td><td>'+esc(person.professional_title||'')+'</td><td>'+esc(unitShort(person.unit_id))+'</td><td class="c">'+((review&&review.self_score!=null)?review.self_score:'')+'</td><td class="c">'+(person.role==='province_head'?'':((review&&review.official_score!=null)?review.official_score:''))+'</td><td class="c">'+((review&&review.classification)?review.classification:'')+'</td></tr>';
+    }).join('');
+    return '<tr class="section-row"><td colspan="8">'+esc(section.title)+'</td></tr>'+body;
+  }).join('');
+  return '<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>Tổng hợp chấm điểm '+esc(periodLabel(period))+'</title><style>'
+    +'@page { size: A3 landscape; margin: 14mm; }'
+    +'body { font-family: "Times New Roman", Times, serif; font-size: 12pt; color: #111; }'
+    +'.letterhead { display: flex; justify-content: space-between; margin-bottom: 16px; }'
+    +'.letterhead div { text-align: center; }'
+    +'.letterhead strong { display: block; text-decoration: underline; }'
+    +'h1 { text-align: center; font-size: 15pt; margin: 4px 0; }'
+    +'.subtitle { text-align: center; font-weight: bold; margin: 2px 0; }'
+    +'.period { text-align: center; font-style: italic; margin: 2px 0 16px; }'
+    +'table { width: 100%; border-collapse: collapse; }'
+    +'th, td { border: 1px solid #333; padding: 4px 6px; font-size: 10.5pt; }'
+    +'th { text-align: center; font-weight: bold; }'
+    +'td.c { text-align: center; }'
+    +'.section-row td { font-weight: bold; text-align: left; background: #f3f3f3; }'
+    +'.signature { margin-top: 26px; width: 100%; }'
+    +'.signature td { border: none; text-align: center; }'
+    +'.sig-title { font-weight: bold; }'
+    +'.sig-date { font-style: italic; }'
+    +'</style></head><body>'
+    +'<div class="letterhead">'
+    +'<div><strong>VIỆN KIỂM SÁT NHÂN DÂN TỐI CAO</strong><span>VIỆN KIỂM SÁT NHÂN DÂN TỈNH BẮC NINH</span></div>'
+    +'<div><strong>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><span style="text-decoration:underline">Độc lập - Tự do - Hạnh phúc</span></div>'
+    +'</div>'
+    +'<h1>THÔNG BÁO</h1>'
+    +'<div class="subtitle">Tổng hợp kết quả đánh giá, chấm điểm, xếp loại công chức và người lao động</div>'
+    +'<div class="period">tháng '+Number(reportMonth)+' năm '+reportYear+'</div>'
+    +'<table>'
+    +'<thead><tr><th rowspan="2">Số TT</th><th rowspan="2">Họ và tên</th><th colspan="2">Chức vụ, chức danh</th><th rowspan="2">Đơn vị công tác</th><th rowspan="2">Điểm tự chấm</th><th colspan="2">Điểm được duyệt chính thức</th></tr>'
+    +'<tr><th>Chức vụ</th><th>Chức danh</th><th>Điểm</th><th>Xếp loại</th></tr></thead>'
+    +'<tbody>'+rowsHtml+'</tbody>'
+    +'</table>'
+    +'<table class="signature"><tr><td style="width:50%"></td><td style="width:50%"><span class="sig-date">Bắc Ninh, ngày '+today.getDate()+' tháng '+(today.getMonth()+1)+' năm '+today.getFullYear()+'</span><br><span class="sig-title">VIỆN TRƯỞNG</span><br><br><br><br><strong>'+esc(headName||'')+'</strong></td></tr></table>'
+    +'<script>window.onload=function(){setTimeout(function(){window.print()},200)}<\/script>'
+    +'</body></html>';
+}
+
+async function exportMonthlyPdf(period){
+  var scope,headName;
+  try{
+    scope=await getExportScope(period);
+    headName=await fetchProvinceHeadName();
+  }catch(e){showToast('Lỗi: '+e.message);return}
+  var blob=new Blob([monthlyReportHtml(period,scope,headName)],{type:'text/html'});
+  var url=NativeURL.createObjectURL(blob);
+  window.open(url,'_blank');
+  showToast('Đã mở bản in — chọn "Lưu dưới dạng PDF" trong hộp thoại in của trình duyệt.');
 }
 
 // ============================================
@@ -1647,6 +1996,17 @@ document.addEventListener('DOMContentLoaded',function(){
   document.querySelectorAll('[data-close-modal]').forEach(function(b){b.addEventListener('click',cj)});
   $('journalModal').addEventListener('click',function(e){if(e.target.id==='journalModal')cj()});
   $('journalForm').addEventListener('submit',sj);
+  $('toggleCopyJournal').addEventListener('click',function(){
+    var panel=$('copyJournalPanel');
+    panel.hidden=!panel.hidden;
+    if(!panel.hidden)$('copyJournalSearch').focus();
+  });
+  $('copyJournalSearch').addEventListener('input',function(e){renderCopyJournalList(e.target.value)});
+  document.querySelectorAll('[data-close-export]').forEach(function(b){b.addEventListener('click',closeExportModal)});
+  $('exportModal').addEventListener('click',function(e){if(e.target.id==='exportModal')closeExportModal()});
+  $('exportPeriodSelect').addEventListener('change',function(e){renderExportSummary(e.target.value)});
+  $('exportExcelButton').addEventListener('click',function(){exportMonthlyExcel($('exportPeriodSelect').value)});
+  $('exportPdfButton').addEventListener('click',function(){exportMonthlyPdf($('exportPeriodSelect').value)});
   $('notificationToggle').addEventListener('click',function(){
     var panel=$('notificationPanel');
     panel.hidden=!panel.hidden;

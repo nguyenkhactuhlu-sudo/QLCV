@@ -197,6 +197,21 @@ function periodLabel(period) {
   return `Tháng ${month}/${year}`;
 }
 
+// "Hom nay" trong demo la ngay co dinh de khop voi du lieu mau, khong dung
+// ngay thuc cua may nguoi xem.
+const DEMO_TODAY = "2026-08-22";
+
+// Thang xep loai chinh thuc, ap dung cho toan bo nguoi dung: 90-100=A,
+// 80-89=B, 70-79=C, tu 69 tro xuong=D.
+function classificationFromScore(score) {
+  const value = Number(score);
+  if (!Number.isFinite(value)) return null;
+  if (value >= 90) return "A";
+  if (value >= 80) return "B";
+  if (value >= 70) return "C";
+  return "D";
+}
+
 // sampleMonthly chi co san du lieu day du cho ky "2026-06" (da chot); tao
 // them du lieu mo phong cho cac ky gan day khac de thu nghiem tinh nang
 // "xem thang truoc". Ky gan nhat (thang hien tai) coi nhu chua cham diem.
@@ -420,6 +435,19 @@ function initialize() {
     if (event.target.id === "journalModal") closeJournalModal();
   });
   document.getElementById("journalForm").addEventListener("submit", submitJournal);
+  document.getElementById("toggleCopyJournal").addEventListener("click", () => {
+    const panel = document.getElementById("copyJournalPanel");
+    panel.hidden = !panel.hidden;
+    if (!panel.hidden) document.getElementById("copyJournalSearch").focus();
+  });
+  document.getElementById("copyJournalSearch").addEventListener("input", event => renderCopyJournalList(event.target.value));
+  document.querySelectorAll("[data-close-export]").forEach(button => button.addEventListener("click", closeExportModal));
+  document.getElementById("exportModal").addEventListener("click", event => {
+    if (event.target.id === "exportModal") closeExportModal();
+  });
+  document.getElementById("exportPeriodSelect").addEventListener("change", event => renderExportSummary(event.target.value));
+  document.getElementById("exportExcelButton").addEventListener("click", () => exportMonthlyExcel(document.getElementById("exportPeriodSelect").value));
+  document.getElementById("exportPdfButton").addEventListener("click", () => exportMonthlyPdf(document.getElementById("exportPeriodSelect").value));
   document.getElementById("openRegister").addEventListener("click", openRegisterModal);
   document.querySelectorAll("[data-close-register]").forEach(button => button.addEventListener("click", closeRegisterModal));
   document.getElementById("registerModal").addEventListener("click", event => {
@@ -982,7 +1010,9 @@ function renderJournal() {
     return true;
   });
   updateChrome("Nhật ký của tôi", "KẾT QUẢ CÔNG TÁC HẰNG NGÀY");
+  const noJournalToday = user.role !== "administrator" && !mine.some(log => log.date === DEMO_TODAY);
   document.getElementById("appView").innerHTML = `
+    ${noJournalToday ? `<div class="demo-notice journal-reminder-notice"><strong>Nhắc nhở</strong><span>Hôm nay bạn chưa ghi nhật ký công tác. Hãy ghi lại kết quả trong ngày để không bỏ sót khi chấm điểm cuối tháng.</span></div>` : ""}
     <div class="journal-header"><div><h2>${user.name}</h2><p>${user.title} · ${unitById(user.unitId).short}</p></div><button class="button button-primary" id="newJournal">+ Ghi nhật ký mới</button></div>
     <div class="metric-grid">
       ${metricCard("Nhật ký đã gửi", mine.length, "Trong dữ liệu demo", "")}
@@ -1339,7 +1369,7 @@ function renderMonthly() {
     <div class="demo-notice"><strong>Dữ liệu tham chiếu</strong><span>Danh mục và điểm ${periodLabel(state.monthlyPeriod).toLowerCase()} lấy từ bảng tổng hợp đã cung cấp (hoặc mô phỏng cho các kỳ khác). Demo đang nạp 32 hồ sơ đại diện trong tổng số 428 cán bộ, công chức và người lao động.</span></div>
     <div class="toolbar">
       <label class="filter-field"><span>Kỳ đánh giá</span><select id="monthlyPeriodFilter">${recentPeriods().map(period => `<option value="${period}" ${state.monthlyPeriod === period ? "selected" : ""}>${periodLabel(period)}${period === recentPeriods()[0] ? " · Đang chấm" : " · Đã chốt"}</option>`).join("")}</select></label>
-      ${unitFilter}<div class="spacer"></div><button class="button button-secondary" id="exportMonthly">Xuất bảng CSV</button>
+      ${unitFilter}<div class="spacer"></div><button class="button button-secondary" id="exportMonthly">Xuất báo cáo tháng</button>
     </div>
     <div class="metric-grid">
       ${metricCard("Hồ sơ trong phạm vi", rows.length, `${approved.length} hồ sơ đã duyệt`, "")}
@@ -1359,11 +1389,25 @@ function renderMonthly() {
   const filter = document.getElementById("monthlyUnitFilter");
   if (filter) filter.addEventListener("change", event => { state.monthlyUnit = event.target.value; state.selectedMonthlyUserId = null; renderMonthly(); });
   document.getElementById("monthlyPeriodFilter").addEventListener("change", event => { state.monthlyPeriod = event.target.value; state.selectedMonthlyUserId = null; renderMonthly(); });
-  document.getElementById("exportMonthly").addEventListener("click", () => exportMonthlyCsv(rows));
+  document.getElementById("exportMonthly").addEventListener("click", openExportModal);
   const saveButton = document.getElementById("saveMonthlyReview");
   if (saveButton && selected) saveButton.addEventListener("click", () => saveMonthlyReview(selected));
+  const officialScoreInput = document.getElementById("officialScore");
+  const classificationSelect = document.getElementById("classification");
+  if (officialScoreInput && classificationSelect) officialScoreInput.addEventListener("input", () => {
+    const suggestion = classificationFromScore(officialScoreInput.value);
+    if (suggestion) classificationSelect.value = suggestion;
+  });
   const selfButton = document.getElementById("saveSelfScore");
   if (selfButton && selected) selfButton.addEventListener("click", () => saveSelfScore(selected));
+  const headSelfButton = document.getElementById("saveHeadSelfEvaluation");
+  if (headSelfButton && selected) headSelfButton.addEventListener("click", () => saveHeadSelfEvaluation(selected));
+  const headSelfScoreInput = document.getElementById("headSelfScore");
+  const headSelfClassificationSelect = document.getElementById("headSelfClassification");
+  if (headSelfScoreInput && headSelfClassificationSelect) headSelfScoreInput.addEventListener("input", () => {
+    const suggestion = classificationFromScore(headSelfScoreInput.value);
+    if (suggestion) headSelfClassificationSelect.value = suggestion;
+  });
 }
 
 function monthlyTable(rows) {
@@ -1386,8 +1430,9 @@ function monthlyDetail(row) {
     </div>
     <div class="detail-section"><h3>Căn cứ hỗ trợ quyết định</h3><p class="metric-context">Dữ liệu nhật ký chỉ là căn cứ tham khảo; người có thẩm quyền vẫn quyết định điểm chính thức và xếp loại theo quy định.</p><div class="progress-line"><span>Tỷ lệ nhật ký đã xử lý</span><strong>${evidence.reviewRate.toFixed(0)}%</strong><div class="bar-track"><div class="bar-fill green" style="width:${evidence.reviewRate}%"></div></div></div></div>
     <div class="detail-section"><div class="detail-grid"><div class="detail-item"><span>Điểm tự chấm</span><strong>${row.selfScore ?? "Chưa có"}</strong></div><div class="detail-item"><span>Điểm được duyệt</span><strong>${row.officialScore ?? "Chưa duyệt"}</strong></div></div></div>
-    ${mayApprove ? `<div class="detail-section"><div class="form-grid compact-form"><label class="field"><span>Điểm chính thức</span><input id="officialScore" type="number" min="0" max="100" step="0.25" value="${row.officialScore ?? row.selfScore ?? 0}"></label><label class="field"><span>Xếp loại</span><select id="classification"><option ${row.classification === "A" ? "selected" : ""}>A</option><option ${row.classification === "B" ? "selected" : ""}>B</option><option ${row.classification === "C" ? "selected" : ""}>C</option></select></label><label class="field field-wide"><span>Nhận xét/giải trình điều chỉnh</span><textarea id="monthlyNote" rows="2">${row.note || ""}</textarea></label></div><div class="review-actions"><button class="button button-primary" id="saveMonthlyReview">Duyệt và lưu</button></div></div>` : ""}
-    ${isSelf ? `<div class="detail-section"><label class="field"><span>Điểm tự chấm của cá nhân</span><input id="selfScore" type="number" min="0" max="100" step="0.25" value="${row.selfScore ?? 0}"></label><div class="review-actions"><button class="button button-primary" id="saveSelfScore">Lưu điểm tự chấm</button></div></div>` : ""}
+    ${mayApprove ? `<div class="detail-section"><div class="form-grid compact-form"><label class="field"><span>Điểm chính thức</span><input id="officialScore" type="number" min="0" max="100" step="0.25" value="${row.officialScore ?? row.selfScore ?? 0}"></label><label class="field"><span>Xếp loại</span><select id="classification"><option ${row.classification === "A" ? "selected" : ""}>A</option><option ${row.classification === "B" ? "selected" : ""}>B</option><option ${row.classification === "C" ? "selected" : ""}>C</option><option ${row.classification === "D" ? "selected" : ""}>D</option></select></label><label class="field field-wide"><span>Nhận xét/giải trình điều chỉnh</span><textarea id="monthlyNote" rows="2">${row.note || ""}</textarea></label></div><div class="review-actions"><button class="button button-primary" id="saveMonthlyReview">Duyệt và lưu</button></div></div>` : ""}
+    ${isSelf && person.role === "province_head" ? `<div class="detail-section"><p class="metric-context">Viện trưởng tỉnh không có cấp trên trong hệ thống nên tự chấm điểm và tự xếp loại; không có điểm duyệt chính thức.</p><div class="form-grid compact-form"><label class="field"><span>Điểm tự chấm</span><input id="headSelfScore" type="number" min="0" max="100" step="0.25" value="${row.selfScore ?? 0}"></label><label class="field"><span>Xếp loại</span><select id="headSelfClassification"><option ${row.classification === "A" ? "selected" : ""}>A</option><option ${row.classification === "B" ? "selected" : ""}>B</option><option ${row.classification === "C" ? "selected" : ""}>C</option><option ${row.classification === "D" ? "selected" : ""}>D</option></select></label></div><div class="review-actions"><button class="button button-primary" id="saveHeadSelfEvaluation">Lưu điểm và xếp loại</button></div></div>` : ""}
+    ${isSelf && person.role !== "province_head" ? `<div class="detail-section"><label class="field"><span>Điểm tự chấm của cá nhân</span><input id="selfScore" type="number" min="0" max="100" step="0.25" value="${row.selfScore ?? 0}"></label><div class="review-actions"><button class="button button-primary" id="saveSelfScore">Lưu điểm tự chấm</button></div></div>` : ""}
     ${!mayApprove && !isSelf ? `<div class="permission-note">Vai trò hiện tại chỉ được xem hồ sơ này; không có quyền thay đổi kết quả.</div>` : ""}`;
 }
 
@@ -1413,17 +1458,254 @@ function saveSelfScore(row) {
   renderMonthly();
 }
 
-function exportMonthlyCsv(rows) {
-  const escape = value => `"${String(value ?? "").replaceAll('"', '""')}"`;
-  const header = ["Họ và tên", "Chức vụ", "Chức danh", "Đơn vị", "Điểm tự chấm", "Điểm chính thức", "Xếp loại"];
-  const body = rows.map(row => { const person = userById(row.userId); return [person.name, person.title, person.professionalTitle, unitById(person.unitId).short, row.selfScore, row.officialScore, row.classification]; });
-  const csv = "\ufeff" + [header, ...body].map(line => line.map(escape).join(",")).join("\r\n");
+function saveHeadSelfEvaluation(row) {
+  const score = Number(document.getElementById("headSelfScore").value);
+  const classification = document.getElementById("headSelfClassification").value;
+  if (!Number.isFinite(score) || score < 0 || score > 100) return showToast("Điểm tự chấm phải nằm trong khoảng 0–100.");
+  Object.assign(row, { selfScore: score, classification, status: "approved", approvedAt: new Date().toISOString(), approverId: currentUser().id });
+  localStorage.setItem(MONTHLY_STORAGE_KEY, JSON.stringify(monthlyReviews));
+  showToast("Đã lưu điểm tự chấm và tự xếp loại.");
+  renderMonthly();
+}
+
+// ============================================
+// XUAT BAO CAO THANG - hop thoai chon ky, canh bao thieu du lieu, xuat
+// Excel (chinh sua duoc) hoac PDF (de in, tranh sua du lieu).
+// ============================================
+function monthlyExportScope(period) {
+  const user = currentUser();
+  let scopedUsers = users.filter(person => person.role !== "administrator");
+  if (user.role === "staff") scopedUsers = scopedUsers.filter(person => person.id === user.id);
+  if (user.role === "unit_head" || user.role === "unit_deputy") scopedUsers = scopedUsers.filter(person => person.unitId === user.unitId);
+  if (user.role === "province_deputy") scopedUsers = scopedUsers.filter(person => person.role === "unit_head" && (user.assignedUnits || []).includes(person.unitId));
+  return scopedUsers.map(person => ({ person, review: monthlyReviews.find(r => r.period === period && r.userId === person.id) || null }));
+}
+
+function monthlyExportSections(period) {
+  const scope = monthlyExportScope(period);
+  const groupA = scope.filter(item => ["province_head", "province_deputy", "unit_head"].includes(item.person.role))
+    .sort((a, b) => a.person.name.localeCompare(b.person.name, "vi"));
+  const groupB = scope.filter(item => ["unit_deputy", "staff"].includes(item.person.role))
+    .sort((a, b) => unitDisplayName(a.person.unitId).localeCompare(unitDisplayName(b.person.unitId), "vi") || a.person.name.localeCompare(b.person.name, "vi"));
+  return [
+    { title: "I. VIỆN TRƯỞNG VIỆN KSND TỈNH BẮC NINH ĐÁNH GIÁ, CHẤM ĐIỂM, XẾP LOẠI", items: groupA },
+    { title: "II. THỦ TRƯỞNG ĐƠN VỊ CƠ SỞ ĐÁNH GIÁ, CHẤM ĐIỂM, XẾP LOẠI CÁN BỘ, CÔNG CHỨC", items: groupB }
+  ];
+}
+
+// Diem duyet chinh thuc cua Vien truong tinh khong tinh la "thieu" - theo
+// thiet ke, ho tu cham va tu xep loai, khong ai duyet chinh thuc cho ho.
+function monthlyExportCompleteness(period) {
+  const scope = monthlyExportScope(period);
+  let missingSelf = 0, missingOfficial = 0, missingClassification = 0, officialApplicable = 0;
+  const byUnit = {};
+  scope.forEach(({ person, review }) => {
+    const missing = [];
+    if (!review || review.selfScore == null) { missing.push("chưa tự chấm điểm"); missingSelf++; }
+    if (person.role !== "province_head") {
+      officialApplicable++;
+      if (!review || review.officialScore == null) { missing.push("chưa có điểm duyệt chính thức"); missingOfficial++; }
+    }
+    if (!review || review.classification == null) { missing.push("chưa xếp loại"); missingClassification++; }
+    if (missing.length) {
+      if (!byUnit[person.unitId]) byUnit[person.unitId] = [];
+      byUnit[person.unitId].push({ person, missing });
+    }
+  });
+  return { total: scope.length, missingSelf, missingOfficial, missingClassification, officialApplicable, byUnit };
+}
+
+function openExportModal() {
+  const select = document.getElementById("exportPeriodSelect");
+  select.innerHTML = recentPeriods().map(period => `<option value="${period}" ${period === state.monthlyPeriod ? "selected" : ""}>${periodLabel(period)}</option>`).join("");
+  renderExportSummary(select.value);
+  document.getElementById("exportModal").hidden = false;
+}
+
+function closeExportModal() {
+  document.getElementById("exportModal").hidden = true;
+}
+
+function renderExportSummary(period) {
+  const stats = monthlyExportCompleteness(period);
+  document.getElementById("exportSummary").innerHTML = `<div class="demo-notice export-summary-notice"><strong>Kiểm tra trước khi xuất</strong><span>${stats.total - stats.missingSelf}/${stats.total} đã tự chấm điểm · ${stats.officialApplicable - stats.missingOfficial}/${stats.officialApplicable} đã có điểm duyệt chính thức · ${stats.total - stats.missingClassification}/${stats.total} đã xếp loại. Người còn thiếu sẽ để trống ô tương ứng khi xuất, không chờ.</span></div>`;
+  const unitIds = Object.keys(stats.byUnit).sort((a, b) => unitDisplayName(a).localeCompare(unitDisplayName(b), "vi"));
+  document.getElementById("exportIncompleteGroups").innerHTML = unitIds.length ? unitIds.map(unitId => {
+    const items = stats.byUnit[unitId];
+    return `<details class="unit-group"><summary><strong>${unitDisplayName(unitId)}</strong><span>${items.length} người còn thiếu</span></summary><div class="export-missing-list">${items.map(item => `<div class="export-missing-row"><strong>${item.person.name}</strong><span>${item.missing.join(", ")}</span></div>`).join("")}</div></details>`;
+  }).join("") : `<div class="empty-state compact-empty"><strong>Đã đầy đủ dữ liệu</strong>Tất cả nhân sự trong phạm vi đã tự chấm điểm, được duyệt điểm chính thức và xếp loại.</div>`;
+}
+
+const EXCEL_BORDER = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+
+async function exportMonthlyExcel(period) {
+  const sections = monthlyExportSections(period);
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Tổng hợp", { pageSetup: { orientation: "landscape", fitToPage: true } });
+  sheet.columns = [{ width: 6 }, { width: 26 }, { width: 20 }, { width: 18 }, { width: 24 }, { width: 12 }, { width: 10 }, { width: 10 }];
+
+  let r = 1;
+  sheet.mergeCells(`A${r}:D${r}`);
+  sheet.getCell(`A${r}`).value = "VIỆN KIỂM SÁT NHÂN DÂN TỐI CAO";
+  sheet.getCell(`A${r}`).font = { bold: true, underline: true, name: "Times New Roman", size: 12 };
+  sheet.mergeCells(`E${r}:H${r}`);
+  sheet.getCell(`E${r}`).value = "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM";
+  sheet.getCell(`E${r}`).font = { bold: true, name: "Times New Roman", size: 12 };
+  sheet.getCell(`E${r}`).alignment = { horizontal: "center" };
+  r++;
+  sheet.mergeCells(`A${r}:D${r}`);
+  sheet.getCell(`A${r}`).value = "VIỆN KIỂM SÁT NHÂN DÂN TỈNH BẮC NINH";
+  sheet.getCell(`A${r}`).font = { bold: true, underline: true, name: "Times New Roman", size: 12 };
+  sheet.mergeCells(`E${r}:H${r}`);
+  sheet.getCell(`E${r}`).value = "Độc lập - Tự do - Hạnh phúc";
+  sheet.getCell(`E${r}`).font = { bold: true, underline: true, name: "Times New Roman", size: 12 };
+  sheet.getCell(`E${r}`).alignment = { horizontal: "center" };
+  r += 2;
+  sheet.mergeCells(`A${r}:H${r}`);
+  sheet.getCell(`A${r}`).value = "THÔNG BÁO";
+  sheet.getCell(`A${r}`).font = { bold: true, size: 14, name: "Times New Roman" };
+  sheet.getCell(`A${r}`).alignment = { horizontal: "center" };
+  r++;
+  sheet.mergeCells(`A${r}:H${r}`);
+  sheet.getCell(`A${r}`).value = "Tổng hợp kết quả đánh giá, chấm điểm, xếp loại công chức và người lao động";
+  sheet.getCell(`A${r}`).font = { bold: true, name: "Times New Roman", size: 12 };
+  sheet.getCell(`A${r}`).alignment = { horizontal: "center" };
+  r++;
+  const [exportYear, exportMonth] = period.split("-");
+  sheet.mergeCells(`A${r}:H${r}`);
+  sheet.getCell(`A${r}`).value = `tháng ${Number(exportMonth)} năm ${exportYear}`;
+  sheet.getCell(`A${r}`).font = { italic: true, name: "Times New Roman", size: 12 };
+  sheet.getCell(`A${r}`).alignment = { horizontal: "center" };
+  r += 2;
+
+  const headerRow1 = r, headerRow2 = r + 1;
+  sheet.mergeCells(`A${headerRow1}:A${headerRow2}`); sheet.getCell(`A${headerRow1}`).value = "Số TT";
+  sheet.mergeCells(`B${headerRow1}:B${headerRow2}`); sheet.getCell(`B${headerRow1}`).value = "Họ và tên";
+  sheet.mergeCells(`C${headerRow1}:D${headerRow1}`); sheet.getCell(`C${headerRow1}`).value = "Chức vụ, chức danh";
+  sheet.getCell(`C${headerRow2}`).value = "Chức vụ";
+  sheet.getCell(`D${headerRow2}`).value = "Chức danh";
+  sheet.mergeCells(`E${headerRow1}:E${headerRow2}`); sheet.getCell(`E${headerRow1}`).value = "Đơn vị công tác";
+  sheet.mergeCells(`F${headerRow1}:F${headerRow2}`); sheet.getCell(`F${headerRow1}`).value = "Điểm tự chấm";
+  sheet.mergeCells(`G${headerRow1}:H${headerRow1}`); sheet.getCell(`G${headerRow1}`).value = "Điểm được duyệt chính thức";
+  sheet.getCell(`G${headerRow2}`).value = "Điểm";
+  sheet.getCell(`H${headerRow2}`).value = "Xếp loại";
+  ["A", "B", "C", "D", "E", "F", "G", "H"].forEach(col => [headerRow1, headerRow2].forEach(row => {
+    const cell = sheet.getCell(`${col}${row}`);
+    cell.font = { bold: true, name: "Times New Roman", size: 11 };
+    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    cell.border = EXCEL_BORDER;
+  }));
+  r = headerRow2 + 1;
+
+  let stt = 1;
+  sections.forEach(section => {
+    if (!section.items.length) return;
+    sheet.mergeCells(`A${r}:H${r}`);
+    const titleCell = sheet.getCell(`A${r}`);
+    titleCell.value = section.title;
+    titleCell.font = { bold: true, name: "Times New Roman", size: 11 };
+    r++;
+    section.items.forEach(({ person, review }) => {
+      sheet.getCell(`A${r}`).value = stt++;
+      sheet.getCell(`B${r}`).value = person.name;
+      sheet.getCell(`C${r}`).value = person.title || "";
+      sheet.getCell(`D${r}`).value = person.professionalTitle || "";
+      sheet.getCell(`E${r}`).value = unitDisplayName(person.unitId);
+      sheet.getCell(`F${r}`).value = review?.selfScore ?? "";
+      sheet.getCell(`G${r}`).value = person.role === "province_head" ? "" : (review?.officialScore ?? "");
+      sheet.getCell(`H${r}`).value = review?.classification ?? "";
+      ["A", "B", "C", "D", "E", "F", "G", "H"].forEach(col => {
+        const cell = sheet.getCell(`${col}${r}`);
+        cell.border = EXCEL_BORDER;
+        cell.font = { name: "Times New Roman", size: 11 };
+        if (["A", "F", "G", "H"].includes(col)) cell.alignment = { horizontal: "center" };
+      });
+      r++;
+    });
+  });
+
+  r++;
+  const today = new Date();
+  sheet.mergeCells(`E${r}:H${r}`);
+  sheet.getCell(`E${r}`).value = `Bắc Ninh, ngày ${today.getDate()} tháng ${today.getMonth() + 1} năm ${today.getFullYear()}`;
+  sheet.getCell(`E${r}`).font = { italic: true, name: "Times New Roman", size: 11 };
+  sheet.getCell(`E${r}`).alignment = { horizontal: "center" };
+  r++;
+  sheet.mergeCells(`E${r}:H${r}`);
+  sheet.getCell(`E${r}`).value = "VIỆN TRƯỞNG";
+  sheet.getCell(`E${r}`).font = { bold: true, name: "Times New Roman", size: 12 };
+  sheet.getCell(`E${r}`).alignment = { horizontal: "center" };
+  r += 3;
+  const head = users.find(person => person.role === "province_head");
+  sheet.mergeCells(`E${r}:H${r}`);
+  sheet.getCell(`E${r}`).value = head ? head.name : "";
+  sheet.getCell(`E${r}`).font = { bold: true, name: "Times New Roman", size: 12 };
+  sheet.getCell(`E${r}`).alignment = { horizontal: "center" };
+
+  const buffer = await workbook.xlsx.writeBuffer();
   const link = document.createElement("a");
-  link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-  link.download = `tong-hop-cham-diem-${state.monthlyPeriod}-demo.csv`;
+  link.href = URL.createObjectURL(new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+  link.download = `tong-hop-cham-diem-${period}-demo.xlsx`;
   link.click();
   URL.revokeObjectURL(link.href);
-  showToast("Đã xuất bảng tổng hợp CSV.");
+  showToast("Đã xuất file Excel.");
+}
+
+function monthlyReportHtml(period) {
+  const sections = monthlyExportSections(period);
+  const head = users.find(person => person.role === "province_head");
+  const [reportYear, reportMonth] = period.split("-");
+  const today = new Date();
+  let stt = 0;
+  const rowsHtml = sections.map(section => {
+    if (!section.items.length) return "";
+    const body = section.items.map(({ person, review }) => {
+      stt++;
+      return `<tr><td class="c">${stt}</td><td>${person.name}</td><td>${person.title || ""}</td><td>${person.professionalTitle || ""}</td><td>${unitDisplayName(person.unitId)}</td><td class="c">${review?.selfScore ?? ""}</td><td class="c">${person.role === "province_head" ? "" : (review?.officialScore ?? "")}</td><td class="c">${review?.classification ?? ""}</td></tr>`;
+    }).join("");
+    return `<tr class="section-row"><td colspan="8">${section.title}</td></tr>${body}`;
+  }).join("");
+  return `<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>Tổng hợp chấm điểm ${periodLabel(period)}</title><style>
+    @page { size: A3 landscape; margin: 14mm; }
+    body { font-family: "Times New Roman", Times, serif; font-size: 12pt; color: #111; }
+    .letterhead { display: flex; justify-content: space-between; margin-bottom: 16px; }
+    .letterhead div { text-align: center; }
+    .letterhead strong { display: block; text-decoration: underline; }
+    h1 { text-align: center; font-size: 15pt; margin: 4px 0; }
+    .subtitle { text-align: center; font-weight: bold; margin: 2px 0; }
+    .period { text-align: center; font-style: italic; margin: 2px 0 16px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #333; padding: 4px 6px; font-size: 10.5pt; }
+    th { text-align: center; font-weight: bold; }
+    td.c { text-align: center; }
+    .section-row td { font-weight: bold; text-align: left; background: #f3f3f3; }
+    .signature { margin-top: 26px; width: 100%; }
+    .signature td { border: none; text-align: center; }
+    .sig-title { font-weight: bold; }
+    .sig-date { font-style: italic; }
+  </style></head><body>
+    <div class="letterhead">
+      <div><strong>VIỆN KIỂM SÁT NHÂN DÂN TỐI CAO</strong><span>VIỆN KIỂM SÁT NHÂN DÂN TỈNH BẮC NINH</span></div>
+      <div><strong>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><span style="text-decoration:underline">Độc lập - Tự do - Hạnh phúc</span></div>
+    </div>
+    <h1>THÔNG BÁO</h1>
+    <div class="subtitle">Tổng hợp kết quả đánh giá, chấm điểm, xếp loại công chức và người lao động</div>
+    <div class="period">tháng ${Number(reportMonth)} năm ${reportYear}</div>
+    <table>
+      <thead><tr><th rowspan="2">Số TT</th><th rowspan="2">Họ và tên</th><th colspan="2">Chức vụ, chức danh</th><th rowspan="2">Đơn vị công tác</th><th rowspan="2">Điểm tự chấm</th><th colspan="2">Điểm được duyệt chính thức</th></tr>
+      <tr><th>Chức vụ</th><th>Chức danh</th><th>Điểm</th><th>Xếp loại</th></tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+    <table class="signature"><tr><td style="width:50%"></td><td style="width:50%"><span class="sig-date">Bắc Ninh, ngày ${today.getDate()} tháng ${today.getMonth() + 1} năm ${today.getFullYear()}</span><br><span class="sig-title">VIỆN TRƯỞNG</span><br><br><br><br><strong>${head ? head.name : ""}</strong></td></tr></table>
+    <script>window.onload = () => setTimeout(() => window.print(), 200);<\/script>
+  </body></html>`;
+}
+
+function exportMonthlyPdf(period) {
+  const blob = new Blob([monthlyReportHtml(period)], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+  window.open(url, "_blank");
+  showToast("Đã mở bản in — chọn \"Lưu dưới dạng PDF\" trong hộp thoại in của trình duyệt.");
 }
 
 const ROLE_LABELS = { province_head: "Viện trưởng tỉnh", province_deputy: "Phó Viện trưởng tỉnh", unit_head: "Trưởng phòng/Viện trưởng KV", unit_deputy: "Phó phòng/Phó Viện trưởng KV", staff: "Cán bộ/Kiểm sát viên", administrator: "Quản trị viên" };
@@ -1762,11 +2044,44 @@ function openJournalModal(logId = null) {
     form.elements.duration.value = log.duration;
     form.elements.evidence.value = log.evidence || "";
   } else {
-    form.elements.workDate.value = "2026-08-22";
+    form.elements.workDate.value = DEMO_TODAY;
   }
+  setVisible(document.getElementById("copyJournalBlock"), !canEdit);
+  document.getElementById("copyJournalPanel").hidden = true;
+  document.getElementById("copyJournalSearch").value = "";
+  renderCopyJournalList("");
   document.getElementById("journalModal").hidden = false;
   (canEdit ? form.elements.title : form.elements.category).focus();
 }
+
+// Tim va sao chep nhat ky cu: chi hien trong form tao MOI (khong phai
+// sua/trinh lai), liet ke nhat ky cua chinh nguoi dung, moi nhat truoc,
+// loc song theo tu khoa.
+function renderCopyJournalList(query) {
+  const user = currentUser();
+  const q = query.trim().toLowerCase();
+  const mine = logs.filter(log => log.authorId === user.id)
+    .filter(log => !q || `${log.title} ${log.result}`.toLowerCase().includes(q))
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const list = document.getElementById("copyJournalList");
+  list.innerHTML = mine.length ? mine.slice(0, 30).map(log => `<button type="button" class="copy-journal-item" data-copy-journal="${log.id}"><strong>${log.title}</strong><span>${shortDate(log.date)} · ${log.category}</span></button>`).join("") : `<div class="empty-state compact-empty"><strong>Không tìm thấy nhật ký phù hợp</strong></div>`;
+  list.querySelectorAll("[data-copy-journal]").forEach(button => button.addEventListener("click", () => applyCopyJournal(button.dataset.copyJournal)));
+}
+
+function applyCopyJournal(logId) {
+  const log = logs.find(item => item.id === logId);
+  if (!log) return;
+  const form = document.getElementById("journalForm");
+  form.elements.category.value = log.category;
+  form.elements.title.value = log.title;
+  form.elements.result.value = log.result;
+  form.elements.workRole.value = log.workRole;
+  form.elements.duration.value = log.duration;
+  form.elements.evidence.value = log.evidence || "";
+  document.getElementById("copyJournalPanel").hidden = true;
+  showToast("Đã sao chép nội dung từ nhật ký cũ — kiểm tra lại trước khi gửi.");
+}
+
 function closeJournalModal() {
   state.editingJournalId = null;
   document.getElementById("journalModal").hidden = true;
