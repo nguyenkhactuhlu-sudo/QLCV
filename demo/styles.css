@@ -296,6 +296,7 @@ h3 { margin-bottom: 4px; font-size: 15px; }
 .notification-dot.revision { background: var(--red); }
 .notification-dot.resubmitted { background: var(--blue); }
 .notification-dot.account { background: var(--green); }
+.notification-dot.escalation { background: var(--gold); }
 .notification-copy, .notification-copy strong, .notification-copy span, .notification-copy small { display: block; min-width: 0; }
 .notification-copy strong { color: var(--text); font-size: 12px; }
 .notification-copy span { margin-top: 3px; overflow: hidden; color: var(--muted); font-size: 11px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
@@ -952,6 +953,8 @@ tbody tr:hover { background: #fbfbfc; }
 
 .field-warning { display: block; margin-top: 4px; color: #8a650d; font-size: 11px; }
 .field-warning[hidden] { display: none; }
+
+.self-score-note { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-soft); font-size: 12px; }
 
 .sticky-board-panel { margin-top: 20px; }
 .sticky-board { display: flex; flex-wrap: wrap; gap: 16px; }

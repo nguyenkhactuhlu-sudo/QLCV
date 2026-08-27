@@ -7,6 +7,7 @@ const REGISTERED_ACCOUNT_STORAGE_KEY = "vks-registered-accounts-demo-v1";
 const NOTIFICATION_READ_STORAGE_KEY = "vks-notification-read-demo-v1";
 const PERSONAL_NOTES_STORAGE_KEY = "vks-personal-notes-demo-v1";
 const STICKY_NOTES_STORAGE_KEY = "vks-sticky-notes-demo-v1";
+const OVERRIDE_NOTIFICATIONS_STORAGE_KEY = "vks-override-notifications-demo-v1";
 
 const units = [
   { id: "province", name: "VKSND tỉnh", short: "VKSND tỉnh", type: "province", parentId: null },
@@ -296,6 +297,7 @@ let registeredAccounts = loadJson(REGISTERED_ACCOUNT_STORAGE_KEY, []);
 let notificationReadState = loadJson(NOTIFICATION_READ_STORAGE_KEY, {});
 let personalNotes = loadJson(PERSONAL_NOTES_STORAGE_KEY, samplePersonalNotes);
 let stickyNotes = loadJson(STICKY_NOTES_STORAGE_KEY, []);
+let overrideNotifications = loadJson(OVERRIDE_NOTIFICATIONS_STORAGE_KEY, []);
 registeredAccounts.forEach(account => {
   if (!users.some(user => user.id === account.id)) users.push(account);
 });
@@ -346,6 +348,27 @@ function savePersonalNotes() {
 
 function saveStickyNotes() {
   localStorage.setItem(STICKY_NOTES_STORAGE_KEY, JSON.stringify(stickyNotes));
+}
+
+function saveOverrideNotifications() {
+  localStorage.setItem(OVERRIDE_NOTIFICATIONS_STORAGE_KEY, JSON.stringify(overrideNotifications));
+}
+
+// Cap tren cua nguoi VUA THUC HIEN luot cham (khac voi cap tren cua tac
+// gia - 2 khai niem thuong trung nhau nhung khong luon luon, vi du khi co
+// uy quyen).
+function findSuperiorFor(reviewer) {
+  if (reviewer.role === "unit_head") {
+    const deputy = users.find(u => u.role === "province_deputy" && (u.assignedUnits || []).includes(reviewer.unitId));
+    return deputy || users.find(u => u.role === "province_head");
+  }
+  if (reviewer.role === "unit_deputy") {
+    return users.find(u => u.role === "unit_head" && u.unitId === reviewer.unitId);
+  }
+  if (reviewer.role === "province_deputy") {
+    return users.find(u => u.role === "province_head");
+  }
+  return null;
 }
 
 function currentUser() { return users.find(user => user.id === state.currentUserId); }
@@ -617,6 +640,19 @@ function notificationsForCurrentUser() {
       time: shortDate(log.date),
       view: "journal",
       logId: log.id
+    });
+  });
+  // Canh bao chenh lech dat NGAY SAU nhom "can bo sung" (ca 2 deu la tin
+  // rieng, quan trong) va TRUOC hang doi cho cham diem (co the rat dai voi
+  // lanh dao pham vi rong) - de khong bi ".slice(0, 20)" ben duoi cat mat.
+  overrideNotifications.filter(n => n.userId === user.id).forEach(n => {
+    notifications.push({
+      id: n.id,
+      tone: "escalation",
+      title: "Chênh lệch điểm tự chấm vượt ngưỡng",
+      message: n.message,
+      time: shortDate(n.createdAt.slice(0, 10)),
+      view: "unitJournal"
     });
   });
   if (isLeader(user)) reviewQueue().forEach(log => {
@@ -1397,13 +1433,15 @@ function updateScoringGuide(type, value) {
 
 function reviewDetail(log) {
   const author = userById(log.authorId);
-  const complexity = log.complexity || 6;
-  const quality = log.quality || 8;
+  const hasSelfScore = log.selfComplexity != null && log.selfQuality != null;
+  const complexity = log.complexity || log.selfComplexity || 6;
+  const quality = log.quality || log.selfQuality || 8;
   const lastRevision = log.reviewHistory?.at(-1);
   const revisionContext = lastRevision ? `<div class="resubmission-context"><strong>Báo cáo đã được chỉnh sửa và trình lại lần ${log.revisionCount || log.reviewHistory.length}</strong><span>Yêu cầu trước: ${lastRevision.comment}</span></div>` : "";
+  const selfScoreNote = hasSelfScore ? `<div class="self-score-note"><span>Cán bộ tự chấm: Độ phức tạp <strong>${log.selfComplexity}</strong> · Chất lượng <strong>${log.selfQuality}</strong></span><button type="button" class="button button-secondary button-small" id="acceptSelfScore">Đồng ý với tự chấm</button></div>` : "";
   return `<div class="panel-header"><div><span class="eyebrow">${log.id} · ${formatDate(log.date)}</span><h2>${log.title}</h2><p>${author.name} · ${author.title} · ${unitById(log.unitId).short}</p></div></div>
     ${revisionContext}<div class="detail-section"><h3>Kết quả báo cáo</h3><p>${log.result}</p><div class="detail-grid"><div class="detail-item"><span>Lĩnh vực</span><strong>${log.category}</strong></div><div class="detail-item"><span>Vai trò</span><strong>${log.workRole}</strong></div><div class="detail-item"><span>Thời gian</span><strong>${log.duration}</strong></div><div class="detail-item"><span>Minh chứng</span><strong>${log.evidence || "Không có"}</strong></div></div></div>
-    <div class="detail-section"><div class="rating-grid">
+    <div class="detail-section">${selfScoreNote}<div class="rating-grid">
       <div class="rating-control"><div class="rating-head"><div><h3>Độ phức tạp</h3><span class="metric-context">Bản chất và phạm vi công việc</span></div><span class="rating-value" id="complexityValue">${complexity}</span></div><input id="complexityRange" type="range" min="1" max="10" value="${complexity}" aria-label="Điểm độ phức tạp"><div class="range-labels"><span>Đơn giản</span><span>Đặc biệt phức tạp</span></div>${scoringGuideMarkup("complexity", complexity)}</div>
       <div class="rating-control"><div class="rating-head"><div><h3>Chất lượng</h3><span class="metric-context">Đúng, đủ, kịp thời và sử dụng được</span></div><span class="rating-value" id="qualityValue">${quality}</span></div><input id="qualityRange" type="range" min="1" max="10" value="${quality}" aria-label="Điểm chất lượng"><div class="range-labels"><span>Không đạt</span><span>Rất tốt</span></div>${scoringGuideMarkup("quality", quality)}</div>
     </div></div>
@@ -1415,6 +1453,13 @@ function bindReviewActions(log) {
   const quality = document.getElementById("qualityRange");
   complexity.addEventListener("input", () => updateScoringGuide("complexity", complexity.value));
   quality.addEventListener("input", () => updateScoringGuide("quality", quality.value));
+  const acceptSelfScore = document.getElementById("acceptSelfScore");
+  if (acceptSelfScore) acceptSelfScore.addEventListener("click", () => {
+    complexity.value = log.selfComplexity;
+    quality.value = log.selfQuality;
+    updateScoringGuide("complexity", log.selfComplexity);
+    updateScoringGuide("quality", log.selfQuality);
+  });
   document.getElementById("approveLog").addEventListener("click", () => applyReview(log, "approved"));
   document.getElementById("requestRevision").addEventListener("click", () => applyReview(log, "revision"));
 }
@@ -1428,8 +1473,29 @@ function applyReview(log, status) {
     document.getElementById("reviewComment").focus();
     return;
   }
-  Object.assign(log, { complexity, quality, comment, status, reviewerId: currentUser().id, reviewedAt: new Date().toISOString() });
+  const reviewer = currentUser();
+  Object.assign(log, { complexity, quality, comment, status, reviewerId: reviewer.id, reviewedAt: new Date().toISOString() });
   saveLogs();
+  // Canh bao chenh lech: dem theo TUNG CAN BO trong thang (khong phan biet
+  // ai cham), bao cap tren cua NGUOI VUA CHAM khi vuot qua 3 lan.
+  if (status === "approved" && log.selfComplexity != null && log.selfQuality != null
+      && (complexity !== log.selfComplexity || quality !== log.selfQuality)) {
+    const month = log.reviewedAt.slice(0, 7);
+    const overrideCount = logs.filter(l => l.authorId === log.authorId && l.status === "approved"
+      && l.selfComplexity != null && l.selfQuality != null && l.reviewedAt && l.reviewedAt.startsWith(month)
+      && (l.complexity !== l.selfComplexity || l.quality !== l.selfQuality)).length;
+    if (overrideCount > 3) {
+      const superior = findSuperiorFor(reviewer);
+      if (superior) {
+        overrideNotifications.push({
+          id: `ON-${Date.now()}`, userId: superior.id, authorId: log.authorId,
+          message: `${userById(log.authorId).name} đã bị chấm điểm khác đề xuất tự chấm quá 3 lần trong tháng này.`,
+          createdAt: new Date().toISOString()
+        });
+        saveOverrideNotifications();
+      }
+    }
+  }
   state.selectedReviewId = null;
   state.editingJournalId = null;
   showToast(status === "approved" ? "Đã xác nhận và chấm điểm nhật ký." : "Đã gửi yêu cầu bổ sung.");
@@ -2355,6 +2421,8 @@ function openJournalModal(logId = null) {
     form.elements.workRole.value = log.workRole;
     form.elements.duration.value = log.duration;
     form.elements.evidence.value = log.evidence || "";
+    form.elements.selfComplexity.value = log.selfComplexity || "";
+    form.elements.selfQuality.value = log.selfQuality || "";
   } else {
     form.elements.workDate.value = DEMO_TODAY;
   }
@@ -2443,6 +2511,7 @@ function submitJournal(event) {
     Object.assign(editingLog, {
       date: data.get("workDate"), category: data.get("category"), title: data.get("title"), result: data.get("result"),
       workRole: data.get("workRole"), duration: data.get("duration"), evidence: data.get("evidence"),
+      selfComplexity: Number(data.get("selfComplexity")), selfQuality: Number(data.get("selfQuality")),
       status: "pending", complexity: null, quality: null, reviewerId: null, comment: "", reviewedAt: null,
       updatedAt: now, resubmittedAt: now, revisionCount: reviewHistory.length, reviewHistory
     });
@@ -2456,6 +2525,7 @@ function submitJournal(event) {
   logs.push({
     id: nextId, authorId: user.id, unitId: user.unitId, date: data.get("workDate"), category: data.get("category"),
     title: data.get("title"), result: data.get("result"), workRole: data.get("workRole"), duration: data.get("duration"), evidence: data.get("evidence"),
+    selfComplexity: Number(data.get("selfComplexity")), selfQuality: Number(data.get("selfQuality")),
     status: "pending", complexity: null, quality: null, reviewerId: null, comment: "", createdAt: new Date().toISOString(), reviewedAt: null
   });
   saveLogs();
@@ -2468,6 +2538,7 @@ function resetDemo() {
   logs = structuredClone(sampleLogs);
   personalNotes = structuredClone(samplePersonalNotes);
   stickyNotes = [];
+  overrideNotifications = [];
   monthlyReviews = structuredClone(sampleMonthly.concat(generateMonthlyHistory()));
   users.splice(0, users.length, ...users.filter(user => !user.id.startsWith("reg-")));
   registeredAccounts = [];
@@ -2483,6 +2554,7 @@ function resetDemo() {
   saveLogs();
   savePersonalNotes();
   saveStickyNotes();
+  saveOverrideNotifications();
   localStorage.setItem(MONTHLY_STORAGE_KEY, JSON.stringify(monthlyReviews));
   localStorage.setItem(REGISTERED_ACCOUNT_STORAGE_KEY, JSON.stringify(registeredAccounts));
   localStorage.setItem(REGISTRATION_CODE_STORAGE_KEY, JSON.stringify(registrationCodes));

@@ -618,6 +618,8 @@ function oj(logId){
     form.elements.workRole.value=log.work_role;
     form.elements.duration.value=log.duration;
     form.elements.evidence.value=log.evidence||'';
+    form.elements.selfComplexity.value=log.self_complexity_score||'';
+    form.elements.selfQuality.value=log.self_quality_score||'';
   }else{
     form.elements.workDate.valueAsDate=new Date();
   }
@@ -689,7 +691,9 @@ async function sj(e){
     result:(f.get('result')||'').trim(),
     work_role:f.get('workRole'),
     duration:f.get('duration'),
-    evidence:(f.get('evidence')||'').trim()||null
+    evidence:(f.get('evidence')||'').trim()||null,
+    self_complexity_score:Number(f.get('selfComplexity')),
+    self_quality_score:Number(f.get('selfQuality'))
   };
   if(!payload.category_id){showToast('Vui lòng chọn lĩnh vực công tác');return}
   var btn=$('journalSubmitButton');btn.disabled=true;
@@ -1224,12 +1228,15 @@ async function rr(){
 }
 
 function reviewDetailHtml(log){
-  var complexity=6,quality=8;
+  var hasSelfScore=log.self_complexity_score!=null&&log.self_quality_score!=null;
+  var complexity=log.complexity_score||log.self_complexity_score||6;
+  var quality=log.quality_score||log.self_quality_score||8;
   var resubmission=log.revision_count?'<div class="resubmission-context"><strong>Báo cáo đã được chỉnh sửa và trình lại lần '+log.revision_count+'</strong></div>':'';
+  var selfScoreNote=hasSelfScore?'<div class="self-score-note"><span>Cán bộ tự chấm: Độ phức tạp <strong>'+log.self_complexity_score+'</strong> · Chất lượng <strong>'+log.self_quality_score+'</strong></span><button type="button" class="button button-secondary button-small" id="acceptSelfScore">Đồng ý với tự chấm</button></div>':'';
   return '<div class="panel-header"><div><span class="eyebrow">'+shortDate(log.log_date)+'</span><h2>'+esc(log.title)+'</h2><p>'+esc(log._author.full_name||'')+' · '+esc(log._author.title||'')+' · '+esc(unitShort(log.unit_id))+'</p></div></div>'
     +resubmission
     +'<div class="detail-section"><h3>Kết quả báo cáo</h3><p>'+esc(log.result)+'</p><div class="detail-grid"><div class="detail-item"><span>Lĩnh vực</span><strong>'+esc(catName(log.category_id))+'</strong></div><div class="detail-item"><span>Vai trò</span><strong>'+esc(WORK_ROLE_LABEL[log.work_role]||log.work_role)+'</strong></div><div class="detail-item"><span>Thời gian</span><strong>'+esc(DURATION_LABEL[log.duration]||log.duration)+'</strong></div><div class="detail-item"><span>Minh chứng</span><strong>'+esc(log.evidence||'Không có')+'</strong></div></div></div>'
-    +'<div class="detail-section"><div class="rating-grid">'
+    +'<div class="detail-section">'+selfScoreNote+'<div class="rating-grid">'
     +'<div class="rating-control"><div class="rating-head"><div><h3>Độ phức tạp</h3><span class="metric-context">Bản chất và phạm vi công việc</span></div><span class="rating-value" id="complexityValue">'+complexity+'</span></div><input id="complexityRange" type="range" min="1" max="10" value="'+complexity+'" aria-label="Điểm độ phức tạp"><div class="range-labels"><span>Đơn giản</span><span>Đặc biệt phức tạp</span></div>'+scoringGuideMarkup('complexity',complexity)+'</div>'
     +'<div class="rating-control"><div class="rating-head"><div><h3>Chất lượng</h3><span class="metric-context">Đúng, đủ, kịp thời và sử dụng được</span></div><span class="rating-value" id="qualityValue">'+quality+'</span></div><input id="qualityRange" type="range" min="1" max="10" value="'+quality+'" aria-label="Điểm chất lượng"><div class="range-labels"><span>Không đạt</span><span>Rất tốt</span></div>'+scoringGuideMarkup('quality',quality)+'</div>'
     +'</div></div>'
@@ -1276,6 +1283,13 @@ function bindReviewActions(log){
   var complexity=$('complexityRange'),quality=$('qualityRange');
   complexity.addEventListener('input',function(){updateScoringGuide('complexity',complexity.value)});
   quality.addEventListener('input',function(){updateScoringGuide('quality',quality.value)});
+  var acceptSelfScore=$('acceptSelfScore');
+  if(acceptSelfScore)acceptSelfScore.addEventListener('click',function(){
+    complexity.value=log.self_complexity_score;
+    quality.value=log.self_quality_score;
+    updateScoringGuide('complexity',log.self_complexity_score);
+    updateScoringGuide('quality',log.self_quality_score);
+  });
   $('approveLog').addEventListener('click',function(){applyReview(log,'approved')});
   $('requestRevision').addEventListener('click',function(){applyReview(log,'revision')});
 }
@@ -2024,6 +2038,15 @@ async function fetchNotifications(){
         list.push({id:'revision-'+l.id+'-'+(l.reviewed_at||'pending'),tone:'revision',title:'Nhật ký cần bổ sung',message:reviewerName+': '+(l.review_comment||'Yêu cầu chỉnh sửa, làm rõ kết quả.'),time:shortDate(l.log_date),view:'journal',logId:l.id});
       });
     }
+  }catch(e){}
+  // Thong bao "su kien" thuc su (bang notifications, dung that lan dau -
+  // truoc day chi suy ra ad-hoc). Dat TRUOC hang cho duyet (co the rat dai)
+  // de khong bi ".slice(0, 20)" ben duoi cat mat.
+  try{
+    var nr=await fetch(API+'notifications?user_id=eq.'+U.id+'&order=created_at.desc&limit=20',{headers:authHeaders()});
+    (nr.ok?await nr.json():[]).forEach(function(n){
+      list.push({id:'db-'+n.id,tone:n.type==='score_override_escalation'?'escalation':'account',title:n.title,message:n.body||'',time:shortDate((n.created_at||'').slice(0,10)),view:'unitJournal'});
+    });
   }catch(e){}
   if(isLeader()){
     try{
