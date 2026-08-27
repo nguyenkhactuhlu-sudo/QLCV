@@ -8,6 +8,7 @@ const NOTIFICATION_READ_STORAGE_KEY = "vks-notification-read-demo-v1";
 const PERSONAL_NOTES_STORAGE_KEY = "vks-personal-notes-demo-v1";
 const STICKY_NOTES_STORAGE_KEY = "vks-sticky-notes-demo-v1";
 const SYSTEM_NOTIFICATIONS_STORAGE_KEY = "vks-override-notifications-demo-v1";
+const DELEGATIONS_STORAGE_KEY = "vks-delegations-demo-v1";
 
 const units = [
   { id: "province", name: "VKSND tỉnh", short: "VKSND tỉnh", type: "province", parentId: null },
@@ -36,7 +37,7 @@ const users = [
   { id: "u01", name: "Phạm Hải Anh", title: "Viện trưởng", professionalTitle: "KSV cao cấp", role: "province_head", unitId: "province", initials: "PA" },
   { id: "u02", name: "Nguyễn Văn Lượng", title: "Phó Viện trưởng", professionalTitle: "KSV cao cấp", role: "province_deputy", unitId: "province", assignedUnits: ["p1", "p7", "kv1"], initials: "NL" },
   { id: "u03", name: "Lưu Thị Lệ Phương", title: "Trưởng phòng", professionalTitle: "KSV Trung cấp", role: "unit_head", unitId: "p1", initials: "LP" },
-  { id: "u04", name: "Phùng Đức Khương", title: "Phó Trưởng phòng", professionalTitle: "KSV Trung cấp", role: "unit_deputy", unitId: "p1", delegated: true, initials: "PK" },
+  { id: "u04", name: "Phùng Đức Khương", title: "Phó Trưởng phòng", professionalTitle: "KSV Trung cấp", role: "unit_deputy", unitId: "p1", initials: "PK" },
   { id: "u05", name: "Nguyễn Văn Quân", title: "Kiểm sát viên", professionalTitle: "KSV Trung cấp", role: "staff", unitId: "p1", initials: "NQ" },
   { id: "u06", name: "Nguyễn Tiến Trung", title: "Kiểm sát viên", professionalTitle: "KSV Trung cấp", role: "staff", unitId: "p1", initials: "NT" },
   { id: "u07", name: "Phạm Hữu Cường", title: "Kiểm sát viên", professionalTitle: "KSV Trung cấp", role: "staff", unitId: "p1", initials: "PC" },
@@ -90,6 +91,13 @@ const sampleRegistrationCodes = [
   { code: "KV1-2026-M4N8", unitId: "kv1", label: "Khu vực 1", expiresAt: "2026-12-31", maxUses: 24, used: 8, active: true },
   { code: "VP-2026-Q2R6", unitId: "vp", label: "Văn phòng", expiresAt: "2026-10-31", maxUses: 20, used: 11, active: true },
   { code: "P7-2026-C8T3", unitId: "p7", label: "Phòng 7", expiresAt: "2026-09-30", maxUses: 10, used: 10, active: false }
+];
+
+// Uy quyen cham diem: gan voi danh sach nguoi cu the (scopeUserIds), khong
+// con la "ap dung ca don vi" nhu truoc - Truong phong chi dinh dung ai Pho
+// phong duoc cham thay, trong khoang thoi gian nao.
+const sampleDelegations = [
+  { id: "DEL001", delegatorId: "u03", delegateId: "u04", unitId: "p1", startsAt: "2026-08-01", endsAt: "2026-08-31", scopeUserIds: ["u05", "u06", "u07"], status: "active" }
 ];
 
 const sampleLogs = [
@@ -298,6 +306,7 @@ let notificationReadState = loadJson(NOTIFICATION_READ_STORAGE_KEY, {});
 let personalNotes = loadJson(PERSONAL_NOTES_STORAGE_KEY, samplePersonalNotes);
 let stickyNotes = loadJson(STICKY_NOTES_STORAGE_KEY, []);
 let systemNotifications = loadJson(SYSTEM_NOTIFICATIONS_STORAGE_KEY, []);
+let delegations = loadJson(DELEGATIONS_STORAGE_KEY, sampleDelegations);
 registeredAccounts.forEach(account => {
   if (!users.some(user => user.id === account.id)) users.push(account);
 });
@@ -352,6 +361,18 @@ function saveStickyNotes() {
 
 function saveSystemNotifications() {
   localStorage.setItem(SYSTEM_NOTIFICATIONS_STORAGE_KEY, JSON.stringify(systemNotifications));
+}
+
+function saveDelegations() {
+  localStorage.setItem(DELEGATIONS_STORAGE_KEY, JSON.stringify(delegations));
+}
+
+function isDelegationActive(delegation) {
+  return delegation.status === "active" && delegation.startsAt <= DEMO_TODAY && DEMO_TODAY <= delegation.endsAt;
+}
+
+function activeDelegationScopeIds(delegateId) {
+  return delegations.filter(d => d.delegateId === delegateId && isDelegationActive(d)).flatMap(d => d.scopeUserIds);
 }
 
 // Cap tren cua nguoi VUA THUC HIEN luot cham (khac voi cap tren cua tac
@@ -426,7 +447,7 @@ function canReviewLog(log, reviewer = currentUser()) {
     return author.role === "unit_head" && (reviewer.assignedUnits || []).includes(author.unitId);
   }
   if (reviewer.role === "unit_head") return author.unitId === reviewer.unitId && author.role !== "unit_head";
-  if (reviewer.role === "unit_deputy" && reviewer.delegated) return author.unitId === reviewer.unitId && (author.role === "staff" || author.role === "support_staff");
+  if (reviewer.role === "unit_deputy") return activeDelegationScopeIds(reviewer.id).includes(author.id);
   return false;
 }
 
@@ -1733,7 +1754,7 @@ function canApproveMonthly(person, reviewer = currentUser()) {
   if (reviewer.role === "province_head") return person.role === "province_deputy" || person.role === "unit_head";
   if (reviewer.role === "province_deputy") return person.role === "unit_head" && (reviewer.assignedUnits || []).includes(person.unitId);
   if (reviewer.role === "unit_head") return person.unitId === reviewer.unitId && person.role !== "unit_head";
-  if (reviewer.role === "unit_deputy" && reviewer.delegated) return person.unitId === reviewer.unitId && (person.role === "staff" || person.role === "support_staff");
+  if (reviewer.role === "unit_deputy") return activeDelegationScopeIds(reviewer.id).includes(person.id);
   return false;
 }
 
@@ -2310,7 +2331,7 @@ function renderAdministration() {
   if (!(isAdministrator() || currentUser().role === "province_head")) { state.currentView = "dashboard"; renderDashboard(); return; }
   const activeUsers = users.filter(user => user.role !== "administrator");
   const heads = activeUsers.filter(user => user.role === "unit_head");
-  const delegated = activeUsers.filter(user => user.delegated);
+  const activeDelegationsCount = delegations.filter(isDelegationActive).length;
   const pendingAccounts = registeredAccounts.filter(account => account.accountStatus === "pending");
   const movableUsers = activeUsers.filter(user => !["province_head", "province_deputy", "unit_head"].includes(user.role));
   updateChrome("Quản trị nhân sự và phân quyền", "CẤU HÌNH CÓ THỜI GIAN HIỆU LỰC");
@@ -2320,7 +2341,7 @@ function renderAdministration() {
       ${metricCard("Nhân sự và tài khoản", activeUsers.length, `${pendingAccounts.length} tài khoản chờ xác nhận`, "")}
       ${metricCard("Đơn vị trực thuộc", units.length - 1, "Phòng chuyên trách và VKSND khu vực", "blue")}
       ${metricCard("Người đứng đầu", heads.length, "Đang có hiệu lực", "green")}
-      ${metricCard("Ủy quyền đang hiệu lực", delegated.length, "Có thể thu hồi tức thời", "gold")}
+      ${metricCard("Ủy quyền đang hiệu lực", activeDelegationsCount, "Có thể thu hồi tức thời", "gold")}
     </div>
     <div class="admin-grid">
       <section class="panel"><div class="panel-header"><div><h2>Điều chuyển nhân sự</h2><p>Không sửa lịch sử; kết thúc phân công cũ và tạo phân công mới</p></div></div>
@@ -2330,10 +2351,9 @@ function renderAdministration() {
           <label class="field"><span>Ngày hiệu lực</span><input id="adminEffectiveDate" type="date" value="2026-09-01"></label>
         </div><div class="review-actions"><button class="button button-primary" id="applyTransfer">Mô phỏng điều chuyển</button></div>
       </section>
-      <section class="panel"><div class="panel-header"><div><h2>Ủy quyền có thời hạn</h2><p>Cấp phó chỉ chấm trong phạm vi và thời hạn được giao</p></div></div>
-        <div class="delegation-card"><div><strong>${userById("u04").name}</strong><span>${userById("u04").title} · ${unitById(userById("u04").unitId).short}</span></div><span class="status-pill ${userById("u04").delegated ? "status-approved" : "status-pending"}">${userById("u04").delegated ? "Đang hiệu lực" : "Đã thu hồi"}</span></div>
-        <div class="detail-grid"><div class="detail-item"><span>Phạm vi</span><strong>Đánh giá nhật ký cán bộ trong đơn vị</strong></div><div class="detail-item"><span>Thời hạn demo</span><strong>01/08–31/08/2026</strong></div></div>
-        <div class="review-actions"><button class="button ${userById("u04").delegated ? "button-danger" : "button-primary"}" id="toggleDelegation">${userById("u04").delegated ? "Thu hồi ủy quyền" : "Cấp lại ủy quyền"}</button></div>
+      <section class="panel panel-wide"><div class="panel-header"><div><h2>Ủy quyền có thời hạn</h2><p>Chỉ định cụ thể Phó phòng/Phó Viện trưởng KV được chấm điểm thay cho những ai, trong khoảng thời gian nào</p></div></div>
+        ${delegationGrantFormHtml()}
+        ${delegationsTableHtml()}
       </section>
       <section class="panel panel-wide"><div class="panel-header"><div><h2>Mã đăng ký theo đơn vị</h2><p>Mã chỉ xác định đơn vị và quyền cán bộ mặc định; không cấp quyền lãnh đạo hoặc quản trị</p></div></div>
         <div class="code-generator"><label class="filter-field"><span>Đơn vị cấp mã</span><select id="codeUnit">${units.filter(unit => unit.id !== "province").map(unit => `<option value="${unit.id}">${unit.short}</option>`).join("")}</select></label><label class="filter-field"><span>Số lượt tối đa</span><input id="codeMaxUses" type="number" min="1" max="100" value="20"></label><label class="filter-field"><span>Ngày hết hạn</span><input id="codeExpiry" type="date" value="2026-12-31"></label><button class="button button-primary" id="generateCode">Tạo mã đơn vị</button></div>
@@ -2343,7 +2363,8 @@ function renderAdministration() {
       <section class="panel panel-wide"><div class="panel-header"><div><h2>Nhật ký thay đổi</h2><p>Không xóa lịch sử thay đổi nhân sự và phân quyền</p></div></div><div class="audit-list">${auditEvents.slice().reverse().map(event => `<div class="audit-row"><span class="audit-time">${new Date(event.at).toLocaleString("vi-VN")}</span><div><strong>${event.action}</strong><p>${event.detail}</p></div><span>${event.actor}</span></div>`).join("")}</div></section>
     </div>`;
   document.getElementById("applyTransfer").addEventListener("click", applyPersonnelTransfer);
-  document.getElementById("toggleDelegation").addEventListener("click", toggleDelegation);
+  bindDelegationForm();
+  document.querySelectorAll("[data-revoke-delegation]").forEach(button => button.addEventListener("click", () => revokeDelegation(button.dataset.revokeDelegation)));
   document.getElementById("generateCode").addEventListener("click", generateRegistrationCode);
   document.querySelectorAll("[data-toggle-code]").forEach(button => button.addEventListener("click", () => toggleRegistrationCode(button.dataset.toggleCode)));
   document.querySelectorAll("[data-approve-account]").forEach(button => button.addEventListener("click", () => approveRegisteredAccount(button.dataset.approveAccount)));
@@ -2414,14 +2435,84 @@ function applyPersonnelTransfer() {
   renderAdministration();
 }
 
-function toggleDelegation() {
-  const deputy = userById("u04");
-  deputy.delegated = !deputy.delegated;
-  savePersonnelState();
-  auditEvents.push({ at: new Date().toISOString(), actor: currentUser().name, action: deputy.delegated ? "Cấp lại ủy quyền" : "Thu hồi ủy quyền", detail: `${deputy.name} · ${unitById(deputy.unitId).short}` });
+// ============================================
+// UY QUYEN THEO DANH SACH NGUOI CU THE - Truong phong/Vien truong KV chi
+// dinh dung ai Pho phong duoc cham thay, trong khoang thoi gian nao (khac
+// co che cu: ap dung ca don vi, khong chon duoc tung nguoi).
+// ============================================
+function delegationCandidateStaff(unitId) {
+  return users.filter(user => user.unitId === unitId && (user.role === "staff" || user.role === "support_staff"));
+}
+
+function delegationGrantFormHtml() {
+  const deputies = users.filter(user => user.role === "unit_deputy");
+  return `<div class="form-grid compact-form">
+    <label class="field field-wide"><span>Phó phòng/Phó Viện trưởng KV được ủy quyền</span><select id="delegationDeputy">${deputies.map(d => `<option value="${d.id}">${d.name} · ${unitById(d.unitId).short}</option>`).join("")}</select></label>
+    <label class="field"><span>Từ ngày</span><input type="date" id="delegationStart" value="${DEMO_TODAY}"></label>
+    <label class="field"><span>Đến ngày</span><input type="date" id="delegationEnd"></label>
+    <div class="field field-wide"><span>Chọn người được chấm thay</span><div class="unit-checklist" id="delegationScopeChecklist"></div></div>
+  </div><div class="review-actions"><button class="button button-primary" id="grantDelegation">Cấp ủy quyền</button></div>`;
+}
+
+function delegationsTableHtml() {
+  if (!delegations.length) return `<div class="empty-state compact-empty"><strong>Chưa có ủy quyền nào</strong></div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>Phó phòng/Phó VT KV</th><th>Đơn vị</th><th>Phạm vi được chấm thay</th><th>Thời hạn</th><th>Trạng thái</th><th></th></tr></thead><tbody>${delegations.slice().reverse().map(d => {
+    const deputy = userById(d.delegateId);
+    const scopeNames = d.scopeUserIds.map(id => userById(id)?.name).filter(Boolean).join(", ");
+    const active = isDelegationActive(d);
+    const statusLabel = d.status === "revoked" ? "Đã thu hồi" : active ? "Đang hiệu lực" : "Hết hạn";
+    const statusTone = d.status === "revoked" ? "status-revision" : active ? "status-approved" : "status-pending";
+    return `<tr><td><strong>${deputy ? deputy.name : "—"}</strong></td><td>${unitDisplayName(d.unitId)}</td><td>${scopeNames || "—"}</td><td>${formatDate(d.startsAt)}–${formatDate(d.endsAt)}</td><td><span class="status-pill ${statusTone}">${statusLabel}</span></td><td class="numeric">${d.status === "active" ? `<button class="button button-danger button-small" data-revoke-delegation="${d.id}">Thu hồi</button>` : ""}</td></tr>`;
+  }).join("")}</tbody></table></div>`;
+}
+
+function refreshDelegationScopeChecklist() {
+  const deputySelect = document.getElementById("delegationDeputy");
+  const checklist = document.getElementById("delegationScopeChecklist");
+  const deputy = userById(deputySelect.value);
+  const candidates = deputy ? delegationCandidateStaff(deputy.unitId) : [];
+  checklist.innerHTML = candidates.length
+    ? candidates.map(person => `<label><input type="checkbox" value="${person.id}"> ${person.name} · ${ROLE_LABELS[person.role]}</label>`).join("")
+    : `<span class="unit-checklist-empty">Đơn vị này chưa có cán bộ/người lao động</span>`;
+}
+
+function bindDelegationForm() {
+  const deputySelect = document.getElementById("delegationDeputy");
+  if (!deputySelect) return;
+  deputySelect.addEventListener("change", refreshDelegationScopeChecklist);
+  refreshDelegationScopeChecklist();
+  document.getElementById("grantDelegation").addEventListener("click", grantDelegation);
+}
+
+function grantDelegation() {
+  const deputy = userById(document.getElementById("delegationDeputy").value);
+  const startsAt = document.getElementById("delegationStart").value;
+  const endsAt = document.getElementById("delegationEnd").value;
+  const scopeUserIds = Array.from(document.querySelectorAll("#delegationScopeChecklist input:checked")).map(cb => cb.value);
+  if (!deputy || !startsAt || !endsAt) return showToast("Vui lòng chọn đầy đủ Phó phòng và khoảng thời gian.");
+  if (endsAt < startsAt) return showToast("Ngày kết thúc phải sau ngày bắt đầu.");
+  if (!scopeUserIds.length) return showToast("Vui lòng chọn ít nhất 1 người được chấm thay.");
+  const delegator = users.find(user => user.unitId === deputy.unitId && user.role === "unit_head");
+  delegations.push({
+    id: `DEL-${Date.now()}`, delegatorId: delegator ? delegator.id : currentUser().id, delegateId: deputy.id,
+    unitId: deputy.unitId, startsAt, endsAt, scopeUserIds, status: "active"
+  });
+  saveDelegations();
+  auditEvents.push({ at: new Date().toISOString(), actor: currentUser().name, action: "Cấp ủy quyền chấm điểm", detail: `${deputy.name} · ${scopeUserIds.length} người · ${formatDate(startsAt)}–${formatDate(endsAt)}` });
   localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(auditEvents));
-  showToast(deputy.delegated ? "Đã cấp lại ủy quyền trong demo." : "Đã thu hồi ủy quyền trong demo.");
-  updateNav();
+  showToast("Đã cấp ủy quyền.");
+  renderAdministration();
+}
+
+function revokeDelegation(id) {
+  const delegation = delegations.find(d => d.id === id);
+  if (!delegation) return;
+  delegation.status = "revoked";
+  saveDelegations();
+  const deputy = userById(delegation.delegateId);
+  auditEvents.push({ at: new Date().toISOString(), actor: currentUser().name, action: "Thu hồi ủy quyền", detail: `${deputy ? deputy.name : "—"} · ${unitDisplayName(delegation.unitId)}` });
+  localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(auditEvents));
+  showToast("Đã thu hồi ủy quyền.");
   renderAdministration();
 }
 
@@ -2610,6 +2701,7 @@ function resetDemo() {
   personalNotes = structuredClone(samplePersonalNotes);
   stickyNotes = [];
   systemNotifications = [];
+  delegations = structuredClone(sampleDelegations);
   monthlyReviews = structuredClone(sampleMonthly.concat(generateMonthlyHistory()));
   users.splice(0, users.length, ...users.filter(user => !user.id.startsWith("reg-")));
   registeredAccounts = [];
@@ -2626,6 +2718,7 @@ function resetDemo() {
   savePersonalNotes();
   saveStickyNotes();
   saveSystemNotifications();
+  saveDelegations();
   localStorage.setItem(MONTHLY_STORAGE_KEY, JSON.stringify(monthlyReviews));
   localStorage.setItem(REGISTERED_ACCOUNT_STORAGE_KEY, JSON.stringify(registeredAccounts));
   localStorage.setItem(REGISTRATION_CODE_STORAGE_KEY, JSON.stringify(registrationCodes));

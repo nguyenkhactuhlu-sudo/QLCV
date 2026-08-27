@@ -128,9 +128,17 @@ async function initU(t,uid,em){
     var aur=await fetch(API+'unit_assignments?user_id=eq.'+uid+'&select=unit_id',{headers:{'apikey':KEY,'Authorization':'Bearer '+t}});
     var au=aur.ok?await aur.json():[];
     U.assignedUnits=(au||[]).map(function(x){return x.unit_id});
-    var delr=await fetch(API+'delegations?delegate_id=eq.'+uid+'&status=eq.active&select=id&limit=1',{headers:{'apikey':KEY,'Authorization':'Bearer '+t}});
+    var nowIso=new Date().toISOString();
+    var delr=await fetch(API+'delegations?delegate_id=eq.'+uid+'&status=eq.active&starts_at=lte.'+nowIso+'&ends_at=gte.'+nowIso+'&select=id&limit=1',{headers:{'apikey':KEY,'Authorization':'Bearer '+t}});
     var del=delr.ok?await delr.json():[];
     U.delegated=Array.isArray(del)&&del.length>0;
+    if(U.delegated){
+      var dsr=await fetch(API+'delegation_scopes?delegation_id=eq.'+del[0].id+'&select=staff_id',{headers:{'apikey':KEY,'Authorization':'Bearer '+t}});
+      var ds=dsr.ok?await dsr.json():[];
+      U.delegationScope=ds.map(function(x){return x.staff_id});
+    }else{
+      U.delegationScope=[];
+    }
   }catch(e){}
   $('loginScreen').hidden=true;$('appShell').hidden=false;document.body.classList.remove('login-active');
   ub();V='dashboard';render();showToast('Đăng nhập thành công!');
@@ -1161,7 +1169,7 @@ function canReviewLog(log,author){
   if(U.rl==='province_head')return ar==='province_deputy'||ar==='unit_head'||auid===PROVINCE_UNIT_ID;
   if(U.rl==='province_deputy')return ar==='unit_head'&&(U.assignedUnits||[]).indexOf(auid)>=0;
   if(U.rl==='unit_head')return auid===U.uid&&ar!=='unit_head';
-  if(U.rl==='unit_deputy'&&U.delegated)return auid===U.uid&&(ar==='staff'||ar==='support_staff');
+  if(U.rl==='unit_deputy')return (U.delegationScope||[]).indexOf(author.id)>=0;
   return false;
 }
 
@@ -1559,7 +1567,7 @@ function canApproveMonthly(person){
   if(U.rl==='province_head')return person.role==='province_deputy'||person.role==='unit_head';
   if(U.rl==='province_deputy')return person.role==='unit_head'&&(U.assignedUnits||[]).indexOf(person.unit_id)>=0;
   if(U.rl==='unit_head')return person.unit_id===U.uid&&person.role!=='unit_head';
-  if(U.rl==='unit_deputy'&&U.delegated)return person.unit_id===U.uid&&(person.role==='staff'||person.role==='support_staff');
+  if(U.rl==='unit_deputy')return (U.delegationScope||[]).indexOf(person.id)>=0;
   return false;
 }
 
@@ -2182,16 +2190,16 @@ async function openNotificationItem(button){
 }
 
 // ============================================
-// QUAN TRI - ma dang ky don vi + duyet tai khoan cho xac nhan
-// (chua bao gom dieu chuyen nhan su/uy quyen - de sau theo yeu cau)
+// QUAN TRI - ma dang ky don vi + duyet tai khoan cho xac nhan + uy quyen
+// cham diem theo danh sach nguoi cu the
 // ============================================
-var ADMIN_CODES=[],ADMIN_PENDING=[];
+var ADMIN_CODES=[],ADMIN_PENDING=[],ADMIN_DELEGATION_PEOPLE=[],ADMIN_DELEGATIONS=[];
 
 async function ra(){
   $('pageEyebrow').textContent='QUẢN TRỊ';$('pageTitle').textContent='Quản trị tài khoản và mã đăng ký';
   if(!isAdminOrProvinceHead()){V='dashboard';render();return}
   $('appView').innerHTML='<div class="empty-state"><strong>Đang tải...</strong></div>';
-  var codes=[],pendingProfiles=[],auditLogs=[];
+  var codes=[],pendingProfiles=[],auditLogs=[],people=[],delegationRows=[];
   try{
     var cr=await fetch(API+'registration_codes?select=*&order=created_at.desc',{headers:authHeaders()});
     codes=cr.ok?await cr.json():[];
@@ -2201,20 +2209,35 @@ async function ra(){
       var alr=await fetch(API+'audit_logs?select=id,action,entity_type,entity_id,created_at,actor:actor_id(full_name)&order=created_at.desc&limit=50',{headers:authHeaders()});
       auditLogs=alr.ok?await alr.json():[];
     }
+    var ppr=await fetch(API+'profiles?role=in.(unit_deputy,staff,support_staff)&select=id,full_name,role,unit_id&order=full_name',{headers:authHeaders()});
+    people=ppr.ok?await ppr.json():[];
+    var dr=await fetch(API+'delegations?select=id,delegate_id,unit_id,starts_at,ends_at,status&order=created_at.desc',{headers:authHeaders()});
+    var delegationList=dr.ok?await dr.json():[];
+    if(delegationList.length){
+      var ids=delegationList.map(function(d){return d.id}).join(',');
+      var dsr=await fetch(API+'delegation_scopes?delegation_id=in.('+ids+')&select=delegation_id,staff_id',{headers:authHeaders()});
+      var scopeRows=dsr.ok?await dsr.json():[];
+      delegationList.forEach(function(d){d.scopeUserIds=scopeRows.filter(function(s){return s.delegation_id===d.id}).map(function(s){return s.staff_id})});
+    }
+    delegationRows=delegationList;
   }catch(e){}
-  ADMIN_CODES=codes;ADMIN_PENDING=pendingProfiles;
+  ADMIN_CODES=codes;ADMIN_PENDING=pendingProfiles;ADMIN_DELEGATION_PEOPLE=people;ADMIN_DELEGATIONS=delegationRows;
 
   var unitOptions=UNITS.filter(function(u){return u.type!=='province'}).map(function(u){return '<option value="'+u.id+'">'+esc(u.short_name||u.code)+'</option>'}).join('');
 
+  var activeDelegationsCount=delegationRows.filter(isDelegationActiveRow).length;
   var h='<div class="metric-grid">'
     +metricCard('Mã đang cấp',codes.filter(function(c){return c.is_active}).length,codes.length+' mã đã tạo','')
     +metricCard('Tài khoản chờ xác nhận',pendingProfiles.length,'Cần đối chiếu trước khi kích hoạt','gold')
+    +metricCard('Ủy quyền đang hiệu lực',activeDelegationsCount,'Có thể thu hồi tức thời','blue')
     +'</div>';
   h+='<div class="admin-grid">';
   h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Mã đăng ký theo đơn vị</h2><p>Mã chỉ xác định đơn vị; người đăng ký luôn nhận quyền cán bộ mặc định, không tự chọn quyền lãnh đạo</p></div></div>'
     +'<div class="code-generator"><label class="filter-field"><span>Đơn vị cấp mã</span><select id="codeUnit">'+unitOptions+'</select></label><button class="button button-primary" id="generateCode">Tạo mã đơn vị</button></div>'
     +registrationCodeTableHtml(codes)+'</section>';
   h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Tài khoản chờ xác nhận</h2><p>Đối chiếu đúng người, đúng đơn vị trước khi kích hoạt</p></div></div>'+pendingAccountTableHtml(pendingProfiles)+'</section>';
+  h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Ủy quyền có thời hạn</h2><p>Chỉ định cụ thể Phó phòng/Phó Viện trưởng KV được chấm điểm thay cho những ai, trong khoảng thời gian nào</p></div></div>'
+    +delegationGrantFormHtml(people)+delegationsTableHtml(delegationRows,people)+'</section>';
   if(U.rl==='administrator'){
     h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Nhật ký kiểm toán</h2><p>50 thay đổi gần nhất đối với điểm số, trạng thái, quyền hạn và nhân sự</p></div></div>'+auditLogTableHtml(auditLogs)+'</section>';
   }
@@ -2224,6 +2247,97 @@ async function ra(){
   $('generateCode').addEventListener('click',generateRegistrationCode);
   document.querySelectorAll('[data-toggle-code]').forEach(function(b){b.addEventListener('click',function(){toggleRegistrationCode(b.dataset.toggleCode)})});
   document.querySelectorAll('[data-approve-account]').forEach(function(b){b.addEventListener('click',function(){approvePendingAccount(b.dataset.approveAccount)})});
+  bindDelegationForm();
+  document.querySelectorAll('[data-revoke-delegation]').forEach(function(b){b.addEventListener('click',function(){revokeDelegation(b.dataset.revokeDelegation)})});
+}
+
+// ============================================
+// UY QUYEN CO THOI HAN - chi dinh dung ai duoc Pho phong/Pho VT KV
+// cham thay, trong khoang thoi gian nao (dung RPC grant_delegation/
+// revoke_delegation tu migration 00030)
+// ============================================
+function isDelegationActiveRow(d){
+  var now=new Date();
+  return d.status==='active' && new Date(d.starts_at)<=now && now<=new Date(d.ends_at);
+}
+
+function delegationCandidateStaff(unitId){
+  return ADMIN_DELEGATION_PEOPLE.filter(function(p){return p.unit_id===unitId && (p.role==='staff'||p.role==='support_staff')});
+}
+
+function delegationGrantFormHtml(people){
+  var deputies=people.filter(function(p){return p.role==='unit_deputy'});
+  var options=deputies.map(function(d){return '<option value="'+d.id+'">'+esc(d.full_name)+' · '+esc(unitShort(d.unit_id))+'</option>'}).join('');
+  var todayStr=new Date().toISOString().slice(0,10);
+  return '<div class="form-grid compact-form">'
+    +'<label class="field field-wide"><span>Phó phòng/Phó Viện trưởng KV được ủy quyền</span><select id="delegationDeputy">'+options+'</select></label>'
+    +'<label class="field"><span>Từ ngày</span><input type="date" id="delegationStart" value="'+todayStr+'"></label>'
+    +'<label class="field"><span>Đến ngày</span><input type="date" id="delegationEnd"></label>'
+    +'<div class="field field-wide"><span>Chọn người được chấm thay</span><div class="unit-checklist" id="delegationScopeChecklist"></div></div>'
+    +'</div><div class="review-actions"><button class="button button-primary" id="grantDelegation">Cấp ủy quyền</button></div>';
+}
+
+function delegationsTableHtml(delegations,people){
+  if(!delegations.length)return '<div class="empty-state compact-empty"><strong>Chưa có ủy quyền nào</strong></div>';
+  function personById(id){return people.find(function(p){return p.id===id})}
+  return '<div class="table-wrap"><table><thead><tr><th>Phó phòng/Phó VT KV</th><th>Đơn vị</th><th>Phạm vi được chấm thay</th><th>Thời hạn</th><th>Trạng thái</th><th></th></tr></thead><tbody>'+delegations.map(function(d){
+    var deputy=personById(d.delegate_id);
+    var scopeNames=(d.scopeUserIds||[]).map(function(id){var p=personById(id);return p?p.full_name:null}).filter(Boolean).join(', ');
+    var active=isDelegationActiveRow(d);
+    var statusLabel=d.status==='revoked'?'Đã thu hồi':active?'Đang hiệu lực':'Hết hạn';
+    var statusTone=d.status==='revoked'?'status-revision':active?'status-approved':'status-pending';
+    return '<tr><td><strong>'+(deputy?esc(deputy.full_name):'—')+'</strong></td><td>'+esc(unitShort(d.unit_id))+'</td><td>'+(esc(scopeNames)||'—')+'</td><td>'+new Date(d.starts_at).toLocaleDateString('vi-VN')+'–'+new Date(d.ends_at).toLocaleDateString('vi-VN')+'</td><td><span class="status-pill '+statusTone+'">'+statusLabel+'</span></td><td class="numeric">'+(d.status==='active'?'<button class="button button-danger button-small" data-revoke-delegation="'+d.id+'">Thu hồi</button>':'')+'</td></tr>';
+  }).join('')+'</tbody></table></div>';
+}
+
+function refreshDelegationScopeChecklist(){
+  var deputySelect=$('delegationDeputy');
+  var checklist=$('delegationScopeChecklist');
+  if(!deputySelect||!checklist)return;
+  var deputy=ADMIN_DELEGATION_PEOPLE.find(function(p){return p.id===deputySelect.value});
+  var candidates=deputy?delegationCandidateStaff(deputy.unit_id):[];
+  checklist.innerHTML=candidates.length
+    ?candidates.map(function(p){return '<label><input type="checkbox" value="'+p.id+'"> '+esc(p.full_name)+' · '+(ROLE_LABELS[p.role]||p.role)+'</label>'}).join('')
+    :'<span class="unit-checklist-empty">Đơn vị này chưa có cán bộ/người lao động</span>';
+}
+
+function bindDelegationForm(){
+  var deputySelect=$('delegationDeputy');
+  if(!deputySelect)return;
+  deputySelect.addEventListener('change',refreshDelegationScopeChecklist);
+  refreshDelegationScopeChecklist();
+  $('grantDelegation').addEventListener('click',grantDelegationClick);
+}
+
+async function grantDelegationClick(){
+  if(!requireActive())return;
+  var deputyId=$('delegationDeputy').value;
+  var startsAt=$('delegationStart').value;
+  var endsAt=$('delegationEnd').value;
+  var scopeUserIds=Array.from(document.querySelectorAll('#delegationScopeChecklist input:checked')).map(function(cb){return cb.value});
+  if(!deputyId||!startsAt||!endsAt){showToast('Vui lòng chọn đầy đủ Phó phòng và khoảng thời gian.');return}
+  if(endsAt<startsAt){showToast('Ngày kết thúc phải sau ngày bắt đầu.');return}
+  if(!scopeUserIds.length){showToast('Vui lòng chọn ít nhất 1 người được chấm thay.');return}
+  var btn=$('grantDelegation');btn.disabled=true;
+  try{
+    var r=await fetch(API+'rpc/grant_delegation',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_delegate_id:deputyId,p_starts_at:new Date(startsAt).toISOString(),p_ends_at:new Date(endsAt).toISOString(),p_scope_user_ids:scopeUserIds})});
+    var data=await r.json();
+    if(!r.ok||data.success===false){showToast('Lỗi: '+(data.error||'HTTP '+r.status));btn.disabled=false;return}
+    showToast('Đã cấp ủy quyền.');
+    ra();
+  }catch(e){showToast('Lỗi: '+e.message);btn.disabled=false}
+}
+
+async function revokeDelegation(id){
+  if(!requireActive())return;
+  if(!confirm('Thu hồi ủy quyền này?'))return;
+  try{
+    var r=await fetch(API+'rpc/revoke_delegation',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_delegation_id:id})});
+    var data=await r.json();
+    if(!r.ok||data.success===false){showToast('Lỗi: '+(data.error||'HTTP '+r.status));return}
+    showToast('Đã thu hồi ủy quyền.');
+    ra();
+  }catch(e){showToast('Lỗi: '+e.message)}
 }
 
 function registrationCodeTableHtml(codes){
