@@ -130,6 +130,14 @@ body.login-active { overflow: hidden; }
   background: linear-gradient(180deg, #1d71b8 0%, #063b73 100%);
   border-right: 3px solid var(--gold);
   z-index: 20;
+  /* Sidebar co chieu cao co dinh = 100vh (inset 0 auto 0 0). Man hinh
+     laptop thap (~700px hoac thap hon khi tinh ca thanh dia chi/tab cua
+     trinh duyet) khong du cho brand + the nguoi dung + toan bo danh sach
+     dieu huong + footer - truoc day phan tran o duoi (vi du "Quan tri
+     nhan su", "Cai dat") bi day ra ngoai vung nhin va KHONG the bam duoc,
+     vi day la vi tri fixed, khong co scroll. Chi ".nav-list" ben duoi
+     duoc phep cuon rieng, brand/the nguoi dung/footer luon co dinh. */
+  overflow: hidden;
 }
 
 .brand {
@@ -192,7 +200,20 @@ body.login-active { overflow: hidden; }
 .sidebar-user-card strong { display: block; overflow: hidden; color: #fff; font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .sidebar-user-card span { display: block; margin-top: 2px; overflow: hidden; color: rgba(255,255,255,.6); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 
-.nav-list { display: grid; gap: 6px; margin-top: 24px; }
+.nav-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 24px;
+  min-height: 0; /* bat buoc de flex child nay co the co ngan lai va cuon,
+                    thay vi giu chieu cao tu nhien va tran ra ngoai sidebar */
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.35) transparent;
+}
+.nav-list::-webkit-scrollbar { width: 6px; }
+.nav-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,.3); border-radius: 999px; }
+.nav-list::-webkit-scrollbar-track { background: transparent; }
 .nav-item {
   width: 100%;
   min-height: 44px;
