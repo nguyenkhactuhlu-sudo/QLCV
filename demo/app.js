@@ -64,7 +64,9 @@ const users = [
   { id: "u30", name: "Ngô Thanh Tuấn", title: "Viện trưởng", professionalTitle: "KSV Trung cấp", role: "unit_head", unitId: "kv6", initials: "NT" },
   { id: "u31", name: "Đoàn Xuân Chanh", title: "Viện trưởng", professionalTitle: "KSV Trung cấp", role: "unit_head", unitId: "kv7", initials: "ĐC" },
   { id: "u32", name: "Hoàng Thị Kim Oanh", title: "Viện trưởng", professionalTitle: "KSV Trung cấp", role: "unit_head", unitId: "kv8", initials: "HO" },
-  { id: "u33", name: "Vũ Văn Mạnh", title: "Viện trưởng", professionalTitle: "KSV Trung cấp", role: "unit_head", unitId: "kv9", initials: "VM" }
+  { id: "u33", name: "Vũ Văn Mạnh", title: "Viện trưởng", professionalTitle: "KSV Trung cấp", role: "unit_head", unitId: "kv9", initials: "VM" },
+  { id: "u34", name: "Trần Văn Bình", title: "Nhân viên lái xe", professionalTitle: "", role: "support_staff", unitId: "vp", initials: "TB" },
+  { id: "u35", name: "Lê Thị Hoa", title: "Nhân viên phục vụ", professionalTitle: "", role: "support_staff", unitId: "vp", initials: "LH" }
 ];
 
 const sampleMonthly = [
@@ -75,7 +77,8 @@ const sampleMonthly = [
   ["u17", 89, 89, "B"], ["u18", 89, 89, "B"], ["u19", 84, 82, "B"], ["u21", 89, 89, "B"],
   ["u22", 90, 90, "A"], ["u23", 89, 89, "B"], ["u24", 89, 89, "B"], ["u25", 89, 89, "B"],
   ["u26", 90, 90, "A"], ["u27", 89, 89, "B"], ["u28", 89, 89, "B"], ["u29", 89, 89, "B"],
-  ["u30", 89, 89, "B"], ["u31", 89, 89, "B"], ["u32", 89, 89, "B"], ["u33", 90, 90, "A"]
+  ["u30", 89, 89, "B"], ["u31", 89, 89, "B"], ["u32", 89, 89, "B"], ["u33", 90, 90, "A"],
+  ["u34", 86, 86, "B"], ["u35", 90, 90, "A"]
 ].map(([userId, selfScore, officialScore, classification]) => ({
   userId, period: "2026-06", selfScore, officialScore, classification,
   status: officialScore == null ? "pending" : "approved", note: "", approvedAt: officialScore == null ? null : "2026-07-27T09:00:00"
@@ -383,7 +386,7 @@ function visibleUnitIds(user = currentUser()) {
 function dashboardLogs(includeAllPeriods = false) {
   const user = currentUser();
   let scoped = logs.filter(log => visibleUnitIds(user).includes(log.unitId));
-  if (user.role === "staff") scoped = scoped.filter(log => log.authorId === user.id);
+  if (user.role === "staff" || user.role === "support_staff") scoped = scoped.filter(log => log.authorId === user.id);
   if (state.dashboardUnit !== "all") scoped = scoped.filter(log => log.unitId === state.dashboardUnit);
   if (!includeAllPeriods && state.dashboardPeriod === "2026-08") scoped = scoped.filter(log => log.date.startsWith("2026-08"));
   if (!includeAllPeriods && state.dashboardPeriod === "2026-Q3") scoped = scoped.filter(log => log.date >= "2026-07-01" && log.date <= "2026-09-30");
@@ -400,7 +403,7 @@ function canReviewLog(log, reviewer = currentUser()) {
     return author.role === "unit_head" && (reviewer.assignedUnits || []).includes(author.unitId);
   }
   if (reviewer.role === "unit_head") return author.unitId === reviewer.unitId && author.role !== "unit_head";
-  if (reviewer.role === "unit_deputy" && reviewer.delegated) return author.unitId === reviewer.unitId && author.role === "staff";
+  if (reviewer.role === "unit_deputy" && reviewer.delegated) return author.unitId === reviewer.unitId && (author.role === "staff" || author.role === "support_staff");
   return false;
 }
 
@@ -755,7 +758,7 @@ function renderDashboard() {
   const complexityAvg = average(approved.map(log => log.complexity).filter(Number.isFinite));
   const quality = weightedQuality(approved);
   const reviewRate = scope.length ? reviewed.length / scope.length * 100 : 0;
-  const title = user.role === "province_head" ? "Tổng quan toàn tỉnh" : user.role === "province_deputy" ? "Các đơn vị được phân công" : user.role === "administrator" ? "Tổng quan dữ liệu demo" : user.role === "staff" ? "Kết quả công tác của tôi" : `Tổng quan ${unitById(user.unitId).short}`;
+  const title = user.role === "province_head" ? "Tổng quan toàn tỉnh" : user.role === "province_deputy" ? "Các đơn vị được phân công" : user.role === "administrator" ? "Tổng quan dữ liệu demo" : (user.role === "staff" || user.role === "support_staff") ? "Kết quả công tác của tôi" : `Tổng quan ${unitById(user.unitId).short}`;
   updateChrome(title, "BÁO CÁO ĐIỀU HÀNH");
 
   const availableUnits = units.filter(unit => visibleUnitIds(user).includes(unit.id) && unit.id !== "province");
@@ -1580,7 +1583,7 @@ function ujDateGroupHtml(g, showAuthor) {
 function monthlyScope() {
   const user = currentUser();
   let scopedUsers = users.filter(person => person.role !== "administrator");
-  if (user.role === "staff") scopedUsers = scopedUsers.filter(person => person.id === user.id);
+  if (user.role === "staff" || user.role === "support_staff") scopedUsers = scopedUsers.filter(person => person.id === user.id);
   if (user.role === "unit_head" || user.role === "unit_deputy") scopedUsers = scopedUsers.filter(person => person.unitId === user.unitId);
   if (user.role === "province_deputy") scopedUsers = scopedUsers.filter(person => person.role === "unit_head" && (user.assignedUnits || []).includes(person.unitId));
   if (state.monthlyUnit !== "all") scopedUsers = scopedUsers.filter(person => person.unitId === state.monthlyUnit);
@@ -1592,7 +1595,7 @@ function canApproveMonthly(person, reviewer = currentUser()) {
   if (reviewer.role === "province_head") return person.role === "province_deputy" || person.role === "unit_head";
   if (reviewer.role === "province_deputy") return person.role === "unit_head" && (reviewer.assignedUnits || []).includes(person.unitId);
   if (reviewer.role === "unit_head") return person.unitId === reviewer.unitId && person.role !== "unit_head";
-  if (reviewer.role === "unit_deputy" && reviewer.delegated) return person.unitId === reviewer.unitId && person.role === "staff";
+  if (reviewer.role === "unit_deputy" && reviewer.delegated) return person.unitId === reviewer.unitId && (person.role === "staff" || person.role === "support_staff");
   return false;
 }
 
@@ -1735,7 +1738,7 @@ function saveHeadSelfEvaluation(row) {
 function monthlyExportScope(period) {
   const user = currentUser();
   let scopedUsers = users.filter(person => person.role !== "administrator");
-  if (user.role === "staff") scopedUsers = scopedUsers.filter(person => person.id === user.id);
+  if (user.role === "staff" || user.role === "support_staff") scopedUsers = scopedUsers.filter(person => person.id === user.id);
   if (user.role === "unit_head" || user.role === "unit_deputy") scopedUsers = scopedUsers.filter(person => person.unitId === user.unitId);
   if (user.role === "province_deputy") scopedUsers = scopedUsers.filter(person => person.role === "unit_head" && (user.assignedUnits || []).includes(person.unitId));
   return scopedUsers.map(person => ({ person, review: monthlyReviews.find(r => r.period === period && r.userId === person.id) || null }));
@@ -1747,9 +1750,13 @@ function monthlyExportSections(period) {
     .sort((a, b) => a.person.name.localeCompare(b.person.name, "vi"));
   const groupB = scope.filter(item => ["unit_deputy", "staff"].includes(item.person.role))
     .sort((a, b) => unitDisplayName(a.person.unitId).localeCompare(unitDisplayName(b.person.unitId), "vi") || a.person.name.localeCompare(b.person.name, "vi"));
+  const groupC = scope.filter(item => item.person.role === "support_staff")
+    .sort((a, b) => unitDisplayName(a.person.unitId).localeCompare(unitDisplayName(b.person.unitId), "vi") || a.person.name.localeCompare(b.person.name, "vi"));
   return [
     { title: "I. VIỆN TRƯỞNG VIỆN KSND TỈNH BẮC NINH ĐÁNH GIÁ, CHẤM ĐIỂM, XẾP LOẠI", items: groupA },
-    { title: "II. THỦ TRƯỞNG ĐƠN VỊ CƠ SỞ ĐÁNH GIÁ, CHẤM ĐIỂM, XẾP LOẠI CÁN BỘ, CÔNG CHỨC", items: groupB }
+    { title: "II. THỦ TRƯỞNG ĐƠN VỊ CƠ SỞ ĐÁNH GIÁ, CHẤM ĐIỂM, XẾP LOẠI CÁN BỘ, CÔNG CHỨC", items: groupB },
+    // STT rieng cho nhom Nguoi lao dong, dung mau goc (khac 2 nhom tren chay STT lien tuc)
+    { title: "III. THỦ TRƯỞNG ĐƠN VỊ CƠ SỞ ĐÁNH GIÁ, CHẤM ĐIỂM, XẾP LOẠI NGƯỜI LAO ĐỘNG", items: groupC, resetStt: true }
   ];
 }
 
@@ -1860,6 +1867,7 @@ async function exportMonthlyExcel(period) {
   let stt = 1;
   sections.forEach(section => {
     if (!section.items.length) return;
+    if (section.resetStt) stt = 1;
     sheet.mergeCells(`A${r}:H${r}`);
     const titleCell = sheet.getCell(`A${r}`);
     titleCell.value = section.title;
@@ -1939,6 +1947,7 @@ function monthlyReportBodyHtml(period) {
   let stt = 0;
   const rowsHtml = sections.map(section => {
     if (!section.items.length) return "";
+    if (section.resetStt) stt = 0;
     const body = section.items.map(({ person, review }) => {
       stt++;
       return `<tr><td class="c">${stt}</td><td>${person.name}</td><td>${person.title || ""}</td><td>${person.professionalTitle || ""}</td><td>${unitDisplayName(person.unitId)}</td><td class="c">${review?.selfScore ?? ""}</td><td class="c">${person.role === "province_head" ? "" : (review?.officialScore ?? "")}</td><td class="c">${review?.classification ?? ""}</td></tr>`;
@@ -2015,8 +2024,8 @@ async function exportMonthlyPdf(period) {
   }
 }
 
-const ROLE_LABELS = { province_head: "Viện trưởng tỉnh", province_deputy: "Phó Viện trưởng tỉnh", unit_head: "Trưởng phòng/Viện trưởng KV", unit_deputy: "Phó phòng/Phó Viện trưởng KV", staff: "Cán bộ/Kiểm sát viên", administrator: "Quản trị viên" };
-const ROLE_OPTIONS = ["staff", "unit_deputy", "unit_head", "province_deputy", "province_head", "administrator"];
+const ROLE_LABELS = { province_head: "Viện trưởng tỉnh", province_deputy: "Phó Viện trưởng tỉnh", unit_head: "Trưởng phòng/Viện trưởng KV", unit_deputy: "Phó phòng/Phó Viện trưởng KV", staff: "Cán bộ/Kiểm sát viên", support_staff: "Người lao động", administrator: "Quản trị viên" };
+const ROLE_OPTIONS = ["staff", "support_staff", "unit_deputy", "unit_head", "province_deputy", "province_head", "administrator"];
 
 function renderOrganization() {
   // Trang nay gio bao gom gan vai tro/don vi va khoa/mo tai khoan, chi danh

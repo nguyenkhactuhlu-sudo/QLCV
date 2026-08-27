@@ -245,7 +245,7 @@ function inSelectedPeriod(dateStr){
 
 function dashboardLogsFiltered(includeAllPeriods){
   var scoped=DASHBOARD_LOGS;
-  if(U.rl==='staff')scoped=scoped.filter(function(l){return l.author_id===U.id});
+  if(U.rl==='staff'||U.rl==='support_staff')scoped=scoped.filter(function(l){return l.author_id===U.id});
   if(DASHBOARD_UNIT_FILTER!=='all')scoped=scoped.filter(function(l){return l.unit_id===DASHBOARD_UNIT_FILTER});
   if(!includeAllPeriods)scoped=scoped.filter(function(l){return inSelectedPeriod(l.log_date)});
   return scoped;
@@ -267,7 +267,7 @@ async function fetchDashboardLogs(){
 
 async function fetchDashboardScopeProfiles(){
   var sel='id,full_name,title,professional_title,role,unit_id,initials';
-  if(U.rl==='staff')return [{id:U.id,full_name:U.n,title:U.tl,professional_title:'',role:U.rl,unit_id:U.uid,initials:U.in}];
+  if(U.rl==='staff'||U.rl==='support_staff')return [{id:U.id,full_name:U.n,title:U.tl,professional_title:'',role:U.rl,unit_id:U.uid,initials:U.in}];
   if(U.rl==='unit_head'||U.rl==='unit_deputy'){
     var r=await fetch(API+'profiles?unit_id=eq.'+U.uid+'&role=neq.administrator&select='+sel,{headers:authHeaders()});
     if(!r.ok)throw new Error('HTTP '+r.status);
@@ -445,7 +445,7 @@ function summaryTableHtml(rows,isUnit,people){
 
 async function rd(){
   var provinceScope=['province_head','province_deputy','administrator'].indexOf(U.rl)>=0;
-  var titleMap={province_head:'Tổng quan toàn tỉnh',province_deputy:'Các đơn vị được phân công',administrator:'Tổng quan hệ thống',staff:'Kết quả công tác của tôi'};
+  var titleMap={province_head:'Tổng quan toàn tỉnh',province_deputy:'Các đơn vị được phân công',administrator:'Tổng quan hệ thống',staff:'Kết quả công tác của tôi',support_staff:'Kết quả công tác của tôi'};
   $('pageEyebrow').textContent='BÁO CÁO ĐIỀU HÀNH';
   $('pageTitle').textContent=titleMap[U.rl]||('Tổng quan '+unitShort(U.uid));
   $('appView').innerHTML='<div class="empty-state"><strong>Đang tải...</strong></div>';
@@ -997,8 +997,8 @@ async function ro(){
   bindAssignRoleSearch();
 }
 
-var ROLE_LABELS={province_head:'Viện trưởng tỉnh',province_deputy:'Phó Viện trưởng tỉnh',unit_head:'Trưởng phòng/Viện trưởng KV',unit_deputy:'Phó phòng/Phó Viện trưởng KV',staff:'Cán bộ/Kiểm sát viên',administrator:'Quản trị viên'};
-var ROLE_OPTIONS=['staff','unit_deputy','unit_head','province_deputy','province_head','administrator'];
+var ROLE_LABELS={province_head:'Viện trưởng tỉnh',province_deputy:'Phó Viện trưởng tỉnh',unit_head:'Trưởng phòng/Viện trưởng KV',unit_deputy:'Phó phòng/Phó Viện trưởng KV',staff:'Cán bộ/Kiểm sát viên',support_staff:'Người lao động',administrator:'Quản trị viên'};
+var ROLE_OPTIONS=['staff','support_staff','unit_deputy','unit_head','province_deputy','province_head','administrator'];
 
 var LEADERSHIP_UNIT_LABEL='Lãnh đạo Viện tỉnh';
 
@@ -1136,7 +1136,7 @@ function canReviewLog(log,author){
   if(U.rl==='province_head')return ar==='province_deputy'||ar==='unit_head'||auid===PROVINCE_UNIT_ID;
   if(U.rl==='province_deputy')return ar==='unit_head'&&(U.assignedUnits||[]).indexOf(auid)>=0;
   if(U.rl==='unit_head')return auid===U.uid&&ar!=='unit_head';
-  if(U.rl==='unit_deputy'&&U.delegated)return auid===U.uid&&ar==='staff';
+  if(U.rl==='unit_deputy'&&U.delegated)return auid===U.uid&&(ar==='staff'||ar==='support_staff');
   return false;
 }
 
@@ -1464,13 +1464,13 @@ function canApproveMonthly(person){
   if(U.rl==='province_head')return person.role==='province_deputy'||person.role==='unit_head';
   if(U.rl==='province_deputy')return person.role==='unit_head'&&(U.assignedUnits||[]).indexOf(person.unit_id)>=0;
   if(U.rl==='unit_head')return person.unit_id===U.uid&&person.role!=='unit_head';
-  if(U.rl==='unit_deputy'&&U.delegated)return person.unit_id===U.uid&&person.role==='staff';
+  if(U.rl==='unit_deputy'&&U.delegated)return person.unit_id===U.uid&&(person.role==='staff'||person.role==='support_staff');
   return false;
 }
 
 async function fetchMonthlyScopeProfiles(){
   var sel='id,full_name,title,professional_title,role,unit_id,initials';
-  if(U.rl==='staff'){
+  if(U.rl==='staff'||U.rl==='support_staff'){
     return [{id:U.id,full_name:U.n,title:U.tl,professional_title:'',role:U.rl,unit_id:U.uid,initials:U.in}];
   }
   if(U.rl==='unit_head'||U.rl==='unit_deputy'){
@@ -1689,9 +1689,13 @@ function monthlyExportSections(scope){
     .sort(function(a,b){return (a.person.full_name||'').localeCompare(b.person.full_name||'','vi')});
   var groupB=scope.filter(function(x){return ['unit_deputy','staff'].indexOf(x.person.role)>=0})
     .sort(function(a,b){return unitShort(a.person.unit_id).localeCompare(unitShort(b.person.unit_id),'vi')||(a.person.full_name||'').localeCompare(b.person.full_name||'','vi')});
+  var groupC=scope.filter(function(x){return x.person.role==='support_staff'})
+    .sort(function(a,b){return unitShort(a.person.unit_id).localeCompare(unitShort(b.person.unit_id),'vi')||(a.person.full_name||'').localeCompare(b.person.full_name||'','vi')});
   return [
     {title:'I. VIỆN TRƯỞNG VIỆN KSND TỈNH BẮC NINH ĐÁNH GIÁ, CHẤM ĐIỂM, XẾP LOẠI',items:groupA},
-    {title:'II. THỦ TRƯỞNG ĐƠN VỊ CƠ SỞ ĐÁNH GIÁ, CHẤM ĐIỂM, XẾP LOẠI CÁN BỘ, CÔNG CHỨC',items:groupB}
+    {title:'II. THỦ TRƯỞNG ĐƠN VỊ CƠ SỞ ĐÁNH GIÁ, CHẤM ĐIỂM, XẾP LOẠI CÁN BỘ, CÔNG CHỨC',items:groupB},
+    // STT rieng cho nhom Nguoi lao dong, dung mau goc (khac 2 nhom tren chay STT lien tuc)
+    {title:'III. THỦ TRƯỞNG ĐƠN VỊ CƠ SỞ ĐÁNH GIÁ, CHẤM ĐIỂM, XẾP LOẠI NGƯỜI LAO ĐỘNG',items:groupC,resetStt:true}
   ];
 }
 
@@ -1815,6 +1819,7 @@ async function exportMonthlyExcel(period){
   var stt=1;
   sections.forEach(function(section){
     if(!section.items.length)return;
+    if(section.resetStt)stt=1;
     sheet.mergeCells('A'+r+':H'+r);
     var titleCell=sheet.getCell('A'+r);
     titleCell.value=section.title;
@@ -1892,6 +1897,7 @@ function monthlyReportBodyHtml(period,scope,headName){
   var stt=0;
   var rowsHtml=sections.map(function(section){
     if(!section.items.length)return '';
+    if(section.resetStt)stt=0;
     var body=section.items.map(function(x){
       var person=x.person,review=x.review;
       stt++;

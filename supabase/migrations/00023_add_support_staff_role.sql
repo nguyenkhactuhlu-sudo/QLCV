@@ -1,0 +1,17 @@
+-- Migration 00023: Them vai tro "Nguoi lao dong" (support_staff)
+-- Ngay: 27/08/2026
+--
+-- Boi canh: mau "Thong bao tong hop cham diem" thuc te cua nganh co 3 nhom
+-- danh gia (I. Vien truong tinh danh gia lanh dao; II. Thu truong don vi co
+-- so danh gia can bo, cong chuc; III. Thu truong don vi co so danh gia
+-- NGUOI LAO DONG - lai xe, bao ve, phuc vu, nau an, thu quy...). He thong
+-- truoc day chi co vai tro 'staff' (can bo, Kiem sat vien) va da chu dong
+-- BO QUA nhom III khi xay dung tinh nang xuat bao cao (khong co vai tro
+-- tuong ung). Nay bo sung vai tro 'support_staff' voi quyen han tuong
+-- duong 'staff' o moi noi, chi khac o cho duoc tach rieng thanh muc III khi
+-- xuat bao cao thang.
+--
+-- Luu y: ALTER TYPE ... ADD VALUE khong the chay chung transaction voi cau
+-- lenh dung gia tri do ngay sau - de day la migration RIENG, khong ghep
+-- chung voi migration khac dung 'support_staff'.
+ALTER TYPE user_role ADD VALUE 'support_staff';
