@@ -40,7 +40,7 @@
         </div>
         <form id="demoLoginForm" class="login-form">
           <label class="field"><span>Email</span><input id="loginEmail" type="email" required autocomplete="username"></label>
-          <label class="field"><span>Mật khẩu</span><input id="loginPassword" type="password" required autocomplete="current-password"></label>
+          <label class="field"><span>Mật khẩu</span><div class="password-field"><input id="loginPassword" type="password" required autocomplete="current-password"><button type="button" id="toggleLoginPassword" aria-label="Hiện mật khẩu">Hiện</button></div></label>
           <div id="loginError" style="display:none;color:red;font-size:13px;"></div>
           <button type="submit" id="loginBtn" class="button button-primary login-submit">Đăng nhập</button>
         </form>
@@ -275,8 +275,8 @@
         <label class="field field-wide"><span>Họ và tên</span><input name="fullName" required autocomplete="name" placeholder="Nhập đúng họ tên trong danh sách cán bộ"></label>
         <label class="field field-wide"><span>Email đăng nhập</span><input name="email" type="email" required autocomplete="email" placeholder="ten.nguoidung@..." ></label>
         <label class="field field-wide"><span>Mã đăng ký do đơn vị cấp</span><input name="registrationCode" id="registrationCodeInput" required autocomplete="off" placeholder="Ví dụ: P1-2026-A7K9"><small id="registerCodeHint"></small></label>
-        <label class="field"><span>Mật khẩu</span><input name="password" type="password" minlength="8" required autocomplete="new-password"></label>
-        <label class="field"><span>Nhập lại mật khẩu</span><input name="confirmPassword" type="password" minlength="8" required autocomplete="new-password"></label>
+        <label class="field"><span>Mật khẩu</span><div class="password-field"><input id="registerPassword" name="password" type="password" minlength="8" required autocomplete="new-password"><button type="button" id="toggleRegisterPassword" aria-label="Hiện mật khẩu">Hiện</button></div></label>
+        <label class="field"><span>Nhập lại mật khẩu</span><div class="password-field"><input id="registerConfirmPassword" name="confirmPassword" type="password" minlength="8" required autocomplete="new-password"><button type="button" id="toggleRegisterConfirmPassword" aria-label="Hiện mật khẩu">Hiện</button></div></label>
         <div class="form-actions field-wide"><button type="button" class="button button-secondary" data-close-register>Hủy</button><button type="submit" class="button button-primary">Đăng ký tài khoản</button></div>
       </form>
     </section>

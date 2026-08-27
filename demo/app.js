@@ -490,6 +490,8 @@ function initialize() {
   document.querySelectorAll("[data-login-account]").forEach(button => button.addEventListener("click", () => selectDemoAccount(button.dataset.loginAccount)));
   document.getElementById("demoLoginForm").addEventListener("submit", submitDemoLogin);
   document.getElementById("toggleLoginPassword").addEventListener("click", toggleLoginPassword);
+  document.getElementById("toggleRegisterPassword").addEventListener("click", () => togglePasswordField("registerPassword", "toggleRegisterPassword"));
+  document.getElementById("toggleRegisterConfirmPassword").addEventListener("click", () => togglePasswordField("registerConfirmPassword", "toggleRegisterConfirmPassword"));
   selectDemoAccount(state.currentUserId);
 
   document.querySelectorAll(".nav-item").forEach(button => {
@@ -609,8 +611,16 @@ function activateDemoUser(userId) {
 }
 
 function toggleLoginPassword() {
-  const input = document.getElementById("loginPassword");
-  const button = document.getElementById("toggleLoginPassword");
+  togglePasswordField("loginPassword", "toggleLoginPassword");
+}
+
+// Ham dung chung cho moi o mat khau co nut an/hien (dang ky, doi mat khau...)
+// - tach rieng khoi toggleLoginPassword() de tai su dung, khong sua lai
+// ham cu de tranh dong cham noi da dang hoat dong on dinh.
+function togglePasswordField(inputId, buttonId) {
+  const input = document.getElementById(inputId);
+  const button = document.getElementById(buttonId);
+  if (!input || !button) return;
   const showing = input.type === "text";
   input.type = showing ? "password" : "text";
   button.textContent = showing ? "Hiện" : "Ẩn";
@@ -2703,6 +2713,12 @@ function orgUnitCard(unit) {
 function openRegisterModal() {
   const form = document.getElementById("registerForm");
   form.reset();
+  // Luon dong lai o mat khau moi lan mo, tranh lo lai mat khau nguoi dung
+  // truoc do da bam "Hien" con ngo.
+  form.elements.password.type = "password";
+  form.elements.confirmPassword.type = "password";
+  document.getElementById("toggleRegisterPassword").textContent = "Hiện";
+  document.getElementById("toggleRegisterConfirmPassword").textContent = "Hiện";
   document.getElementById("registerModal").hidden = false;
   form.elements.fullName.focus();
 }

@@ -2600,9 +2600,27 @@ async function checkRegCode(code){
   }catch(e){return {valid:false}}
 }
 
+// Dung chung cho moi o mat khau co nut an/hien (dang nhap, dang ky, doi
+// mat khau...).
+function togglePasswordField(inputId,buttonId){
+  var input=$(inputId),button=$(buttonId);
+  if(!input||!button)return;
+  var showing=input.type==='text';
+  input.type=showing?'password':'text';
+  button.textContent=showing?'Hiện':'Ẩn';
+  button.setAttribute('aria-label',showing?'Hiện mật khẩu':'Ẩn mật khẩu');
+}
+
 function openRegisterModal(){
   var form=$('registerForm');form.reset();
   var hint=$('registerCodeHint');if(hint){hint.textContent='';hint.style.color=''}
+  // Luon dong lai o mat khau moi lan mo, tranh lo lai mat khau nguoi dung
+  // truoc do da bam "Hien" con ngo.
+  form.elements.password.type='password';
+  form.elements.confirmPassword.type='password';
+  var tp=$('toggleRegisterPassword'),tcp=$('toggleRegisterConfirmPassword');
+  if(tp)tp.textContent='Hiện';
+  if(tcp)tcp.textContent='Hiện';
   $('registerModal').hidden=false;
   form.elements.fullName.focus();
 }
@@ -2651,8 +2669,8 @@ function rs(){
   h+='<div class="panel" style="padding:18px;margin-bottom:14px;max-width:520px">'
     +'<h3 style="margin:0 0 12px">Đổi mật khẩu</h3>'
     +'<form id="accountPasswordForm" class="form-grid">'
-    +'<label class="field"><span>Mật khẩu mới</span><input name="newPassword" type="password" minlength="8" required autocomplete="new-password"></label>'
-    +'<label class="field"><span>Nhập lại mật khẩu mới</span><input name="confirmNewPassword" type="password" minlength="8" required autocomplete="new-password"></label>'
+    +'<label class="field"><span>Mật khẩu mới</span><div class="password-field"><input id="newPasswordInput" name="newPassword" type="password" minlength="8" required autocomplete="new-password"><button type="button" id="toggleNewPassword" aria-label="Hiện mật khẩu">Hiện</button></div></label>'
+    +'<label class="field"><span>Nhập lại mật khẩu mới</span><div class="password-field"><input id="confirmNewPasswordInput" name="confirmNewPassword" type="password" minlength="8" required autocomplete="new-password"><button type="button" id="toggleConfirmNewPassword" aria-label="Hiện mật khẩu">Hiện</button></div></label>'
     +'<div class="form-actions field-wide"><button type="submit" class="button button-primary">Đổi mật khẩu</button></div>'
     +'</form></div>';
   h+='<div class="panel" style="padding:18px;max-width:520px">'
@@ -2661,6 +2679,8 @@ function rs(){
   $('appView').innerHTML=h;
   $('accountNameForm').addEventListener('submit',submitAccountName);
   $('accountPasswordForm').addEventListener('submit',submitAccountPassword);
+  $('toggleNewPassword').addEventListener('click',function(){togglePasswordField('newPasswordInput','toggleNewPassword')});
+  $('toggleConfirmNewPassword').addEventListener('click',function(){togglePasswordField('confirmNewPasswordInput','toggleConfirmNewPassword')});
   $('accountLogout').onclick=x;
 }
 
@@ -2746,6 +2766,9 @@ document.addEventListener('DOMContentLoaded',function(){
   });
   $('openRegister') && ($('openRegister').onclick=openRegisterModal);
   document.querySelectorAll('[data-close-register]').forEach(function(b){b.addEventListener('click',closeRegisterModal)});
+  $('toggleLoginPassword') && $('toggleLoginPassword').addEventListener('click',function(){togglePasswordField('loginPassword','toggleLoginPassword')});
+  $('toggleRegisterPassword') && $('toggleRegisterPassword').addEventListener('click',function(){togglePasswordField('registerPassword','toggleRegisterPassword')});
+  $('toggleRegisterConfirmPassword') && $('toggleRegisterConfirmPassword').addEventListener('click',function(){togglePasswordField('registerConfirmPassword','toggleRegisterConfirmPassword')});
   $('registerModal') && $('registerModal').addEventListener('click',function(e){if(e.target.id==='registerModal')closeRegisterModal()});
   $('registerForm') && $('registerForm').addEventListener('submit',submitRegistration);
   $('registrationCodeInput') && $('registrationCodeInput').addEventListener('blur',async function(){
