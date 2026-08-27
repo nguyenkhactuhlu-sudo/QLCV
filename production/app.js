@@ -625,10 +625,29 @@ function oj(logId){
   $('copyJournalPanel').hidden=true;
   $('copyJournalSearch').value='';
   renderCopyJournalList('');
+  checkJournalDateWarning();
   $('journalModal').hidden=false;document.body.style.overflow='hidden';
   (canEdit?form.elements.title:form.elements.category).focus();
 }
 function cj(){$('journalModal').hidden=true;document.body.style.overflow='';EDITING_ID=null}
+
+// Cho phep nhap lui ngay (khong khoa qua khu), chi canh bao nhe khi chon
+// ngay qua xa - khong chan gui.
+function checkJournalDateWarning(){
+  var input=$('journalForm').elements.workDate;
+  var warning=$('journalDateWarning');
+  var value=input.value;
+  if(!value){warning.hidden=true;return}
+  var today=new Date();
+  var todayStr=ymdStr(today.getFullYear(),today.getMonth(),today.getDate());
+  var diffDays=Math.round((new Date(todayStr+'T00:00:00')-new Date(value+'T00:00:00'))/86400000);
+  if(diffDays>14){
+    warning.textContent='Bạn đang ghi nhật ký cho một ngày khá xa ('+diffDays+' ngày trước) — hãy đảm bảo đúng thực tế công việc.';
+    warning.hidden=false;
+  }else{
+    warning.hidden=true;
+  }
+}
 
 // Tim va sao chep nhat ky cu: chi hien trong form tao MOI (khong phai
 // sua/trinh lai), liet ke nhat ky cua chinh nguoi dung (LOGS da la cua
@@ -2311,6 +2330,7 @@ document.addEventListener('DOMContentLoaded',function(){
   document.querySelectorAll('[data-close-modal]').forEach(function(b){b.addEventListener('click',cj)});
   $('journalModal').addEventListener('click',function(e){if(e.target.id==='journalModal')cj()});
   $('journalForm').addEventListener('submit',sj);
+  $('journalForm').elements.workDate.addEventListener('change',checkJournalDateWarning);
   $('toggleCopyJournal').addEventListener('click',function(){
     var panel=$('copyJournalPanel');
     panel.hidden=!panel.hidden;

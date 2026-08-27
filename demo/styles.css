@@ -950,6 +950,9 @@ tbody tr:hover { background: #fbfbfc; }
 .note-card p { margin: 6px 0 0; color: var(--muted); font-size: 12px; white-space: pre-wrap; }
 .note-card-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
 
+.field-warning { display: block; margin-top: 4px; color: #8a650d; font-size: 11px; }
+.field-warning[hidden] { display: none; }
+
 .sticky-board-panel { margin-top: 20px; }
 .sticky-board { display: flex; flex-wrap: wrap; gap: 16px; }
 .sticky-note { position: relative; min-width: 160px; min-height: 120px; max-width: 100%; padding: 26px 12px 10px; border-radius: 4px; background: #fff6b7; box-shadow: 0 2px 6px rgba(0,0,0,.14); resize: both; overflow: auto; }

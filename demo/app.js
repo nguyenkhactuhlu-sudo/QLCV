@@ -459,6 +459,7 @@ function initialize() {
     if (event.target.id === "journalModal") closeJournalModal();
   });
   document.getElementById("journalForm").addEventListener("submit", submitJournal);
+  document.getElementById("journalForm").elements.workDate.addEventListener("change", checkJournalDateWarning);
   document.getElementById("toggleCopyJournal").addEventListener("click", () => {
     const panel = document.getElementById("copyJournalPanel");
     panel.hidden = !panel.hidden;
@@ -2361,8 +2362,25 @@ function openJournalModal(logId = null) {
   document.getElementById("copyJournalPanel").hidden = true;
   document.getElementById("copyJournalSearch").value = "";
   renderCopyJournalList("");
+  checkJournalDateWarning();
   document.getElementById("journalModal").hidden = false;
   (canEdit ? form.elements.title : form.elements.category).focus();
+}
+
+// Cho phep nhap lui ngay (khong khoa qua khu), chi canh bao nhe khi chon
+// ngay qua xa - khong chan gui.
+function checkJournalDateWarning() {
+  const input = document.getElementById("journalForm").elements.workDate;
+  const warning = document.getElementById("journalDateWarning");
+  const value = input.value;
+  if (!value) { warning.hidden = true; return; }
+  const diffDays = Math.round((new Date(`${DEMO_TODAY}T00:00:00`) - new Date(`${value}T00:00:00`)) / 86400000);
+  if (diffDays > 14) {
+    warning.textContent = `Bạn đang ghi nhật ký cho một ngày khá xa (${diffDays} ngày trước) — hãy đảm bảo đúng thực tế công việc.`;
+    warning.hidden = false;
+  } else {
+    warning.hidden = true;
+  }
 }
 
 // Tim va sao chep nhat ky cu: chi hien trong form tao MOI (khong phai
