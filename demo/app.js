@@ -7,7 +7,7 @@ const REGISTERED_ACCOUNT_STORAGE_KEY = "vks-registered-accounts-demo-v1";
 const NOTIFICATION_READ_STORAGE_KEY = "vks-notification-read-demo-v1";
 const PERSONAL_NOTES_STORAGE_KEY = "vks-personal-notes-demo-v1";
 const STICKY_NOTES_STORAGE_KEY = "vks-sticky-notes-demo-v1";
-const OVERRIDE_NOTIFICATIONS_STORAGE_KEY = "vks-override-notifications-demo-v1";
+const SYSTEM_NOTIFICATIONS_STORAGE_KEY = "vks-override-notifications-demo-v1";
 
 const units = [
   { id: "province", name: "VKSND tỉnh", short: "VKSND tỉnh", type: "province", parentId: null },
@@ -297,7 +297,7 @@ let registeredAccounts = loadJson(REGISTERED_ACCOUNT_STORAGE_KEY, []);
 let notificationReadState = loadJson(NOTIFICATION_READ_STORAGE_KEY, {});
 let personalNotes = loadJson(PERSONAL_NOTES_STORAGE_KEY, samplePersonalNotes);
 let stickyNotes = loadJson(STICKY_NOTES_STORAGE_KEY, []);
-let overrideNotifications = loadJson(OVERRIDE_NOTIFICATIONS_STORAGE_KEY, []);
+let systemNotifications = loadJson(SYSTEM_NOTIFICATIONS_STORAGE_KEY, []);
 registeredAccounts.forEach(account => {
   if (!users.some(user => user.id === account.id)) users.push(account);
 });
@@ -350,8 +350,8 @@ function saveStickyNotes() {
   localStorage.setItem(STICKY_NOTES_STORAGE_KEY, JSON.stringify(stickyNotes));
 }
 
-function saveOverrideNotifications() {
-  localStorage.setItem(OVERRIDE_NOTIFICATIONS_STORAGE_KEY, JSON.stringify(overrideNotifications));
+function saveSystemNotifications() {
+  localStorage.setItem(SYSTEM_NOTIFICATIONS_STORAGE_KEY, JSON.stringify(systemNotifications));
 }
 
 // Cap tren cua nguoi VUA THUC HIEN luot cham (khac voi cap tren cua tac
@@ -501,6 +501,11 @@ function initialize() {
     if (event.target.id === "noteModal") closeNoteModal();
   });
   document.getElementById("noteForm").addEventListener("submit", submitNote);
+  document.querySelectorAll("[data-close-override]").forEach(button => button.addEventListener("click", closeOverrideModal));
+  document.getElementById("overrideScoreModal").addEventListener("click", event => {
+    if (event.target.id === "overrideScoreModal") closeOverrideModal();
+  });
+  document.getElementById("overrideScoreForm").addEventListener("submit", submitOverrideScore);
   document.getElementById("openRegister").addEventListener("click", openRegisterModal);
   document.querySelectorAll("[data-close-register]").forEach(button => button.addEventListener("click", closeRegisterModal));
   document.getElementById("registerModal").addEventListener("click", event => {
@@ -645,14 +650,14 @@ function notificationsForCurrentUser() {
   // Canh bao chenh lech dat NGAY SAU nhom "can bo sung" (ca 2 deu la tin
   // rieng, quan trong) va TRUOC hang doi cho cham diem (co the rat dai voi
   // lanh dao pham vi rong) - de khong bi ".slice(0, 20)" ben duoi cat mat.
-  overrideNotifications.filter(n => n.userId === user.id).forEach(n => {
+  systemNotifications.filter(n => n.userId === user.id).forEach(n => {
     notifications.push({
       id: n.id,
-      tone: "escalation",
-      title: "Chênh lệch điểm tự chấm vượt ngưỡng",
+      tone: n.type === "score_overridden" ? "revision" : "escalation",
+      title: n.title,
       message: n.message,
       time: shortDate(n.createdAt.slice(0, 10)),
-      view: "unitJournal"
+      view: n.view || "unitJournal"
     });
   });
   if (isLeader(user)) reviewQueue().forEach(log => {
@@ -1112,10 +1117,13 @@ function renderJournal() {
 
 function journalCard(log, opts = {}) {
   const canEdit = log.status === "revision" && log.authorId === currentUser().id && !opts.readOnly;
+  const canOverride = log.status === "approved" && log.reviewerId && canReviewLog({ authorId: log.reviewerId }, currentUser());
+  const overridden = (log.scoringHistory || []).length >= 2;
   const revisionFeedback = log.status === "revision" ? `<div class="revision-feedback"><strong>Lãnh đạo yêu cầu bổ sung</strong><span>${log.comment || "Cần chỉnh sửa, làm rõ kết quả công tác."}</span></div>` : "";
   const resubmission = log.revisionCount ? `<span class="meta-tag">Đã trình lại ${log.revisionCount} lần</span>` : "";
+  const overriddenTag = overridden ? `<span class="meta-tag meta-tag-warning">Điểm đã được lãnh đạo cấp trên điều chỉnh</span>` : "";
   const authorTag = opts.authorName ? (opts.authorId ? `<button type="button" class="meta-tag journal-author-tag" data-uj-jump-person="${opts.authorId}">${opts.authorName}</button>` : `<span class="meta-tag journal-author-tag">${opts.authorName}</span>`) : "";
-  return `<article class="journal-card ${log.status === "revision" ? "is-revision" : ""}"><div class="journal-date"><strong>${shortDate(log.date)}</strong>${log.date.slice(0,4)}</div><div class="journal-body"><h3>${log.title}</h3><p>${log.result}</p>${revisionFeedback}<div class="journal-meta">${authorTag}<span class="meta-tag">${log.category}</span><span class="meta-tag">${log.workRole}</span><span class="meta-tag">${log.duration}</span>${resubmission}<span class="status-pill ${statusClass(log.status)}">${statusLabel(log.status)}</span></div></div><div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>${log.complexity ?? "—"}</strong></div><div class="score-box"><span>Chất lượng</span><strong>${log.quality ?? "—"}</strong></div></div>${canEdit ? `<button type="button" class="button button-primary button-small" data-edit-journal="${log.id}">Sửa và trình lại</button>` : ""}</div></article>`;
+  return `<article class="journal-card ${log.status === "revision" ? "is-revision" : ""}"><div class="journal-date"><strong>${shortDate(log.date)}</strong>${log.date.slice(0,4)}</div><div class="journal-body"><h3>${log.title}</h3><p>${log.result}</p>${revisionFeedback}<div class="journal-meta">${authorTag}<span class="meta-tag">${log.category}</span><span class="meta-tag">${log.workRole}</span><span class="meta-tag">${log.duration}</span>${resubmission}${overriddenTag}<span class="status-pill ${statusClass(log.status)}">${statusLabel(log.status)}</span></div></div><div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>${log.complexity ?? "—"}</strong></div><div class="score-box"><span>Chất lượng</span><strong>${log.quality ?? "—"}</strong></div></div>${canEdit ? `<button type="button" class="button button-primary button-small" data-edit-journal="${log.id}">Sửa và trình lại</button>` : ""}${canOverride ? `<button type="button" class="button button-secondary button-small" data-override-score="${log.id}">Điều chỉnh điểm</button>` : ""}</div></article>`;
 }
 
 // Gom danh sach cho duyet theo tung tac gia (KSV), xep theo lan nop gan
@@ -1474,7 +1482,11 @@ function applyReview(log, status) {
     return;
   }
   const reviewer = currentUser();
-  Object.assign(log, { complexity, quality, comment, status, reviewerId: reviewer.id, reviewedAt: new Date().toISOString() });
+  const reviewedAt = new Date().toISOString();
+  Object.assign(log, { complexity, quality, comment, status, reviewerId: reviewer.id, reviewedAt });
+  if (status === "approved") {
+    log.scoringHistory = [...(log.scoringHistory || []), { reviewerId: reviewer.id, complexity, quality, comment, at: reviewedAt }];
+  }
   saveLogs();
   // Canh bao chenh lech: dem theo TUNG CAN BO trong thang (khong phan biet
   // ai cham), bao cap tren cua NGUOI VUA CHAM khi vuot qua 3 lan.
@@ -1487,12 +1499,14 @@ function applyReview(log, status) {
     if (overrideCount > 3) {
       const superior = findSuperiorFor(reviewer);
       if (superior) {
-        overrideNotifications.push({
-          id: `ON-${Date.now()}`, userId: superior.id, authorId: log.authorId,
+        systemNotifications.push({
+          id: `ON-${Date.now()}`, userId: superior.id, authorId: log.authorId, type: "escalation",
+          title: "Chênh lệch điểm tự chấm vượt ngưỡng",
           message: `${userById(log.authorId).name} đã bị chấm điểm khác đề xuất tự chấm quá 3 lần trong tháng này.`,
+          view: "unitJournal",
           createdAt: new Date().toISOString()
         });
-        saveOverrideNotifications();
+        saveSystemNotifications();
       }
     }
   }
@@ -1500,6 +1514,62 @@ function applyReview(log, status) {
   state.editingJournalId = null;
   showToast(status === "approved" ? "Đã xác nhận và chấm điểm nhật ký." : "Đã gửi yêu cầu bổ sung.");
   renderReviews();
+}
+
+// ============================================
+// CAP TREN DIEU CHINH DIEM DA CHAM CUA CAP DUOI - mo lai duoc ca nhat ky
+// da duyet, dieu kien: nguoi xem hop le de duyet duoc CHINH nguoi da cham
+// truoc do (dung lai canReviewLog voi "tac gia" gia = nguoi da cham).
+// ============================================
+let overridingLogId = null;
+
+function openOverrideModal(logId) {
+  const log = logs.find(item => item.id === logId);
+  if (!log) return;
+  overridingLogId = logId;
+  const form = document.getElementById("overrideScoreForm");
+  form.reset();
+  form.elements.overrideComplexity.value = log.complexity ?? "";
+  form.elements.overrideQuality.value = log.quality ?? "";
+  document.getElementById("overrideScoreModal").hidden = false;
+  form.elements.overrideComplexity.focus();
+}
+
+function closeOverrideModal() {
+  overridingLogId = null;
+  document.getElementById("overrideScoreModal").hidden = true;
+}
+
+function submitOverrideScore(event) {
+  event.preventDefault();
+  const log = logs.find(item => item.id === overridingLogId);
+  if (!log) { closeOverrideModal(); return; }
+  const data = new FormData(event.currentTarget);
+  const complexity = Number(data.get("overrideComplexity"));
+  const quality = Number(data.get("overrideQuality"));
+  const comment = String(data.get("overrideComment") || "").trim();
+  if (!comment) { showToast("Vui lòng nhập nhận xét khi điều chỉnh điểm."); return; }
+  const previousReviewer = userById(log.reviewerId);
+  const reviewer = currentUser();
+  const reviewedAt = new Date().toISOString();
+  Object.assign(log, { complexity, quality, comment, reviewerId: reviewer.id, reviewedAt });
+  log.scoringHistory = [...(log.scoringHistory || []), { reviewerId: reviewer.id, complexity, quality, comment, at: reviewedAt }];
+  saveLogs();
+  const author = userById(log.authorId);
+  const notifyTargets = [author, previousReviewer].filter(Boolean);
+  notifyTargets.forEach(target => {
+    systemNotifications.push({
+      id: `ON-${Date.now()}-${target.id}`, userId: target.id, type: "score_overridden",
+      title: "Điểm nhật ký đã bị lãnh đạo cấp trên thay đổi",
+      message: `Công việc "${log.title}" đã bị lãnh đạo cấp trên thay đổi điểm.`,
+      view: "unitJournal",
+      createdAt: reviewedAt
+    });
+  });
+  saveSystemNotifications();
+  closeOverrideModal();
+  showToast("Đã điều chỉnh điểm và gửi thông báo.");
+  renderUnitJournalContent();
 }
 
 // ============================================
@@ -1607,6 +1677,7 @@ function renderUnitJournalContent() {
   const back = document.getElementById("ujBackToList");
   if (back) back.addEventListener("click", () => { state.ujSelectedPersonId = null; renderUnitJournalContent(); });
   document.querySelectorAll("[data-uj-jump-person]").forEach(b => b.addEventListener("click", () => { state.ujMode = "person"; state.ujSelectedPersonId = b.dataset.ujJumpPerson; renderUnitJournal(); }));
+  document.querySelectorAll("[data-override-score]").forEach(b => b.addEventListener("click", () => openOverrideModal(b.dataset.overrideScore)));
 }
 
 function renderUjPersonListHtml() {
@@ -2538,7 +2609,7 @@ function resetDemo() {
   logs = structuredClone(sampleLogs);
   personalNotes = structuredClone(samplePersonalNotes);
   stickyNotes = [];
-  overrideNotifications = [];
+  systemNotifications = [];
   monthlyReviews = structuredClone(sampleMonthly.concat(generateMonthlyHistory()));
   users.splice(0, users.length, ...users.filter(user => !user.id.startsWith("reg-")));
   registeredAccounts = [];
@@ -2554,7 +2625,7 @@ function resetDemo() {
   saveLogs();
   savePersonalNotes();
   saveStickyNotes();
-  saveOverrideNotifications();
+  saveSystemNotifications();
   localStorage.setItem(MONTHLY_STORAGE_KEY, JSON.stringify(monthlyReviews));
   localStorage.setItem(REGISTERED_ACCOUNT_STORAGE_KEY, JSON.stringify(registeredAccounts));
   localStorage.setItem(REGISTRATION_CODE_STORAGE_KEY, JSON.stringify(registrationCodes));

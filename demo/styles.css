@@ -569,6 +569,7 @@ tbody tr:hover { background: #fbfbfc; }
 .journal-body p { margin: 5px 0 8px; color: var(--muted); font-size: 12px; }
 .journal-meta { display: flex; flex-wrap: wrap; gap: 7px; }
 .meta-tag { padding: 3px 7px; border-radius: 6px; color: var(--muted); background: var(--surface-soft); font-size: 11px; }
+.meta-tag-warning { color: #8a650d; background: #fffaf0; border: 1px solid #ead7a4; }
 .journal-scores { display: flex; gap: 8px; }
 .journal-side { display: grid; justify-items: end; gap: 10px; }
 .button-small { padding: 8px 11px; font-size: 11px; white-space: nowrap; }

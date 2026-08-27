@@ -589,13 +589,15 @@ function journalCardHtml(log,opts){
   var canEdit=log.status==='revision'&&!opts.readOnly;
   var revisionFeedback=log.status==='revision'?'<div class="revision-feedback"><strong>Lãnh đạo yêu cầu bổ sung</strong><span>'+esc(log.review_comment||'Cần chỉnh sửa, làm rõ kết quả công tác.')+'</span></div>':'';
   var resubmission=log.revision_count?'<span class="meta-tag">Đã trình lại '+log.revision_count+' lần</span>':'';
+  var overriddenTag=(log._reviewCount||0)>=2?'<span class="meta-tag meta-tag-warning">Điểm đã được lãnh đạo cấp trên điều chỉnh</span>':'';
   var authorTag=opts.authorName?(opts.authorId?'<button type="button" class="meta-tag journal-author-tag" data-uj-jump-person="'+esc(opts.authorId)+'">'+esc(opts.authorName)+'</button>':'<span class="meta-tag journal-author-tag">'+esc(opts.authorName)+'</span>'):'';
   return '<article class="journal-card '+(log.status==='revision'?'is-revision':'')+'">'
     +'<div class="journal-date"><strong>'+shortDate(log.log_date)+'</strong>'+(log.log_date||'').slice(0,4)+'</div>'
     +'<div class="journal-body"><h3>'+esc(log.title)+'</h3><p>'+esc(log.result)+'</p>'+revisionFeedback
-    +'<div class="journal-meta">'+authorTag+'<span class="meta-tag">'+esc(catName(log.category_id))+'</span><span class="meta-tag">'+esc(WORK_ROLE_LABEL[log.work_role]||log.work_role)+'</span><span class="meta-tag">'+esc(DURATION_LABEL[log.duration]||log.duration)+'</span>'+resubmission+'<span class="status-pill '+(STATUS_CLASS[log.status]||'')+'">'+(STATUS_LABEL[log.status]||log.status)+'</span></div></div>'
+    +'<div class="journal-meta">'+authorTag+'<span class="meta-tag">'+esc(catName(log.category_id))+'</span><span class="meta-tag">'+esc(WORK_ROLE_LABEL[log.work_role]||log.work_role)+'</span><span class="meta-tag">'+esc(DURATION_LABEL[log.duration]||log.duration)+'</span>'+resubmission+overriddenTag+'<span class="status-pill '+(STATUS_CLASS[log.status]||'')+'">'+(STATUS_LABEL[log.status]||log.status)+'</span></div></div>'
     +'<div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>'+(log.complexity_score==null?'—':log.complexity_score)+'</strong></div><div class="score-box"><span>Chất lượng</span><strong>'+(log.quality_score==null?'—':log.quality_score)+'</strong></div></div>'
-    +(canEdit?'<button type="button" class="button button-primary button-small" data-edit-journal="'+log.id+'">Sửa và trình lại</button>':'')+'</div></article>';
+    +(canEdit?'<button type="button" class="button button-primary button-small" data-edit-journal="'+log.id+'">Sửa và trình lại</button>':'')
+    +(opts.canOverride?'<button type="button" class="button button-secondary button-small" data-override-score="'+log.id+'">Điều chỉnh điểm</button>':'')+'</div></article>';
 }
 
 function oj(logId){
@@ -1320,6 +1322,50 @@ async function applyReview(log,status){
 }
 
 // ============================================
+// CAP TREN DIEU CHINH DIEM DA CHAM CUA CAP DUOI - mo lai duoc ca nhat ky
+// da duyet, dieu kien: nguoi xem hop le de duyet duoc CHINH nguoi da cham
+// truoc do (RPC override_work_log_score tu kiem tra lai o server).
+// ============================================
+var OVERRIDING_LOG_ID=null;
+
+function openOverrideModal(logId){
+  if(!requireActive())return;
+  var log=UJ_LOGS.find(function(l){return l.id===logId});
+  if(!log)return;
+  OVERRIDING_LOG_ID=logId;
+  var form=$('overrideScoreForm');form.reset();
+  form.elements.overrideComplexity.value=log.complexity_score!=null?log.complexity_score:'';
+  form.elements.overrideQuality.value=log.quality_score!=null?log.quality_score:'';
+  $('overrideScoreModal').hidden=false;
+  form.elements.overrideComplexity.focus();
+}
+
+function closeOverrideModal(){
+  OVERRIDING_LOG_ID=null;
+  $('overrideScoreModal').hidden=true;
+}
+
+async function submitOverrideScore(e){
+  e.preventDefault();
+  if(!requireActive())return;
+  var f=new FormData($('overrideScoreForm'));
+  var complexity=Number(f.get('overrideComplexity'));
+  var quality=Number(f.get('overrideQuality'));
+  var comment=(f.get('overrideComment')||'').trim();
+  if(!comment){showToast('Vui lòng nhập nhận xét khi điều chỉnh điểm.');return}
+  var btn=$('overrideScoreForm').querySelector('button[type=submit]');btn.disabled=true;
+  try{
+    var r=await fetch(API+'rpc/override_work_log_score',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_log_id:OVERRIDING_LOG_ID,p_complexity_score:complexity,p_quality_score:quality,p_comment:comment})});
+    var d=await r.json();
+    if(!r.ok||d.success===false)throw new Error((d&&d.error)||('HTTP '+r.status));
+    closeOverrideModal();
+    showToast('Đã điều chỉnh điểm và gửi thông báo.');
+    ruj();
+  }catch(err){showToast('Lỗi: '+err.message)}
+  btn.disabled=false;
+}
+
+// ============================================
 // NHAT KY CONG TAC CUA DON VI - tra cuu lich su day du (khong chi pending)
 // cho lanh dao, theo don vi/pham vi da co san. RLS work_logs (unit/province/
 // assigned) da cho phep xem toan bo trang thai, chi can mo rong truy van.
@@ -1334,10 +1380,21 @@ async function fetchUnitJournalLogs(period){
   var parts=period.split('-');
   var start=period+'-01';
   var end=ymdStr(Number(parts[0]),Number(parts[1]),1);
-  var sel='id,author_id,unit_id,title,result,work_role,duration,evidence,category_id,created_at,updated_at,log_date,status,complexity_score,quality_score,revision_count,review_comment';
+  var sel='id,author_id,unit_id,title,result,work_role,duration,evidence,category_id,created_at,updated_at,log_date,status,complexity_score,quality_score,revision_count,review_comment,reviewer_id';
   var r=await fetch(API+'work_logs?unit_id=in.('+unitIds.join(',')+')&log_date=gte.'+start+'&log_date=lt.'+end+'&select='+sel+'&order=log_date.desc,created_at.desc',{headers:authHeaders()});
   if(!r.ok)throw new Error('HTTP '+r.status);
-  return await r.json();
+  var logsResult=await r.json();
+  var approvedIds=logsResult.filter(function(l){return l.status==='approved'}).map(function(l){return l.id});
+  if(approvedIds.length){
+    try{
+      var rr=await fetch(API+'work_log_reviews?log_id=in.('+approvedIds.join(',')+')&select=log_id',{headers:authHeaders()});
+      var reviewRows=rr.ok?await rr.json():[];
+      var counts={};
+      reviewRows.forEach(function(row){counts[row.log_id]=(counts[row.log_id]||0)+1});
+      logsResult.forEach(function(l){l._reviewCount=counts[l.id]||0});
+    }catch(e){}
+  }
+  return logsResult;
 }
 
 async function ruj(){
@@ -1436,6 +1493,7 @@ function renderUnitJournalContent(){
   document.querySelectorAll('[data-uj-person]').forEach(function(b){b.addEventListener('click',function(){UJ_SELECTED_PERSON_ID=b.dataset.ujPerson;renderUnitJournalContent()})});
   var back=$('ujBackToList');if(back)back.addEventListener('click',function(){UJ_SELECTED_PERSON_ID=null;renderUnitJournalContent()});
   document.querySelectorAll('[data-uj-jump-person]').forEach(function(b){b.addEventListener('click',function(){UJ_MODE='person';UJ_SELECTED_PERSON_ID=b.dataset.ujJumpPerson;renderUnitJournalShell()})});
+  document.querySelectorAll('[data-override-score]').forEach(function(b){b.addEventListener('click',function(){openOverrideModal(b.dataset.overrideScore)})});
 }
 
 function renderUjPersonListHtml(){
@@ -1471,6 +1529,10 @@ function ujDateGroupHtml(g,showAuthor){
   var items=g.items.map(function(l,idx){
     var opts={readOnly:true};
     if(showAuthor){opts.authorName=ujAuthorName(l.author_id);opts.authorId=l.author_id}
+    if(l.status==='approved'&&l.reviewer_id&&l.reviewer_id!==U.id){
+      var prevReviewer=UJ_PEOPLE.find(function(p){return p.id===l.reviewer_id});
+      if(prevReviewer)opts.canOverride=canReviewLog({author_id:l.reviewer_id},prevReviewer);
+    }
     return '<div class="uj-numbered-item"><span class="queue-index">'+(idx+1)+'</span>'+journalCardHtml(l,opts)+'</div>';
   }).join('');
   return '<div class="uj-date-group"><div class="uj-date-group-header"><strong>'+esc(fullDate(g.date)||'Không xác định ngày')+'</strong><span>'+g.items.length+' việc</span></div><div class="uj-date-items">'+items+'</div></div>';
@@ -2045,7 +2107,8 @@ async function fetchNotifications(){
   try{
     var nr=await fetch(API+'notifications?user_id=eq.'+U.id+'&order=created_at.desc&limit=20',{headers:authHeaders()});
     (nr.ok?await nr.json():[]).forEach(function(n){
-      list.push({id:'db-'+n.id,tone:n.type==='score_override_escalation'?'escalation':'account',title:n.title,message:n.body||'',time:shortDate((n.created_at||'').slice(0,10)),view:'unitJournal'});
+      var tone=n.type==='score_override_escalation'?'escalation':n.type==='score_overridden_by_senior'?'revision':'account';
+      list.push({id:'db-'+n.id,tone:tone,title:n.title,message:n.body||'',time:shortDate((n.created_at||'').slice(0,10)),view:'unitJournal'});
     });
   }catch(e){}
   if(isLeader()){
@@ -2368,6 +2431,9 @@ document.addEventListener('DOMContentLoaded',function(){
   document.querySelectorAll('[data-close-note]').forEach(function(b){b.addEventListener('click',closeNoteModal)});
   $('noteModal').addEventListener('click',function(e){if(e.target.id==='noteModal')closeNoteModal()});
   $('noteForm').addEventListener('submit',submitNote);
+  document.querySelectorAll('[data-close-override]').forEach(function(b){b.addEventListener('click',closeOverrideModal)});
+  $('overrideScoreModal').addEventListener('click',function(e){if(e.target.id==='overrideScoreModal')closeOverrideModal()});
+  $('overrideScoreForm').addEventListener('submit',submitOverrideScore);
   $('notificationToggle').addEventListener('click',function(){
     var panel=$('notificationPanel');
     panel.hidden=!panel.hidden;
