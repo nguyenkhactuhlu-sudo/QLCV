@@ -9,6 +9,7 @@ const PERSONAL_NOTES_STORAGE_KEY = "vks-personal-notes-demo-v1";
 const STICKY_NOTES_STORAGE_KEY = "vks-sticky-notes-demo-v1";
 const SYSTEM_NOTIFICATIONS_STORAGE_KEY = "vks-override-notifications-demo-v1";
 const DELEGATIONS_STORAGE_KEY = "vks-delegations-demo-v1";
+const TASK_ASSIGNMENTS_STORAGE_KEY = "vks-task-assignments-demo-v1";
 
 const units = [
   { id: "province", name: "VKSND tỉnh", short: "VKSND tỉnh", type: "province", parentId: null },
@@ -98,6 +99,16 @@ const sampleRegistrationCodes = [
 // phong duoc cham thay, trong khoang thoi gian nao.
 const sampleDelegations = [
   { id: "DEL001", delegatorId: "u03", delegateId: "u04", unitId: "p1", startsAt: "2026-08-01", endsAt: "2026-08-31", scopeUserIds: ["u05", "u06", "u07"], status: "active" }
+];
+
+// Giao viec: lanh dao giao viec cho cap duoi trong pham vi duyet duoc
+// (dung lai canReviewLog) - hạn gợi ý khong bat buoc, nguoi nhan tu dat
+// han thuc te; bao cao ket qua = 1 nhat ky binh thuong qua dung quy
+// trinh Duyet & cham diem hien co (xem submitJournal/applyReview).
+const sampleTaskAssignments = [
+  { id: "TASK001", assignerId: "u03", assigneeId: "u05", unitId: "p1", title: "Rà soát hồ sơ vụ án Nguyễn Văn A", description: "Tổng hợp chứng cứ, đối chiếu với cáo trạng trước khi báo cáo lãnh đạo.", suggestedDueDate: "2026-08-19", actualDueDate: "2026-08-20", status: "done", linkedLogId: "NK001", createdAt: "2026-08-15T09:00:00" },
+  { id: "TASK002", assignerId: "u03", assigneeId: "u06", unitId: "p1", title: "Chuẩn bị báo cáo kiểm sát tháng 8", description: "Tổng hợp số liệu kiểm sát điều tra tháng 8 gửi lãnh đạo phòng trước 30/8.", suggestedDueDate: "2026-08-28", actualDueDate: null, status: "pending", linkedLogId: null, createdAt: "2026-08-20T10:00:00" },
+  { id: "TASK003", assignerId: "u01", assigneeId: "u03", unitId: "p1", title: "Tổng hợp kết quả công tác quý III toàn Viện", description: "Trưởng phòng tổng hợp báo cáo quý III của Phòng 1 gửi Viện trưởng.", suggestedDueDate: "2026-08-20", actualDueDate: "2026-08-20", status: "pending", linkedLogId: null, createdAt: "2026-08-10T08:00:00" }
 ];
 
 const sampleLogs = [
@@ -307,6 +318,7 @@ let personalNotes = loadJson(PERSONAL_NOTES_STORAGE_KEY, samplePersonalNotes);
 let stickyNotes = loadJson(STICKY_NOTES_STORAGE_KEY, []);
 let systemNotifications = loadJson(SYSTEM_NOTIFICATIONS_STORAGE_KEY, []);
 let delegations = loadJson(DELEGATIONS_STORAGE_KEY, sampleDelegations);
+let taskAssignments = loadJson(TASK_ASSIGNMENTS_STORAGE_KEY, sampleTaskAssignments);
 registeredAccounts.forEach(account => {
   if (!users.some(user => user.id === account.id)) users.push(account);
 });
@@ -365,6 +377,10 @@ function saveSystemNotifications() {
 
 function saveDelegations() {
   localStorage.setItem(DELEGATIONS_STORAGE_KEY, JSON.stringify(delegations));
+}
+
+function saveTaskAssignments() {
+  localStorage.setItem(TASK_ASSIGNMENTS_STORAGE_KEY, JSON.stringify(taskAssignments));
 }
 
 function isDelegationActive(delegation) {
@@ -640,7 +656,8 @@ function updateNav() {
   const adminOnly = isAdministrator();
   setVisible(document.querySelector(".journal-nav"), !adminOnly);
   setVisible(document.querySelector(".monthly-nav"), !adminOnly);
-  if (adminOnly && (state.currentView === "journal" || state.currentView === "monthly")) state.currentView = "dashboard";
+  setVisible(document.querySelector(".tasks-nav"), !adminOnly);
+  if (adminOnly && (state.currentView === "journal" || state.currentView === "monthly" || state.currentView === "tasks")) state.currentView = "dashboard";
 }
 
 function updateChrome(title, eyebrow) {
@@ -650,6 +667,12 @@ function updateChrome(title, eyebrow) {
   document.getElementById("sidebarUserName").textContent = user.name;
   document.getElementById("sidebarUserTitle").textContent = user.title || "";
   document.getElementById("pendingNavCount").textContent = reviewQueue().length;
+  const taskBadge = document.getElementById("taskOverdueNavCount");
+  if (taskBadge) {
+    const overdueCount = taskAssignments.filter(task => (task.assignerId === user.id || task.assigneeId === user.id) && isTaskOverdue(task)).length;
+    taskBadge.textContent = overdueCount;
+    taskBadge.hidden = overdueCount === 0;
+  }
   renderNotifications();
 }
 
@@ -679,6 +702,30 @@ function notificationsForCurrentUser() {
       message: n.message,
       time: shortDate(n.createdAt.slice(0, 10)),
       view: n.view || "unitJournal"
+    });
+  });
+  // Nhac qua han giao viec: hien cho CA NGUOI GIAO va NGUOI NHAN, dat ngay
+  // sau canh bao chenh lech (cung la tin "su kien" rieng) va truoc hang
+  // doi cho cham diem, vi ly do tranh bi ".slice(0, 20)" cat mat nhu tren.
+  taskAssignments.filter(task => task.assigneeId === user.id && isTaskOverdue(task)).forEach(task => {
+    notifications.push({
+      id: `task-overdue-assignee-${task.id}`,
+      tone: "escalation",
+      title: "Việc được giao đã quá hạn",
+      message: `${task.title} — hạn ${formatDate(taskDueDate(task))}`,
+      time: shortDate(taskDueDate(task)),
+      view: "tasks"
+    });
+  });
+  taskAssignments.filter(task => task.assignerId === user.id && isTaskOverdue(task)).forEach(task => {
+    const assignee = userById(task.assigneeId);
+    notifications.push({
+      id: `task-overdue-assigner-${task.id}`,
+      tone: "escalation",
+      title: "Việc đã giao quá hạn chưa hoàn thành",
+      message: `${assignee ? assignee.name : "Cán bộ"}: ${task.title}`,
+      time: shortDate(taskDueDate(task)),
+      view: "tasks"
     });
   });
   if (isLeader(user)) reviewQueue().forEach(log => {
@@ -766,7 +813,7 @@ function openNotification(button) {
 }
 
 function render() {
-  const renderers = { dashboard: renderDashboard, journal: renderJournal, notes: renderNotes, reviews: renderReviews, unitJournal: renderUnitJournal, monthly: renderMonthly, organization: renderOrganization, administration: renderAdministration, settings: renderSettings };
+  const renderers = { dashboard: renderDashboard, journal: renderJournal, notes: renderNotes, tasks: renderTasks, reviews: renderReviews, unitJournal: renderUnitJournal, monthly: renderMonthly, organization: renderOrganization, administration: renderAdministration, settings: renderSettings };
   (renderers[state.currentView] || renderDashboard)();
 }
 
@@ -1507,6 +1554,15 @@ function applyReview(log, status) {
   Object.assign(log, { complexity, quality, comment, status, reviewerId: reviewer.id, reviewedAt });
   if (status === "approved") {
     log.scoringHistory = [...(log.scoringHistory || []), { reviewerId: reviewer.id, complexity, quality, comment, at: reviewedAt }];
+  }
+  // Nhat ky gan voi 1 viec duoc giao: duyet xong -> viec hoan thanh; tra
+  // lai bo sung -> viec quay ve "cho thuc hien" (chua thuc su bao cao xong).
+  if (log.taskAssignmentId) {
+    const task = taskAssignments.find(item => item.id === log.taskAssignmentId);
+    if (task) {
+      task.status = status === "approved" ? "done" : "pending";
+      saveTaskAssignments();
+    }
   }
   saveLogs();
   // Canh bao chenh lech: dem theo TUNG CAN BO trong thang (khong phan biet
@@ -2516,6 +2572,128 @@ function revokeDelegation(id) {
   renderAdministration();
 }
 
+// ============================================
+// GIAO VIEC - lanh dao giao viec cho cap duoi trong pham vi duyet duoc
+// (dung lai canReviewLog, khong tao ma tran quyen moi). Han gop y khong
+// bat buoc; nguoi nhan tu dat han thuc te. Bao cao ket qua = 1 nhat ky
+// binh thuong, gan qua select "Gan voi viec duoc giao" trong form tao
+// nhat ky (xem submitJournal/openJournalModal); duyet xong tu chuyen
+// task sang "done" (xem applyReview).
+// ============================================
+const TASK_STATUS_LABELS = { pending: "Chờ thực hiện", reported: "Đã báo cáo, chờ duyệt", done: "Hoàn thành" };
+const TASK_STATUS_TONES = { pending: "status-pending", reported: "status-info", done: "status-approved" };
+
+function assignableUsers(user = currentUser()) {
+  return users.filter(person => canReviewLog({ authorId: person.id }, user));
+}
+
+function taskDueDate(task) {
+  return task.actualDueDate || task.suggestedDueDate || null;
+}
+
+function isTaskOverdue(task) {
+  const due = taskDueDate(task);
+  return task.status !== "done" && !!due && due < DEMO_TODAY;
+}
+
+function tasksAssignedByMe() {
+  return taskAssignments.filter(task => task.assignerId === currentUser().id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+function tasksAssignedToMe() {
+  return taskAssignments.filter(task => task.assigneeId === currentUser().id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+function renderTasks() {
+  updateChrome("Giao việc", "PHÂN CÔNG VÀ THEO DÕI TIẾN ĐỘ");
+  const user = currentUser();
+  const candidates = assignableUsers(user);
+  const assignedByMe = tasksAssignedByMe();
+  const assignedToMe = tasksAssignedToMe();
+  document.getElementById("appView").innerHTML = `<div class="admin-grid">
+    <section class="panel"><div class="panel-header"><div><h2>Việc tôi đã giao</h2><p>${assignedByMe.length} việc</p></div></div>
+      ${candidates.length ? taskAssignFormHtml(candidates) : `<p class="metric-context">Bạn chưa có cán bộ/đơn vị nào thuộc phạm vi được phép giao việc.</p>`}
+      <div class="task-list">${assignedByMe.length ? assignedByMe.map(task => taskCardHtml(task, "assigner")).join("") : `<div class="empty-state compact-empty"><strong>Chưa giao việc nào</strong></div>`}</div>
+    </section>
+    <section class="panel"><div class="panel-header"><div><h2>Việc được giao cho tôi</h2><p>${assignedToMe.length} việc</p></div></div>
+      <div class="task-list">${assignedToMe.length ? assignedToMe.map(task => taskCardHtml(task, "assignee")).join("") : `<div class="empty-state compact-empty"><strong>Chưa có việc được giao</strong></div>`}</div>
+    </section>
+  </div>`;
+  if (candidates.length) bindTaskAssignForm();
+  document.querySelectorAll("[data-set-due-form]").forEach(form => form.addEventListener("submit", submitTaskDueDate));
+  document.querySelectorAll("[data-report-task]").forEach(button => button.addEventListener("click", () => openJournalModal(null, button.dataset.reportTask)));
+}
+
+function taskAssignFormHtml(candidates) {
+  const options = candidates.map(person => `<option value="${person.id}">${person.name} · ${unitById(person.unitId).short}</option>`).join("");
+  return `<form class="form-grid compact-form" id="taskAssignForm">
+    <label class="field field-wide"><span>Giao cho</span><select name="assigneeId" required>${options}</select></label>
+    <label class="field field-wide"><span>Tên công việc</span><input type="text" name="title" required maxlength="200"></label>
+    <label class="field field-wide"><span>Mô tả / yêu cầu</span><textarea name="description" rows="2"></textarea></label>
+    <label class="field"><span>Hạn gợi ý (không bắt buộc)</span><input type="date" name="suggestedDueDate"></label>
+    <div class="review-actions"><button type="submit" class="button button-primary">Giao việc</button></div>
+  </form>`;
+}
+
+function bindTaskAssignForm() {
+  const form = document.getElementById("taskAssignForm");
+  if (!form) return;
+  form.addEventListener("submit", event => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const assignee = userById(data.get("assigneeId"));
+    if (!assignee) { showToast("Vui lòng chọn người được giao việc."); return; }
+    const title = String(data.get("title") || "").trim();
+    if (!title) { showToast("Vui lòng nhập tên công việc."); return; }
+    taskAssignments.push({
+      id: `TASK-${Date.now()}`, assignerId: currentUser().id, assigneeId: assignee.id, unitId: assignee.unitId,
+      title, description: String(data.get("description") || "").trim(),
+      suggestedDueDate: data.get("suggestedDueDate") || null, actualDueDate: null,
+      status: "pending", linkedLogId: null, createdAt: new Date().toISOString()
+    });
+    saveTaskAssignments();
+    showToast(`Đã giao việc cho ${assignee.name}.`);
+    renderTasks();
+  });
+}
+
+function taskCardHtml(task, perspective) {
+  const assigner = userById(task.assignerId);
+  const assignee = userById(task.assigneeId);
+  const counterpart = perspective === "assigner" ? assignee : assigner;
+  const counterpartLabel = perspective === "assigner" ? "Giao cho" : "Người giao";
+  const overdue = isTaskOverdue(task);
+  const dueSetter = perspective === "assignee" && task.status !== "done"
+    ? `<form class="task-due-form" data-set-due-form="${task.id}"><label><span>Hạn hoàn thành</span><input type="date" name="dueDate" value="${task.actualDueDate || ""}"></label><button type="submit" class="button button-secondary button-small">Đặt hạn</button></form>`
+    : "";
+  const reportButton = perspective === "assignee" && task.status === "pending"
+    ? `<button type="button" class="button button-primary button-small" data-report-task="${task.id}">Ghi nhật ký cho việc này</button>` : "";
+  return `<article class="task-card ${overdue ? "is-overdue" : ""}">
+    <div class="task-card-header"><strong>${task.title}</strong><span class="status-pill ${TASK_STATUS_TONES[task.status]}">${TASK_STATUS_LABELS[task.status]}</span></div>
+    ${task.description ? `<p>${task.description}</p>` : ""}
+    <div class="task-card-meta">
+      <span>${counterpartLabel}: <strong>${counterpart ? counterpart.name : "—"}</strong></span>
+      ${task.suggestedDueDate ? `<span>Hạn gợi ý: ${formatDate(task.suggestedDueDate)}</span>` : ""}
+      ${task.actualDueDate ? `<span>Hạn đã đặt: ${formatDate(task.actualDueDate)}</span>` : ""}
+      ${overdue ? `<span class="meta-tag meta-tag-warning">Quá hạn</span>` : ""}
+    </div>
+    ${dueSetter}${reportButton}
+  </article>`;
+}
+
+function submitTaskDueDate(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const task = taskAssignments.find(item => item.id === form.dataset.setDueForm);
+  if (!task) return;
+  const value = form.elements.dueDate.value;
+  if (!value) { showToast("Vui lòng chọn ngày hoàn thành."); return; }
+  task.actualDueDate = value;
+  saveTaskAssignments();
+  showToast("Đã đặt hạn hoàn thành.");
+  renderTasks();
+}
+
 function orgUnitCard(unit) {
   const head = users.find(user => user.unitId === unit.id && user.role === "unit_head");
   const memberCount = users.filter(user => user.unitId === unit.id).length;
@@ -2564,7 +2742,7 @@ function submitRegistration(event) {
   if (state.currentView === "administration") renderAdministration();
 }
 
-function openJournalModal(logId = null) {
+function openJournalModal(logId = null, presetTaskId = null) {
   const form = document.getElementById("journalForm");
   form.reset();
   const log = typeof logId === "string" ? logs.find(item => item.id === logId) : null;
@@ -2592,9 +2770,29 @@ function openJournalModal(logId = null) {
   document.getElementById("copyJournalPanel").hidden = true;
   document.getElementById("copyJournalSearch").value = "";
   renderCopyJournalList("");
+  refreshJournalTaskOptions(canEdit ? log : null, presetTaskId);
   checkJournalDateWarning();
   document.getElementById("journalModal").hidden = false;
   (canEdit ? form.elements.title : form.elements.category).focus();
+}
+
+// Gan nhat ky voi 1 viec duoc giao (khong bat buoc) - chi cho chon khi
+// TAO MOI (giong "Sao chep nhat ky cu"), vi khi sua/trinh lai lien ket
+// da co san va khong thay doi. Danh sach chi liet ke viec dang "cho
+// thuc hien" cua CHINH minh (task.assigneeId === currentUser().id).
+function refreshJournalTaskOptions(editingLog, presetTaskId) {
+  const field = document.getElementById("journalTaskField");
+  const select = document.getElementById("journalTaskSelect");
+  if (!field || !select) return;
+  if (editingLog) { field.hidden = true; return; }
+  const pendingTasks = tasksAssignedToMe().filter(task => task.status === "pending");
+  field.hidden = pendingTasks.length === 0;
+  select.innerHTML = `<option value="">— Không gắn với việc được giao —</option>` + pendingTasks.map(task => `<option value="${task.id}">${task.title}</option>`).join("");
+  if (presetTaskId && pendingTasks.some(task => task.id === presetTaskId)) {
+    select.value = presetTaskId;
+    const task = pendingTasks.find(item => item.id === presetTaskId);
+    if (task) document.getElementById("journalForm").elements.title.value = task.title;
+  }
 }
 
 // Cho phep nhap lui ngay (khong khoa qua khu), chi canh bao nhe khi chon
@@ -2678,18 +2876,30 @@ function submitJournal(event) {
       updatedAt: now, resubmittedAt: now, revisionCount: reviewHistory.length, reviewHistory
     });
     saveLogs();
+    // Neu nhat ky nay gan voi 1 viec duoc giao, trinh lai cung dua task
+    // ve "reported" (truoc do bi applyReview dua ve "pending" khi tra lai).
+    if (editingLog.taskAssignmentId) {
+      const task = taskAssignments.find(item => item.id === editingLog.taskAssignmentId);
+      if (task) { task.status = "reported"; saveTaskAssignments(); }
+    }
     closeJournalModal();
     showToast("Đã chỉnh sửa và trình lại lãnh đạo chấm điểm.");
     renderJournal();
     return;
   }
   const nextId = `NK${String(logs.length + 1).padStart(3, "0")}`;
+  const taskAssignmentId = data.get("taskAssignmentId") || null;
   logs.push({
     id: nextId, authorId: user.id, unitId: user.unitId, date: data.get("workDate"), category: data.get("category"),
     title: data.get("title"), result: data.get("result"), workRole: data.get("workRole"), duration: data.get("duration"), evidence: data.get("evidence"),
     selfComplexity: Number(data.get("selfComplexity")), selfQuality: Number(data.get("selfQuality")),
-    status: "pending", complexity: null, quality: null, reviewerId: null, comment: "", createdAt: new Date().toISOString(), reviewedAt: null
+    status: "pending", complexity: null, quality: null, reviewerId: null, comment: "", createdAt: new Date().toISOString(), reviewedAt: null,
+    taskAssignmentId
   });
+  if (taskAssignmentId) {
+    const task = taskAssignments.find(item => item.id === taskAssignmentId && item.assigneeId === user.id && item.status === "pending");
+    if (task) { task.linkedLogId = nextId; task.status = "reported"; saveTaskAssignments(); }
+  }
   saveLogs();
   closeJournalModal();
   showToast("Đã gửi nhật ký đến người đứng đầu đơn vị.");
@@ -2702,6 +2912,7 @@ function resetDemo() {
   stickyNotes = [];
   systemNotifications = [];
   delegations = structuredClone(sampleDelegations);
+  taskAssignments = structuredClone(sampleTaskAssignments);
   monthlyReviews = structuredClone(sampleMonthly.concat(generateMonthlyHistory()));
   users.splice(0, users.length, ...users.filter(user => !user.id.startsWith("reg-")));
   registeredAccounts = [];
@@ -2719,6 +2930,7 @@ function resetDemo() {
   saveStickyNotes();
   saveSystemNotifications();
   saveDelegations();
+  saveTaskAssignments();
   localStorage.setItem(MONTHLY_STORAGE_KEY, JSON.stringify(monthlyReviews));
   localStorage.setItem(REGISTERED_ACCOUNT_STORAGE_KEY, JSON.stringify(registeredAccounts));
   localStorage.setItem(REGISTRATION_CODE_STORAGE_KEY, JSON.stringify(registrationCodes));

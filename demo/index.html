@@ -96,6 +96,11 @@
           <span class="nav-icon" aria-hidden="true">🗓</span>
           <span>Ghi chú công việc</span>
         </button>
+        <button class="nav-item tasks-nav" data-view="tasks">
+          <span class="nav-icon" aria-hidden="true">📌</span>
+          <span>Giao việc</span>
+          <span class="nav-count" id="taskOverdueNavCount" hidden></span>
+        </button>
         <button class="nav-item review-nav" data-view="reviews">
           <span class="nav-icon" aria-hidden="true">✓</span>
           <span>Duyệt & chấm điểm</span>
@@ -162,6 +167,10 @@
             <div class="copy-journal-list" id="copyJournalList"></div>
           </div>
         </div>
+        <label class="field field-wide" id="journalTaskField" hidden>
+          <span>Gắn với việc được giao (không bắt buộc)</span>
+          <select name="taskAssignmentId" id="journalTaskSelect"></select>
+        </label>
         <label class="field">
           <span>Ngày thực hiện</span>
           <input type="date" name="workDate" required>
