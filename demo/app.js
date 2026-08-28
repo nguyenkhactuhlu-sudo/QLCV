@@ -656,8 +656,12 @@ function updateNav() {
   setVisible(document.querySelector(".unit-journal-nav"), leader);
   if (!leader && state.currentView === "unitJournal") state.currentView = "dashboard";
   const admin = isAdministrator() || currentUser().role === "province_head";
-  setVisible(document.querySelector(".admin-nav"), admin);
-  if (!admin && state.currentView === "administration") state.currentView = "dashboard";
+  // Truong phong/Chanh van phong (unit_head) cung can vao duoc de tu uy
+  // quyen cho pho cua minh, nhung chi thay muc "Uy quyen co thoi han"
+  // (xem renderAdministration) - khong thay cac muc quan tri toan phan.
+  const adminNavVisible = admin || currentUser().role === "unit_head";
+  setVisible(document.querySelector(".admin-nav"), adminNavVisible);
+  if (!adminNavVisible && state.currentView === "administration") state.currentView = "dashboard";
   // Co cau to chuc gio bao gom gan vai tro/don vi + khoa/mo tai khoan, chi
   // danh cho Vien truong tinh va QTV (giong pham vi ".admin-nav").
   setVisible(document.querySelector(".org-nav"), admin);
@@ -2393,47 +2397,61 @@ function toggleAccountActive(id) {
   renderOrganization();
 }
 
+// Quan tri toan phan (dieu chuyen nhan su, ma dang ky, duyet tai khoan,
+// nhat ky thay doi) chi danh cho Quan tri vien/Vien truong tinh. Rieng
+// "Uy quyen co thoi han" con mo them cho Truong phong/Chanh van phong
+// (unit_head) de HO TU uy quyen cho pho cua chinh minh - dung RPC
+// grant_delegation/revoke_delegation da cho phep tu migration 00030,
+// truoc day chi thieu loi vao tu giao dien.
+function canManageAllAdministration(user = currentUser()) {
+  return isAdministrator(user) || user.role === "province_head";
+}
+
 function renderAdministration() {
-  if (!(isAdministrator() || currentUser().role === "province_head")) { state.currentView = "dashboard"; renderDashboard(); return; }
-  const activeUsers = users.filter(user => user.role !== "administrator");
-  const heads = activeUsers.filter(user => user.role === "unit_head");
+  const user = currentUser();
+  const fullAccess = canManageAllAdministration(user);
+  if (!(fullAccess || user.role === "unit_head")) { state.currentView = "dashboard"; renderDashboard(); return; }
+  const activeUsers = users.filter(person => person.role !== "administrator");
+  const heads = activeUsers.filter(person => person.role === "unit_head");
   const activeDelegationsCount = delegations.filter(isDelegationActive).length;
   const pendingAccounts = registeredAccounts.filter(account => account.accountStatus === "pending");
-  const movableUsers = activeUsers.filter(user => !["province_head", "province_deputy", "unit_head"].includes(user.role));
-  updateChrome("Quản trị nhân sự và phân quyền", "CẤU HÌNH CÓ THỜI GIAN HIỆU LỰC");
-  document.getElementById("appView").innerHTML = `
-    <div class="demo-notice"><strong>Mô phỏng quản trị</strong><span>Mọi thay đổi chỉ lưu trong trình duyệt này. Nhật ký cũ giữ nguyên đơn vị tại thời điểm phát sinh; quyền mới áp dụng từ thời điểm có hiệu lực.</span></div>
+  const movableUsers = activeUsers.filter(person => !["province_head", "province_deputy", "unit_head"].includes(person.role));
+  updateChrome(fullAccess ? "Quản trị nhân sự và phân quyền" : "Ủy quyền có thời hạn", fullAccess ? "CẤU HÌNH CÓ THỜI GIAN HIỆU LỰC" : "PHÓ PHÒNG ĐƯỢC CHẤM THAY");
+  let html = fullAccess ? `<div class="demo-notice"><strong>Mô phỏng quản trị</strong><span>Mọi thay đổi chỉ lưu trong trình duyệt này. Nhật ký cũ giữ nguyên đơn vị tại thời điểm phát sinh; quyền mới áp dụng từ thời điểm có hiệu lực.</span></div>
     <div class="metric-grid">
       ${metricCard("Nhân sự và tài khoản", activeUsers.length, `${pendingAccounts.length} tài khoản chờ xác nhận`, "")}
       ${metricCard("Đơn vị trực thuộc", units.length - 1, "Phòng chuyên trách và VKSND khu vực", "blue")}
       ${metricCard("Người đứng đầu", heads.length, "Đang có hiệu lực", "green")}
       ${metricCard("Ủy quyền đang hiệu lực", activeDelegationsCount, "Có thể thu hồi tức thời", "gold")}
-    </div>
-    <div class="admin-grid">
-      <section class="panel"><div class="panel-header"><div><h2>Điều chuyển nhân sự</h2><p>Không sửa lịch sử; kết thúc phân công cũ và tạo phân công mới</p></div></div>
+    </div>` : "";
+  html += `<div class="admin-grid">`;
+  if (fullAccess) html += `<section class="panel"><div class="panel-header"><div><h2>Điều chuyển nhân sự</h2><p>Không sửa lịch sử; kết thúc phân công cũ và tạo phân công mới</p></div></div>
         <div class="form-grid compact-form">
           <label class="field field-wide"><span>Nhân sự</span><select id="adminPerson">${movableUsers.map(person => `<option value="${person.id}">${person.name} · ${person.title} · ${unitById(person.unitId).short}</option>`).join("")}</select></label>
           <label class="field"><span>Đơn vị mới</span><select id="adminTargetUnit">${units.filter(unit => unit.id !== "province").map(unit => `<option value="${unit.id}">${unit.short}</option>`).join("")}</select></label>
           <label class="field"><span>Ngày hiệu lực</span><input id="adminEffectiveDate" type="date" value="2026-09-01"></label>
         </div><div class="review-actions"><button class="button button-primary" id="applyTransfer">Mô phỏng điều chuyển</button></div>
-      </section>
-      <section class="panel panel-wide"><div class="panel-header"><div><h2>Ủy quyền có thời hạn</h2><p>Chỉ định cụ thể Phó phòng/Phó Viện trưởng KV được chấm điểm thay cho những ai, trong khoảng thời gian nào</p></div></div>
+      </section>`;
+  html += `<section class="panel panel-wide"><div class="panel-header"><div><h2>Ủy quyền có thời hạn</h2><p>Chỉ định cụ thể Phó phòng/Phó Viện trưởng KV được chấm điểm thay cho những ai, trong khoảng thời gian nào${fullAccess ? "" : " (trong đơn vị của bạn)"}</p></div></div>
         ${delegationGrantFormHtml()}
         ${delegationsTableHtml()}
-      </section>
-      <section class="panel panel-wide"><div class="panel-header"><div><h2>Mã đăng ký theo đơn vị</h2><p>Mã chỉ xác định đơn vị và quyền cán bộ mặc định; không cấp quyền lãnh đạo hoặc quản trị</p></div></div>
+      </section>`;
+  if (fullAccess) html += `<section class="panel panel-wide"><div class="panel-header"><div><h2>Mã đăng ký theo đơn vị</h2><p>Mã chỉ xác định đơn vị và quyền cán bộ mặc định; không cấp quyền lãnh đạo hoặc quản trị</p></div></div>
         <div class="code-generator"><label class="filter-field"><span>Đơn vị cấp mã</span><select id="codeUnit">${units.filter(unit => unit.id !== "province").map(unit => `<option value="${unit.id}">${unit.short}</option>`).join("")}</select></label><label class="filter-field"><span>Số lượt tối đa</span><input id="codeMaxUses" type="number" min="1" max="100" value="20"></label><label class="filter-field"><span>Ngày hết hạn</span><input id="codeExpiry" type="date" value="2026-12-31"></label><button class="button button-primary" id="generateCode">Tạo mã đơn vị</button></div>
         ${registrationCodeTable()}
       </section>
       <section class="panel panel-wide"><div class="panel-header"><div><h2>Tài khoản chờ xác nhận</h2><p>Đơn vị đã được xác định từ mã; quản trị chỉ đối chiếu danh sách nhân sự và kích hoạt</p></div></div>${pendingAccountTable(pendingAccounts)}</section>
-      <section class="panel panel-wide"><div class="panel-header"><div><h2>Nhật ký thay đổi</h2><p>Không xóa lịch sử thay đổi nhân sự và phân quyền</p></div></div><div class="audit-list">${auditEvents.slice().reverse().map(event => `<div class="audit-row"><span class="audit-time">${new Date(event.at).toLocaleString("vi-VN")}</span><div><strong>${event.action}</strong><p>${event.detail}</p></div><span>${event.actor}</span></div>`).join("")}</div></section>
-    </div>`;
-  document.getElementById("applyTransfer").addEventListener("click", applyPersonnelTransfer);
+      <section class="panel panel-wide"><div class="panel-header"><div><h2>Nhật ký thay đổi</h2><p>Không xóa lịch sử thay đổi nhân sự và phân quyền</p></div></div><div class="audit-list">${auditEvents.slice().reverse().map(event => `<div class="audit-row"><span class="audit-time">${new Date(event.at).toLocaleString("vi-VN")}</span><div><strong>${event.action}</strong><p>${event.detail}</p></div><span>${event.actor}</span></div>`).join("")}</div></section>`;
+  html += `</div>`;
+  document.getElementById("appView").innerHTML = html;
+  if (fullAccess) document.getElementById("applyTransfer").addEventListener("click", applyPersonnelTransfer);
   bindDelegationForm();
   document.querySelectorAll("[data-revoke-delegation]").forEach(button => button.addEventListener("click", () => revokeDelegation(button.dataset.revokeDelegation)));
-  document.getElementById("generateCode").addEventListener("click", generateRegistrationCode);
-  document.querySelectorAll("[data-toggle-code]").forEach(button => button.addEventListener("click", () => toggleRegistrationCode(button.dataset.toggleCode)));
-  document.querySelectorAll("[data-approve-account]").forEach(button => button.addEventListener("click", () => approveRegisteredAccount(button.dataset.approveAccount)));
+  if (fullAccess) {
+    document.getElementById("generateCode").addEventListener("click", generateRegistrationCode);
+    document.querySelectorAll("[data-toggle-code]").forEach(button => button.addEventListener("click", () => toggleRegistrationCode(button.dataset.toggleCode)));
+    document.querySelectorAll("[data-approve-account]").forEach(button => button.addEventListener("click", () => approveRegisteredAccount(button.dataset.approveAccount)));
+  }
 }
 
 function registrationCodeTable() {
@@ -2510,8 +2528,14 @@ function delegationCandidateStaff(unitId) {
   return users.filter(user => user.unitId === unitId && (user.role === "staff" || user.role === "support_staff"));
 }
 
+// Quan tri vien/Vien truong tinh thay duoc TAT CA Pho phong/don vi; rieng
+// Truong phong/Chanh van phong (unit_head) chi thay va chon duoc pho
+// CUA DUNG DON VI MINH (khop dung pham vi RPC grant_delegation da kiem
+// tra o migration 00030 - khong hien thi cai ma ho khong co quyen dung).
 function delegationGrantFormHtml() {
-  const deputies = users.filter(user => user.role === "unit_deputy");
+  const user = currentUser();
+  const scoped = !canManageAllAdministration(user);
+  const deputies = users.filter(person => person.role === "unit_deputy" && (!scoped || person.unitId === user.unitId));
   return `<div class="form-grid compact-form">
     <label class="field field-wide"><span>Phó phòng/Phó Viện trưởng KV được ủy quyền</span><select id="delegationDeputy">${deputies.map(d => `<option value="${d.id}">${d.name} · ${unitById(d.unitId).short}</option>`).join("")}</select></label>
     <label class="field"><span>Từ ngày</span><input type="date" id="delegationStart" value="${DEMO_TODAY}"></label>
@@ -2521,8 +2545,11 @@ function delegationGrantFormHtml() {
 }
 
 function delegationsTableHtml() {
-  if (!delegations.length) return `<div class="empty-state compact-empty"><strong>Chưa có ủy quyền nào</strong></div>`;
-  return `<div class="table-wrap"><table><thead><tr><th>Phó phòng/Phó VT KV</th><th>Đơn vị</th><th>Phạm vi được chấm thay</th><th>Thời hạn</th><th>Trạng thái</th><th></th></tr></thead><tbody>${delegations.slice().reverse().map(d => {
+  const user = currentUser();
+  const scoped = !canManageAllAdministration(user);
+  const visible = scoped ? delegations.filter(d => d.unitId === user.unitId) : delegations;
+  if (!visible.length) return `<div class="empty-state compact-empty"><strong>Chưa có ủy quyền nào</strong></div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>Phó phòng/Phó VT KV</th><th>Đơn vị</th><th>Phạm vi được chấm thay</th><th>Thời hạn</th><th>Trạng thái</th><th></th></tr></thead><tbody>${visible.slice().reverse().map(d => {
     const deputy = userById(d.delegateId);
     const scopeNames = d.scopeUserIds.map(id => userById(id)?.name).filter(Boolean).join(", ");
     const active = isDelegationActive(d);

@@ -186,7 +186,10 @@ function ub(){
 
   setVisible(document.querySelector('.review-nav'),isLeader());
   setVisible(document.querySelector('.unit-journal-nav'),isLeader());
-  setVisible(document.querySelector('.admin-nav'),isAdminOrProvinceHead());
+  // Truong phong/Chanh van phong (unit_head) cung can vao duoc de tu uy
+  // quyen cho pho cua minh, nhung chi thay muc "Uy quyen co thoi han"
+  // (xem ra()) - khong thay cac muc quan tri toan phan.
+  setVisible(document.querySelector('.admin-nav'),isAdminOrProvinceHead()||U.rl==='unit_head');
   // Co cau to chuc chi danh cho Vien truong tinh va quan tri vien.
   setVisible(document.querySelector('.org-nav'),isAdminOrProvinceHead());
   // Quan tri vien khong ghi cong viec, khong can Nhat ky/Cham diem thang.
@@ -197,7 +200,7 @@ function ub(){
 
   if(!isLeader()&&V==='reviews')V='dashboard';
   if(!isLeader()&&V==='unitJournal')V='dashboard';
-  if(!isAdminOrProvinceHead()&&V==='administration')V='dashboard';
+  if(!(isAdminOrProvinceHead()||U.rl==='unit_head')&&V==='administration')V='dashboard';
   if(!isAdminOrProvinceHead()&&V==='organization')V='dashboard';
   if(isAdminOnly&&(V==='journal'||V==='monthly'||V==='tasks'))V='dashboard';
 }
@@ -2378,23 +2381,37 @@ async function openNotificationItem(button){
 // ============================================
 var ADMIN_CODES=[],ADMIN_PENDING=[],ADMIN_DELEGATION_PEOPLE=[],ADMIN_DELEGATIONS=[];
 
+// Quan tri toan phan (ma dang ky, duyet tai khoan, audit log) chi danh
+// cho Quan tri vien/Vien truong tinh. Rieng "Uy quyen co thoi han" con
+// mo them cho Truong phong/Chanh van phong (unit_head) de HO TU uy
+// quyen cho pho cua chinh minh - dung RPC grant_delegation/
+// revoke_delegation da cho phep tu migration 00030, truoc day chi
+// thieu loi vao tu giao dien.
 async function ra(){
-  $('pageEyebrow').textContent='QUẢN TRỊ';$('pageTitle').textContent='Quản trị tài khoản và mã đăng ký';
-  if(!isAdminOrProvinceHead()){V='dashboard';render();return}
+  var fullAccess=isAdminOrProvinceHead();
+  $('pageEyebrow').textContent=fullAccess?'QUẢN TRỊ':'ỦY QUYỀN';
+  $('pageTitle').textContent=fullAccess?'Quản trị tài khoản và mã đăng ký':'Ủy quyền có thời hạn';
+  if(!(fullAccess||U.rl==='unit_head')){V='dashboard';render();return}
   $('appView').innerHTML='<div class="empty-state"><strong>Đang tải...</strong></div>';
   var codes=[],pendingProfiles=[],auditLogs=[],people=[],delegationRows=[];
   try{
-    var cr=await fetch(API+'registration_codes?select=*&order=created_at.desc',{headers:authHeaders()});
-    codes=cr.ok?await cr.json():[];
-    var pr=await fetch(API+'profiles?is_active=eq.false&select=id,full_name,role,unit_id,created_at&order=created_at.desc',{headers:authHeaders()});
-    pendingProfiles=pr.ok?await pr.json():[];
-    if(U.rl==='administrator'){
-      var alr=await fetch(API+'audit_logs?select=id,action,entity_type,entity_id,created_at,actor:actor_id(full_name)&order=created_at.desc&limit=50',{headers:authHeaders()});
-      auditLogs=alr.ok?await alr.json():[];
+    if(fullAccess){
+      var cr=await fetch(API+'registration_codes?select=*&order=created_at.desc',{headers:authHeaders()});
+      codes=cr.ok?await cr.json():[];
+      var pr=await fetch(API+'profiles?is_active=eq.false&select=id,full_name,role,unit_id,created_at&order=created_at.desc',{headers:authHeaders()});
+      pendingProfiles=pr.ok?await pr.json():[];
+      if(U.rl==='administrator'){
+        var alr=await fetch(API+'audit_logs?select=id,action,entity_type,entity_id,created_at,actor:actor_id(full_name)&order=created_at.desc&limit=50',{headers:authHeaders()});
+        auditLogs=alr.ok?await alr.json():[];
+      }
     }
-    var ppr=await fetch(API+'profiles?role=in.(unit_deputy,staff,support_staff)&select=id,full_name,role,unit_id&order=full_name',{headers:authHeaders()});
+    // unit_head: chi thay va chon duoc pho CUA DUNG DON VI MINH (khop dung
+    // pham vi RPC grant_delegation da kiem tra o migration 00030).
+    var peopleUrl=API+'profiles?role=in.(unit_deputy,staff,support_staff)&select=id,full_name,role,unit_id&order=full_name'+(fullAccess?'':'&unit_id=eq.'+U.uid);
+    var ppr=await fetch(peopleUrl,{headers:authHeaders()});
     people=ppr.ok?await ppr.json():[];
-    var dr=await fetch(API+'delegations?select=id,delegate_id,unit_id,starts_at,ends_at,status&order=created_at.desc',{headers:authHeaders()});
+    var delUrl=API+'delegations?select=id,delegate_id,unit_id,starts_at,ends_at,status&order=created_at.desc'+(fullAccess?'':'&unit_id=eq.'+U.uid);
+    var dr=await fetch(delUrl,{headers:authHeaders()});
     var delegationList=dr.ok?await dr.json():[];
     if(delegationList.length){
       var ids=delegationList.map(function(d){return d.id}).join(',');
@@ -2409,27 +2426,31 @@ async function ra(){
   var unitOptions=UNITS.filter(function(u){return u.type!=='province'}).map(function(u){return '<option value="'+u.id+'">'+esc(u.short_name||u.code)+'</option>'}).join('');
 
   var activeDelegationsCount=delegationRows.filter(isDelegationActiveRow).length;
-  var h='<div class="metric-grid">'
+  var h=fullAccess?('<div class="metric-grid">'
     +metricCard('Mã đang cấp',codes.filter(function(c){return c.is_active}).length,codes.length+' mã đã tạo','')
     +metricCard('Tài khoản chờ xác nhận',pendingProfiles.length,'Cần đối chiếu trước khi kích hoạt','gold')
     +metricCard('Ủy quyền đang hiệu lực',activeDelegationsCount,'Có thể thu hồi tức thời','blue')
-    +'</div>';
+    +'</div>'):'';
   h+='<div class="admin-grid">';
-  h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Mã đăng ký theo đơn vị</h2><p>Mã chỉ xác định đơn vị; người đăng ký luôn nhận quyền cán bộ mặc định, không tự chọn quyền lãnh đạo</p></div></div>'
-    +'<div class="code-generator"><label class="filter-field"><span>Đơn vị cấp mã</span><select id="codeUnit">'+unitOptions+'</select></label><button class="button button-primary" id="generateCode">Tạo mã đơn vị</button></div>'
-    +registrationCodeTableHtml(codes)+'</section>';
-  h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Tài khoản chờ xác nhận</h2><p>Đối chiếu đúng người, đúng đơn vị trước khi kích hoạt</p></div></div>'+pendingAccountTableHtml(pendingProfiles)+'</section>';
-  h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Ủy quyền có thời hạn</h2><p>Chỉ định cụ thể Phó phòng/Phó Viện trưởng KV được chấm điểm thay cho những ai, trong khoảng thời gian nào</p></div></div>'
+  if(fullAccess){
+    h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Mã đăng ký theo đơn vị</h2><p>Mã chỉ xác định đơn vị; người đăng ký luôn nhận quyền cán bộ mặc định, không tự chọn quyền lãnh đạo</p></div></div>'
+      +'<div class="code-generator"><label class="filter-field"><span>Đơn vị cấp mã</span><select id="codeUnit">'+unitOptions+'</select></label><button class="button button-primary" id="generateCode">Tạo mã đơn vị</button></div>'
+      +registrationCodeTableHtml(codes)+'</section>';
+    h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Tài khoản chờ xác nhận</h2><p>Đối chiếu đúng người, đúng đơn vị trước khi kích hoạt</p></div></div>'+pendingAccountTableHtml(pendingProfiles)+'</section>';
+  }
+  h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Ủy quyền có thời hạn</h2><p>Chỉ định cụ thể Phó phòng/Phó Viện trưởng KV được chấm điểm thay cho những ai, trong khoảng thời gian nào'+(fullAccess?'':' (trong đơn vị của bạn)')+'</p></div></div>'
     +delegationGrantFormHtml(people)+delegationsTableHtml(delegationRows,people)+'</section>';
-  if(U.rl==='administrator'){
+  if(fullAccess&&U.rl==='administrator'){
     h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Nhật ký kiểm toán</h2><p>50 thay đổi gần nhất đối với điểm số, trạng thái, quyền hạn và nhân sự</p></div></div>'+auditLogTableHtml(auditLogs)+'</section>';
   }
   h+='</div>';
   $('appView').innerHTML=h;
 
-  $('generateCode').addEventListener('click',generateRegistrationCode);
-  document.querySelectorAll('[data-toggle-code]').forEach(function(b){b.addEventListener('click',function(){toggleRegistrationCode(b.dataset.toggleCode)})});
-  document.querySelectorAll('[data-approve-account]').forEach(function(b){b.addEventListener('click',function(){approvePendingAccount(b.dataset.approveAccount)})});
+  if(fullAccess){
+    $('generateCode').addEventListener('click',generateRegistrationCode);
+    document.querySelectorAll('[data-toggle-code]').forEach(function(b){b.addEventListener('click',function(){toggleRegistrationCode(b.dataset.toggleCode)})});
+    document.querySelectorAll('[data-approve-account]').forEach(function(b){b.addEventListener('click',function(){approvePendingAccount(b.dataset.approveAccount)})});
+  }
   bindDelegationForm();
   document.querySelectorAll('[data-revoke-delegation]').forEach(function(b){b.addEventListener('click',function(){revokeDelegation(b.dataset.revokeDelegation)})});
 }
