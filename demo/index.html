@@ -276,6 +276,26 @@
     </section>
   </div>
 
+  <div class="modal-backdrop" id="deleteLogModal" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="deleteLogModalTitle">
+      <div class="modal-header">
+        <div>
+          <span class="eyebrow">XOÁ NHẬT KÝ</span>
+          <h2 id="deleteLogModalTitle">Xoá nhật ký của cấp dưới</h2>
+        </div>
+        <button class="icon-button" data-close-delete-log aria-label="Đóng">×</button>
+      </div>
+      <form id="deleteLogForm" class="form-grid">
+        <p class="metric-context field-wide">Nhật ký sẽ bị xoá vĩnh viễn, không thể khôi phục. Tác giả sẽ nhận được thông báo kèm lý do bên dưới.</p>
+        <label class="field field-wide"><span>Lý do xoá <em>(bắt buộc)</em></span><textarea name="deleteLogReason" rows="3" required placeholder="Ví dụ: nhập nhầm nội dung của việc khác, trùng lặp với nhật ký khác..."></textarea></label>
+        <div class="form-actions field-wide">
+          <button type="button" class="button button-secondary" data-close-delete-log>Hủy</button>
+          <button type="submit" class="button button-danger">Xoá nhật ký</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
   <div class="modal-backdrop" id="registerModal" hidden>
     <section class="modal auth-modal" role="dialog" aria-modal="true" aria-labelledby="registerModalTitle">
       <div class="modal-header">

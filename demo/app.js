@@ -573,6 +573,11 @@ function initialize() {
     if (event.target.id === "overrideScoreModal") closeOverrideModal();
   });
   document.getElementById("overrideScoreForm").addEventListener("submit", submitOverrideScore);
+  document.querySelectorAll("[data-close-delete-log]").forEach(button => button.addEventListener("click", closeDeleteLogModal));
+  document.getElementById("deleteLogModal").addEventListener("click", event => {
+    if (event.target.id === "deleteLogModal") closeDeleteLogModal();
+  });
+  document.getElementById("deleteLogForm").addEventListener("submit", submitDeleteLogForm);
   document.getElementById("openRegister").addEventListener("click", openRegisterModal);
   document.querySelectorAll("[data-close-register]").forEach(button => button.addEventListener("click", closeRegisterModal));
   document.getElementById("registerModal").addEventListener("click", event => {
@@ -736,7 +741,7 @@ function notificationsForCurrentUser() {
   // Canh bao chenh lech dat NGAY SAU nhom "can bo sung" (ca 2 deu la tin
   // rieng, quan trong) va TRUOC hang doi cho cham diem (co the rat dai voi
   // lanh dao pham vi rong) - de khong bi ".slice(0, 20)" ben duoi cat mat.
-  const SYSTEM_NOTIFICATION_TONES = { score_overridden: "revision", delegation_granted: "account", delegation_revoked: "account" };
+  const SYSTEM_NOTIFICATION_TONES = { score_overridden: "revision", delegation_granted: "account", delegation_revoked: "account", work_log_deleted: "revision" };
   systemNotifications.filter(n => n.userId === user.id).forEach(n => {
     notifications.push({
       id: n.id,
@@ -1216,6 +1221,7 @@ function renderJournal() {
     <div class="journal-list">${filtered.length ? filtered.map(l => journalCard(l)).join("") : `<div class="empty-state"><strong>Không có nhật ký phù hợp</strong>Thử đổi bộ lọc hoặc ghi nhật ký mới.</div>`}</div>`;
   document.getElementById("newJournal").addEventListener("click", () => openJournalModal());
   document.querySelectorAll("[data-edit-journal]").forEach(button => button.addEventListener("click", () => openJournalModal(button.dataset.editJournal)));
+  document.querySelectorAll("[data-delete-log]").forEach(button => button.addEventListener("click", () => handleDeleteLogClick(button)));
   document.getElementById("journalStatusFilter").addEventListener("change", event => { state.journalStatusFilter = event.target.value; renderJournal(); });
   const searchInput = document.getElementById("journalSearchInput");
   searchInput.addEventListener("input", event => {
@@ -1232,11 +1238,19 @@ function journalCard(log, opts = {}) {
   const canEdit = log.status === "revision" && log.authorId === currentUser().id && !opts.readOnly;
   const canOverride = log.status === "approved" && log.reviewerId && canReviewLog({ authorId: log.reviewerId }, currentUser());
   const overridden = (log.scoringHistory || []).length >= 2;
+  // Tu xoa: chi chinh tac gia, chi khi con "cho duyet"/"can bo sung" (da
+  // duyet roi coi la du lieu chinh thuc, phai qua lanh dao). Lanh dao xoa
+  // ho cap duoi: dung dung pham vi da co san trong canReviewLog, khong gioi
+  // han trang thai.
+  const isSelf = log.authorId === currentUser().id;
+  const canDeleteSelf = !opts.readOnly && isSelf && (log.status === "pending" || log.status === "revision");
+  const canDeleteAsLeader = !isSelf && canReviewLog(log, currentUser());
+  const canDelete = canDeleteSelf || canDeleteAsLeader;
   const revisionFeedback = log.status === "revision" ? `<div class="revision-feedback"><strong>Lãnh đạo yêu cầu bổ sung</strong><span>${log.comment || "Cần chỉnh sửa, làm rõ kết quả công tác."}</span></div>` : "";
   const resubmission = log.revisionCount ? `<span class="meta-tag">Đã trình lại ${log.revisionCount} lần</span>` : "";
   const overriddenTag = overridden ? `<span class="meta-tag meta-tag-warning">Điểm đã được lãnh đạo cấp trên điều chỉnh</span>` : "";
   const authorTag = opts.authorName ? (opts.authorId ? `<button type="button" class="meta-tag journal-author-tag" data-uj-jump-person="${opts.authorId}">${opts.authorName}</button>` : `<span class="meta-tag journal-author-tag">${opts.authorName}</span>`) : "";
-  return `<article class="journal-card ${log.status === "revision" ? "is-revision" : ""}"><div class="journal-date"><strong>${shortDate(log.date)}</strong>${log.date.slice(0,4)}</div><div class="journal-body"><h3>${log.title}</h3><p>${log.result}</p>${revisionFeedback}<div class="journal-meta">${authorTag}<span class="meta-tag">${log.category}</span><span class="meta-tag">${log.workRole}</span><span class="meta-tag">${log.duration}</span>${resubmission}${overriddenTag}<span class="status-pill ${statusClass(log.status)}">${statusLabel(log.status)}</span></div></div><div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>${log.complexity ?? "—"}</strong></div><div class="score-box"><span>Chất lượng</span><strong>${log.quality ?? "—"}</strong></div></div>${canEdit ? `<button type="button" class="button button-primary button-small" data-edit-journal="${log.id}">Sửa và trình lại</button>` : ""}${canOverride ? `<button type="button" class="button button-secondary button-small" data-override-score="${log.id}">Điều chỉnh điểm</button>` : ""}</div></article>`;
+  return `<article class="journal-card ${log.status === "revision" ? "is-revision" : ""}"><div class="journal-date"><strong>${shortDate(log.date)}</strong>${log.date.slice(0,4)}</div><div class="journal-body"><h3>${log.title}</h3><p>${log.result}</p>${revisionFeedback}<div class="journal-meta">${authorTag}<span class="meta-tag">${log.category}</span><span class="meta-tag">${log.workRole}</span><span class="meta-tag">${log.duration}</span>${resubmission}${overriddenTag}<span class="status-pill ${statusClass(log.status)}">${statusLabel(log.status)}</span></div></div><div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>${log.complexity ?? "—"}</strong></div><div class="score-box"><span>Chất lượng</span><strong>${log.quality ?? "—"}</strong></div></div>${canEdit ? `<button type="button" class="button button-primary button-small" data-edit-journal="${log.id}">Sửa và trình lại</button>` : ""}${canOverride ? `<button type="button" class="button button-secondary button-small" data-override-score="${log.id}">Điều chỉnh điểm</button>` : ""}${canDelete ? `<button type="button" class="button button-danger button-small" data-delete-log="${log.id}" data-delete-self="${canDeleteSelf ? "1" : "0"}">Xoá</button>` : ""}</div></article>`;
 }
 
 // Gom danh sach cho duyet theo tung tac gia (KSV), xep theo lan nop gan
@@ -1695,6 +1709,69 @@ function submitOverrideScore(event) {
 }
 
 // ============================================
+// XOA NHAT KY NHAP NHAM/NHAP SAI - tac gia tu xoa duoc khi con "cho duyet"/
+// "can bo sung"; lanh dao hop le (dung pham vi da co san trong
+// canReviewLog) xoa duoc nhat ky cap duoi o bat ky trang thai nao, nhung
+// bat buoc nhap ly do va tac gia duoc thong bao ngay.
+// ============================================
+let deletingLogId = null;
+
+function handleDeleteLogClick(button) {
+  const logId = button.dataset.deleteLog;
+  const isSelf = button.dataset.deleteSelf === "1";
+  if (isSelf) {
+    if (!confirm("Xoá nhật ký này? Không thể khôi phục lại.")) return;
+    deleteWorkLog(logId, null);
+  } else {
+    openDeleteLogModal(logId);
+  }
+}
+
+function openDeleteLogModal(logId) {
+  deletingLogId = logId;
+  const form = document.getElementById("deleteLogForm");
+  form.reset();
+  document.getElementById("deleteLogModal").hidden = false;
+  form.elements.deleteLogReason.focus();
+}
+
+function closeDeleteLogModal() {
+  deletingLogId = null;
+  document.getElementById("deleteLogModal").hidden = true;
+}
+
+function submitDeleteLogForm(event) {
+  event.preventDefault();
+  const reason = String(new FormData(event.currentTarget).get("deleteLogReason") || "").trim();
+  if (!reason) { showToast("Vui lòng nhập lý do xoá."); return; }
+  if (!confirm("Xoá nhật ký này? Tác giả sẽ nhận được thông báo kèm lý do. Không thể khôi phục lại.")) return;
+  const logId = deletingLogId;
+  closeDeleteLogModal();
+  deleteWorkLog(logId, reason);
+}
+
+function deleteWorkLog(logId, reason) {
+  const index = logs.findIndex(item => item.id === logId);
+  if (index === -1) return;
+  const log = logs[index];
+  if (reason) {
+    systemNotifications.push({
+      id: `ON-${Date.now()}-${log.authorId}`, userId: log.authorId, type: "work_log_deleted",
+      title: "Nhật ký của bạn đã bị lãnh đạo xoá",
+      message: `${currentUser().name} đã xoá nhật ký "${log.title}" ngày ${formatDate(log.date)}. Lý do: ${reason}`,
+      view: "journal",
+      createdAt: new Date().toISOString()
+    });
+    saveSystemNotifications();
+  }
+  logs.splice(index, 1);
+  saveLogs();
+  showToast("Đã xoá nhật ký.");
+  if (state.currentView === "journal") renderJournal();
+  else if (state.currentView === "unitJournal") renderUnitJournalContent();
+}
+
+// ============================================
 // NHAT KY CONG TAC CUA DON VI - tra cuu lich su day du (khong chi pending)
 // cho lanh dao, theo don vi/pham vi da co san.
 // ============================================
@@ -1802,6 +1879,7 @@ function renderUnitJournalContent() {
   if (back) back.addEventListener("click", () => { state.ujSelectedPersonId = null; renderUnitJournalContent(); });
   document.querySelectorAll("[data-uj-jump-person]").forEach(b => b.addEventListener("click", () => { state.ujMode = "person"; state.ujSelectedPersonId = b.dataset.ujJumpPerson; renderUnitJournal(); }));
   document.querySelectorAll("[data-override-score]").forEach(b => b.addEventListener("click", () => openOverrideModal(b.dataset.overrideScore)));
+  document.querySelectorAll("[data-delete-log]").forEach(b => b.addEventListener("click", () => handleDeleteLogClick(b)));
 }
 
 function renderUjPersonListHtml() {

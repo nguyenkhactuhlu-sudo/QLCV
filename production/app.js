@@ -629,6 +629,7 @@ function renderJournalList(){
   $('appView').innerHTML=h;
   $('nj').onclick=function(){oj()};
   document.querySelectorAll('[data-edit-journal]').forEach(function(b){b.addEventListener('click',function(){oj(b.dataset.editJournal)})});
+  document.querySelectorAll('[data-delete-log]').forEach(function(b){b.addEventListener('click',function(){handleDeleteLogClick(b)})});
   $('journalStatusFilter').addEventListener('change',function(e){JOURNAL_STATUS_FILTER=e.target.value;renderJournalList()});
   var searchInput=$('journalSearchInput');
   searchInput.addEventListener('input',function(e){
@@ -646,6 +647,12 @@ function metricCard(label,value,context,tone){return '<article class="metric-car
 function journalCardHtml(log,opts){
   opts=opts||{};
   var canEdit=log.status==='revision'&&!opts.readOnly;
+  // Tu xoa: chi chinh tac gia, chi khi con "cho duyet"/"can bo sung" (da
+  // duyet roi coi la du lieu chinh thuc, phai qua lanh dao). Lanh dao xoa
+  // ho cap duoi (opts.canDelete, tinh o ujDateGroupHtml theo dung pham vi
+  // can_review_log) thi khong gioi han trang thai.
+  var canDeleteSelf=!opts.readOnly&&(log.status==='pending'||log.status==='revision');
+  var canDelete=opts.canDelete||canDeleteSelf;
   var revisionFeedback=log.status==='revision'?'<div class="revision-feedback"><strong>Lãnh đạo yêu cầu bổ sung</strong><span>'+esc(log.review_comment||'Cần chỉnh sửa, làm rõ kết quả công tác.')+'</span></div>':'';
   var resubmission=log.revision_count?'<span class="meta-tag">Đã trình lại '+log.revision_count+' lần</span>':'';
   var overriddenTag=(log._reviewCount||0)>=2?'<span class="meta-tag meta-tag-warning">Điểm đã được lãnh đạo cấp trên điều chỉnh</span>':'';
@@ -656,7 +663,8 @@ function journalCardHtml(log,opts){
     +'<div class="journal-meta">'+authorTag+'<span class="meta-tag">'+esc(catName(log.category_id))+'</span><span class="meta-tag">'+esc(WORK_ROLE_LABEL[log.work_role]||log.work_role)+'</span><span class="meta-tag">'+esc(DURATION_LABEL[log.duration]||log.duration)+'</span>'+resubmission+overriddenTag+'<span class="status-pill '+(STATUS_CLASS[log.status]||'')+'">'+(STATUS_LABEL[log.status]||log.status)+'</span></div></div>'
     +'<div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>'+(log.complexity_score==null?'—':log.complexity_score)+'</strong></div><div class="score-box"><span>Chất lượng</span><strong>'+(log.quality_score==null?'—':log.quality_score)+'</strong></div></div>'
     +(canEdit?'<button type="button" class="button button-primary button-small" data-edit-journal="'+log.id+'">Sửa và trình lại</button>':'')
-    +(opts.canOverride?'<button type="button" class="button button-secondary button-small" data-override-score="'+log.id+'">Điều chỉnh điểm</button>':'')+'</div></article>';
+    +(opts.canOverride?'<button type="button" class="button button-secondary button-small" data-override-score="'+log.id+'">Điều chỉnh điểm</button>':'')
+    +(canDelete?'<button type="button" class="button button-danger button-small" data-delete-log="'+log.id+'" data-delete-self="'+(canDeleteSelf&&!opts.canDelete?'1':'0')+'">Xoá</button>':'')+'</div></article>';
 }
 
 async function oj(logId,presetTaskId){
@@ -1648,6 +1656,55 @@ async function submitOverrideScore(e){
 }
 
 // ============================================
+// XOA NHAT KY NHAP NHAM/NHAP SAI - tac gia tu xoa duoc khi con "cho duyet"/
+// "can bo sung"; lanh dao hop le (dung pham vi can_review_log) xoa duoc
+// nhat ky cap duoi o bat ky trang thai nao, nhung bat buoc nhap ly do va
+// tac gia duoc thong bao ngay (RPC delete_work_log, migration 00038).
+// ============================================
+var DELETING_LOG_ID=null;
+
+function handleDeleteLogClick(button){
+  if(!requireActive())return;
+  var logId=button.dataset.deleteLog;
+  var isSelf=button.dataset.deleteSelf==='1';
+  if(isSelf){
+    if(!confirm('Xoá nhật ký này? Không thể khôi phục lại.'))return;
+    submitDeleteWorkLog(logId,null);
+  }else{
+    openDeleteLogModal(logId);
+  }
+}
+
+function openDeleteLogModal(logId){
+  DELETING_LOG_ID=logId;
+  $('deleteLogForm').reset();
+  $('deleteLogModal').hidden=false;
+  $('deleteLogForm').elements.deleteLogReason.focus();
+}
+function closeDeleteLogModal(){DELETING_LOG_ID=null;$('deleteLogModal').hidden=true}
+
+async function submitDeleteLogForm(e){
+  e.preventDefault();
+  var reason=($('deleteLogForm').elements.deleteLogReason.value||'').trim();
+  if(!reason){showToast('Vui lòng nhập lý do xoá.');return}
+  if(!confirm('Xoá nhật ký này? Tác giả sẽ nhận được thông báo kèm lý do. Không thể khôi phục lại.'))return;
+  var logId=DELETING_LOG_ID;
+  closeDeleteLogModal();
+  await submitDeleteWorkLog(logId,reason);
+}
+
+async function submitDeleteWorkLog(logId,reason){
+  try{
+    var r=await fetch(API+'rpc/delete_work_log',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_log_id:logId,p_reason:reason})});
+    var d=await r.json();
+    if(!r.ok||d.success===false){showToast('Lỗi: '+((d&&d.error)||('HTTP '+r.status)));return}
+    showToast('Đã xoá nhật ký.');
+    if(V==='journal')rj();
+    else if(V==='unitJournal')ruj();
+  }catch(err){showToast('Lỗi: '+err.message)}
+}
+
+// ============================================
 // NHAT KY CONG TAC CUA DON VI - tra cuu lich su day du (khong chi pending)
 // cho lanh dao, theo don vi/pham vi da co san. RLS work_logs (unit/province/
 // assigned) da cho phep xem toan bo trang thai, chi can mo rong truy van.
@@ -1783,6 +1840,7 @@ function renderUnitJournalContent(){
   var back=$('ujBackToList');if(back)back.addEventListener('click',function(){UJ_SELECTED_PERSON_ID=null;renderUnitJournalContent()});
   document.querySelectorAll('[data-uj-jump-person]').forEach(function(b){b.addEventListener('click',function(){UJ_MODE='person';UJ_SELECTED_PERSON_ID=b.dataset.ujJumpPerson;renderUnitJournalShell()})});
   document.querySelectorAll('[data-override-score]').forEach(function(b){b.addEventListener('click',function(){openOverrideModal(b.dataset.overrideScore)})});
+  document.querySelectorAll('[data-delete-log]').forEach(function(b){b.addEventListener('click',function(){handleDeleteLogClick(b)})});
 }
 
 function renderUjPersonListHtml(){
@@ -1822,6 +1880,8 @@ function ujDateGroupHtml(g,showAuthor){
       var prevReviewer=UJ_PEOPLE.find(function(p){return p.id===l.reviewer_id});
       if(prevReviewer)opts.canOverride=canReviewLog({author_id:l.reviewer_id},prevReviewer);
     }
+    var author=UJ_PEOPLE.find(function(p){return p.id===l.author_id});
+    if(author)opts.canDelete=canReviewLog({author_id:l.author_id},author);
     return '<div class="uj-numbered-item"><span class="queue-index">'+(idx+1)+'</span>'+journalCardHtml(l,opts)+'</div>';
   }).join('');
   return '<div class="uj-date-group"><div class="uj-date-group-header"><strong>'+esc(fullDate(g.date)||'Không xác định ngày')+'</strong><span>'+g.items.length+' việc</span></div><div class="uj-date-items">'+items+'</div></div>';
@@ -2901,6 +2961,9 @@ document.addEventListener('DOMContentLoaded',function(){
   document.querySelectorAll('[data-close-override]').forEach(function(b){b.addEventListener('click',closeOverrideModal)});
   $('overrideScoreModal').addEventListener('click',function(e){if(e.target.id==='overrideScoreModal')closeOverrideModal()});
   $('overrideScoreForm').addEventListener('submit',submitOverrideScore);
+  document.querySelectorAll('[data-close-delete-log]').forEach(function(b){b.addEventListener('click',closeDeleteLogModal)});
+  $('deleteLogModal').addEventListener('click',function(e){if(e.target.id==='deleteLogModal')closeDeleteLogModal()});
+  $('deleteLogForm').addEventListener('submit',submitDeleteLogForm);
   $('notificationToggle').addEventListener('click',function(){
     var panel=$('notificationPanel');
     panel.hidden=!panel.hidden;
