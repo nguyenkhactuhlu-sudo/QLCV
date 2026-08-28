@@ -443,6 +443,20 @@ function visibleUnitIds(user = currentUser()) {
   return [user.unitId];
 }
 
+// visibleUnitIds() chi loc theo DON VI, khong phan biet CAP BAC trong
+// cung 1 don vi - vi du Pho phong (unit_deputy) va Truong phong
+// (unit_head) o cung 1 unitId, nen truoc day Pho phong van "thay" duoc
+// Truong phong trong danh sach nguoi/nhat ky cua don vi (loi that: cap
+// duoi xem duoc nhat ky cap tren). Dung thang bac de loai nguoi CAO HON
+// viewer ra khoi pham vi xem - khong anh huong cac truong hop dung san
+// (vi du Pho VT tinh van thay duoc Truong phong don vi minh phu trach,
+// vi 2 <= 3).
+const ROLE_RANK = { province_head: 4, province_deputy: 3, unit_head: 2, unit_deputy: 1, staff: 0, support_staff: 0 };
+function isVisibleInUnitScope(person, viewer = currentUser()) {
+  if (person.role === "administrator") return false;
+  return (ROLE_RANK[person.role] ?? 0) <= (ROLE_RANK[viewer.role] ?? 0);
+}
+
 function dashboardLogs(includeAllPeriods = false) {
   const user = currentUser();
   let scoped = logs.filter(log => visibleUnitIds(user).includes(log.unitId));
@@ -708,10 +722,11 @@ function notificationsForCurrentUser() {
   // Canh bao chenh lech dat NGAY SAU nhom "can bo sung" (ca 2 deu la tin
   // rieng, quan trong) va TRUOC hang doi cho cham diem (co the rat dai voi
   // lanh dao pham vi rong) - de khong bi ".slice(0, 20)" ben duoi cat mat.
+  const SYSTEM_NOTIFICATION_TONES = { score_overridden: "revision", delegation_granted: "account", delegation_revoked: "account" };
   systemNotifications.filter(n => n.userId === user.id).forEach(n => {
     notifications.push({
       id: n.id,
-      tone: n.type === "score_overridden" ? "revision" : "escalation",
+      tone: SYSTEM_NOTIFICATION_TONES[n.type] || "escalation",
       title: n.title,
       message: n.message,
       time: shortDate(n.createdAt.slice(0, 10)),
@@ -1066,15 +1081,17 @@ function aggregateByUnit(items) {
 }
 
 function aggregateByUser(items, unitId) {
-  return users.filter(user => user.unitId === unitId).map(user => {
+  const viewer = currentUser();
+  return users.filter(user => user.unitId === unitId && isVisibleInUnitScope(user, viewer)).map(user => {
     const subset = items.filter(item => item.authorId === user.id);
     return aggregateRow(user.id, user.name, subset, 1, user.title);
   }).filter(row => row.count > 0);
 }
 
 function aggregateVisibleUsers(items, unitId = null) {
-  const visibleUnits = visibleUnitIds();
-  return users.filter(user => user.role !== "administrator" && visibleUnits.includes(user.unitId) && (!unitId || user.unitId === unitId)).map(user => {
+  const viewer = currentUser();
+  const visibleUnits = visibleUnitIds(viewer);
+  return users.filter(user => visibleUnits.includes(user.unitId) && (!unitId || user.unitId === unitId) && isVisibleInUnitScope(user, viewer)).map(user => {
     const subset = items.filter(item => item.authorId === user.id);
     return aggregateRow(user.id, user.name, subset, 1, `${user.title} · ${unitById(user.unitId).short}`);
   }).filter(row => row.count > 0);
@@ -1672,12 +1689,14 @@ function ujScopeUnitIds() { return visibleUnitIds().filter(id => id !== "provinc
 function ujScopePeople() {
   const user = currentUser();
   const scopeUnits = ujScopeUnitIds();
-  return users.filter(p => p.role !== "administrator" && scopeUnits.includes(p.unitId) && p.accountStatus !== "pending");
+  return users.filter(p => scopeUnits.includes(p.unitId) && p.accountStatus !== "pending" && isVisibleInUnitScope(p, user));
 }
 
 function ujScopeLogs() {
+  const user = currentUser();
   const scopeUnits = ujScopeUnitIds();
-  return logs.filter(l => scopeUnits.includes(l.unitId) && l.date.startsWith(state.ujPeriod));
+  const visibleAuthorIds = new Set(ujScopePeople().map(p => p.id));
+  return logs.filter(l => scopeUnits.includes(l.unitId) && l.date.startsWith(state.ujPeriod) && (visibleAuthorIds.has(l.authorId) || l.authorId === user.id));
 }
 
 function ujFilteredPeople() {
@@ -1813,7 +1832,7 @@ function monthlyScope() {
   const user = currentUser();
   let scopedUsers = users.filter(person => person.role !== "administrator");
   if (user.role === "staff" || user.role === "support_staff") scopedUsers = scopedUsers.filter(person => person.id === user.id);
-  if (user.role === "unit_head" || user.role === "unit_deputy") scopedUsers = scopedUsers.filter(person => person.unitId === user.unitId);
+  if (user.role === "unit_head" || user.role === "unit_deputy") scopedUsers = scopedUsers.filter(person => person.unitId === user.unitId && isVisibleInUnitScope(person, user));
   if (user.role === "province_deputy") scopedUsers = scopedUsers.filter(person => person.role === "unit_head" && (user.assignedUnits || []).includes(person.unitId));
   if (state.monthlyUnit !== "all") scopedUsers = scopedUsers.filter(person => person.unitId === state.monthlyUnit);
   return monthlyReviews.filter(review => review.period === state.monthlyPeriod && scopedUsers.some(person => person.id === review.userId));
@@ -1968,7 +1987,7 @@ function monthlyExportScope(period) {
   const user = currentUser();
   let scopedUsers = users.filter(person => person.role !== "administrator");
   if (user.role === "staff" || user.role === "support_staff") scopedUsers = scopedUsers.filter(person => person.id === user.id);
-  if (user.role === "unit_head" || user.role === "unit_deputy") scopedUsers = scopedUsers.filter(person => person.unitId === user.unitId);
+  if (user.role === "unit_head" || user.role === "unit_deputy") scopedUsers = scopedUsers.filter(person => person.unitId === user.unitId && isVisibleInUnitScope(person, user));
   if (user.role === "province_deputy") scopedUsers = scopedUsers.filter(person => person.role === "unit_head" && (user.assignedUnits || []).includes(person.unitId));
   return scopedUsers.map(person => ({ person, review: monthlyReviews.find(r => r.period === period && r.userId === person.id) || null }));
 }
@@ -2586,13 +2605,24 @@ function grantDelegation() {
   if (endsAt < startsAt) return showToast("Ngày kết thúc phải sau ngày bắt đầu.");
   if (!scopeUserIds.length) return showToast("Vui lòng chọn ít nhất 1 người được chấm thay.");
   const delegator = users.find(user => user.unitId === deputy.unitId && user.role === "unit_head");
+  const grantedBy = delegator || currentUser();
   delegations.push({
-    id: `DEL-${Date.now()}`, delegatorId: delegator ? delegator.id : currentUser().id, delegateId: deputy.id,
+    id: `DEL-${Date.now()}`, delegatorId: grantedBy.id, delegateId: deputy.id,
     unitId: deputy.unitId, startsAt, endsAt, scopeUserIds, status: "active"
   });
   saveDelegations();
   auditEvents.push({ at: new Date().toISOString(), actor: currentUser().name, action: "Cấp ủy quyền chấm điểm", detail: `${deputy.name} · ${scopeUserIds.length} người · ${formatDate(startsAt)}–${formatDate(endsAt)}` });
   localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(auditEvents));
+  // Bao cho NGUOI DUOC UY QUYEN biet - truoc day khong co gi ca, ho phai
+  // tu vao "Nhat ky cong tac cua don vi" moi phat hien minh vua duoc uy quyen.
+  systemNotifications.push({
+    id: `ON-${Date.now()}-${deputy.id}`, userId: deputy.id, type: "delegation_granted",
+    title: "Bạn được ủy quyền chấm điểm thay",
+    message: `${grantedBy.name} đã ủy quyền cho bạn chấm điểm thay ${scopeUserIds.length} người, từ ${formatDate(startsAt)} đến ${formatDate(endsAt)}.`,
+    view: "administration",
+    createdAt: new Date().toISOString()
+  });
+  saveSystemNotifications();
   showToast("Đã cấp ủy quyền.");
   renderAdministration();
 }
@@ -2605,6 +2635,16 @@ function revokeDelegation(id) {
   const deputy = userById(delegation.delegateId);
   auditEvents.push({ at: new Date().toISOString(), actor: currentUser().name, action: "Thu hồi ủy quyền", detail: `${deputy ? deputy.name : "—"} · ${unitDisplayName(delegation.unitId)}` });
   localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(auditEvents));
+  if (deputy) {
+    systemNotifications.push({
+      id: `ON-${Date.now()}-${deputy.id}`, userId: deputy.id, type: "delegation_revoked",
+      title: "Ủy quyền chấm điểm đã bị thu hồi",
+      message: `${currentUser().name} đã thu hồi ủy quyền chấm điểm của bạn.`,
+      view: "administration",
+      createdAt: new Date().toISOString()
+    });
+    saveSystemNotifications();
+  }
   showToast("Đã thu hồi ủy quyền.");
   renderAdministration();
 }

@@ -285,7 +285,7 @@ async function fetchDashboardScopeProfiles(){
   if(U.rl==='unit_head'||U.rl==='unit_deputy'){
     var r=await fetch(API+'profiles?unit_id=eq.'+U.uid+'&role=neq.administrator&select='+sel,{headers:authHeaders()});
     if(!r.ok)throw new Error('HTTP '+r.status);
-    return await r.json();
+    return filterVisibleInUnitScope(await r.json());
   }
   if(U.rl==='province_deputy'){
     var ids=(U.assignedUnits||[]);
@@ -1333,6 +1333,22 @@ async function refreshTaskOverdueBadge(){
   }catch(e){}
 }
 
+// Loc theo don vi (unit_id) khong phan biet CAP BAC trong cung 1 don vi -
+// vi du Pho phong (unit_deputy) va Truong phong (unit_head) o cung 1
+// unit_id, nen 1 truy van chi loc theo unit_id se lam Pho phong "thay"
+// duoc Truong phong trong danh sach nguoi/nhat ky cua don vi (loi that:
+// cap duoi xem duoc nhat ky cap tren). Dung thang bac de loai nguoi CAO
+// HON viewer ra khoi ket qua - khong anh huong cac truong hop dung san
+// (vi du Pho VT tinh van thay duoc Truong phong don vi minh phu trach).
+var ROLE_RANK={province_head:4,province_deputy:3,unit_head:2,unit_deputy:1,staff:0,support_staff:0};
+function isVisibleInUnitScope(personRole){
+  if(personRole==='administrator')return false;
+  return (ROLE_RANK[personRole]||0)<=(ROLE_RANK[U.rl]||0);
+}
+function filterVisibleInUnitScope(list){
+  return list.filter(function(p){return isVisibleInUnitScope(p.role)});
+}
+
 function canReviewLog(log,author){
   if(!author||log.author_id===U.id)return false;
   var ar=author.role,auid=author.unit_id;
@@ -1581,7 +1597,14 @@ async function ruj(){
   $('appView').innerHTML='<div class="empty-state"><strong>Đang tải...</strong></div>';
   try{
     UJ_PEOPLE=await fetchDashboardScopeProfiles();
-    UJ_LOGS=await fetchUnitJournalLogs(UJ_PERIOD);
+    var rawLogs=await fetchUnitJournalLogs(UJ_PERIOD);
+    // fetchUnitJournalLogs() chi loc theo don vi, chua loai nguoi CAO HON
+    // viewer (vi du Pho phong khong duoc thay nhat ky cua Truong phong) -
+    // UJ_PEOPLE da loc dung (filterVisibleInUnitScope), doi chieu lai o day.
+    var visibleAuthorIds={};
+    UJ_PEOPLE.forEach(function(p){visibleAuthorIds[p.id]=true});
+    visibleAuthorIds[U.id]=true;
+    UJ_LOGS=rawLogs.filter(function(l){return visibleAuthorIds[l.author_id]});
   }catch(e){
     $('appView').innerHTML='<div class="empty-state"><strong>Không tải được dữ liệu</strong><span>'+esc(e.message)+'</span></div>';
     return;
@@ -1749,7 +1772,7 @@ async function fetchMonthlyScopeProfiles(){
   if(U.rl==='unit_head'||U.rl==='unit_deputy'){
     var r=await fetch(API+'profiles?unit_id=eq.'+U.uid+'&role=neq.administrator&select='+sel,{headers:authHeaders()});
     if(!r.ok)throw new Error('HTTP '+r.status);
-    return await r.json();
+    return filterVisibleInUnitScope(await r.json());
   }
   if(U.rl==='province_deputy'){
     var ids=(U.assignedUnits||[]);
@@ -2286,7 +2309,8 @@ async function fetchNotifications(){
     var nr=await fetch(API+'notifications?user_id=eq.'+U.id+'&order=created_at.desc&limit=20',{headers:authHeaders()});
     (nr.ok?await nr.json():[]).forEach(function(n){
       var tone=n.type==='score_override_escalation'?'escalation':n.type==='score_overridden_by_senior'?'revision':'account';
-      list.push({id:'db-'+n.id,tone:tone,title:n.title,message:n.body||'',time:shortDate((n.created_at||'').slice(0,10)),view:'unitJournal'});
+      var view=(n.type==='delegation_granted'||n.type==='delegation_revoked')?'administration':'unitJournal';
+      list.push({id:'db-'+n.id,tone:tone,title:n.title,message:n.body||'',time:shortDate((n.created_at||'').slice(0,10)),view:view});
     });
   }catch(e){}
   // Nhac qua han giao viec: ad-hoc nhu cac loai khac (khong dung bang
