@@ -301,6 +301,7 @@ const state = {
   ujSearch: "",
   ujSelectedPersonId: null,
   ujPeriod: recentPeriods()[0],
+  orgExpandedUnitId: null,
   notesMonth: DEMO_TODAY.slice(0, 7),
   notesSelectedDate: DEMO_TODAY
 };
@@ -2386,6 +2387,10 @@ function renderOrganization() {
     </div></section></div>`;
   document.querySelectorAll("[data-save-role]").forEach(button => button.addEventListener("click", () => saveAccountRole(button.dataset.saveRole)));
   document.querySelectorAll("[data-toggle-active]").forEach(button => button.addEventListener("click", () => toggleAccountActive(button.dataset.toggleActive)));
+  document.querySelectorAll("[data-org-unit-toggle]").forEach(button => button.addEventListener("click", () => {
+    state.orgExpandedUnitId = state.orgExpandedUnitId === button.dataset.orgUnitToggle ? null : button.dataset.orgUnitToggle;
+    renderOrganization();
+  }));
   bindRoleSelectToggle();
   bindAssignRoleSearch();
 }
@@ -2865,8 +2870,13 @@ function submitTaskDueDate(event) {
 
 function orgUnitCard(unit) {
   const head = users.find(user => user.unitId === unit.id && user.role === "unit_head");
-  const memberCount = users.filter(user => user.unitId === unit.id).length;
-  return `<div class="org-unit"><div><strong>${unit.short}</strong><span>${head ? head.name : "Chưa phân công người đứng đầu"}</span></div><span class="score-pill score-mid">${memberCount} người</span></div>`;
+  const members = users.filter(user => user.unitId === unit.id && user.accountStatus !== "pending")
+    .slice().sort((a, b) => (ROLE_RANK[b.role] ?? 0) - (ROLE_RANK[a.role] ?? 0) || a.name.localeCompare(b.name));
+  const expanded = state.orgExpandedUnitId === unit.id;
+  const memberRows = expanded
+    ? `<div class="org-unit-members">${members.length ? members.map(m => `<div class="org-member-row"><span>${m.name}</span><span class="meta-tag">${ROLE_LABELS[m.role] || m.role}</span>${m.active === false ? `<span class="meta-tag meta-tag-warning">Đã khoá</span>` : ""}</div>`).join("") : `<span class="unit-checklist-empty">Chưa có nhân sự</span>`}</div>`
+    : "";
+  return `<div class="org-unit-wrap"><button type="button" class="org-unit ${expanded ? "is-expanded" : ""}" data-org-unit-toggle="${unit.id}"><div><strong>${unit.short}</strong><span>${head ? head.name : "Chưa phân công người đứng đầu"}</span></div><span class="score-pill score-mid">${members.length} người</span></button>${memberRows}</div>`;
 }
 
 function openRegisterModal() {

@@ -1247,6 +1247,7 @@ async function deleteNote(noteId){
 // ============================================
 // CO CAU TO CHUC - chi xem, khong dong den tai khoan/nhan su that
 // ============================================
+var ORG_EXPANDED_UNIT_ID=null;
 async function ro(){
   $('pageEyebrow').textContent='MÔ HÌNH TỔ CHỨC';$('pageTitle').textContent='Cơ cấu và phân quyền';
   if(!isAdminOrProvinceHead()){V='dashboard';render();return}
@@ -1263,8 +1264,14 @@ async function ro(){
   var regionals=UNITS.filter(function(u){return u.type==='regional'});
   function orgUnitCardHtml(unit){
     var head=people.find(function(p){return p.unit_id===unit.id&&p.role==='unit_head'});
-    var memberCount=people.filter(function(p){return p.unit_id===unit.id}).length;
-    return '<div class="org-unit"><div><strong>'+esc(unit.short_name||unit.code)+'</strong><span>'+(head?esc(head.full_name):'Chưa xác định người đứng đầu')+'</span></div><span class="score-pill score-mid">'+memberCount+' người</span></div>';
+    var members=people.filter(function(p){return p.unit_id===unit.id}).slice().sort(function(a,b){
+      return (ROLE_RANK[b.role]||0)-(ROLE_RANK[a.role]||0) || a.full_name.localeCompare(b.full_name);
+    });
+    var expanded=ORG_EXPANDED_UNIT_ID===unit.id;
+    var memberRows=expanded?('<div class="org-unit-members">'+(members.length?members.map(function(m){
+      return '<div class="org-member-row"><span>'+esc(m.full_name)+'</span><span class="meta-tag">'+esc(ROLE_LABELS[m.role]||m.role)+'</span>'+(m.is_active===false?'<span class="meta-tag meta-tag-warning">Chưa kích hoạt</span>':'')+'</div>';
+    }).join(''):'<span class="unit-checklist-empty">Chưa có nhân sự</span>')+'</div>'):'';
+    return '<div class="org-unit-wrap"><button type="button" class="org-unit '+(expanded?'is-expanded':'')+'" data-org-unit-toggle="'+unit.id+'"><div><strong>'+esc(unit.short_name||unit.code)+'</strong><span>'+(head?esc(head.full_name):'Chưa xác định người đứng đầu')+'</span></div><span class="score-pill score-mid">'+members.length+' người</span></button>'+memberRows+'</div>';
   }
   var h='<div class="dashboard-grid">'
     +'<section class="panel panel-wide"><div class="panel-header"><div><h2>Cây tổ chức</h2><p>Hai nhóm đơn vị ngang cấp, cùng trực thuộc VKSND tỉnh</p></div></div><div class="org-tree"><div class="org-root"><strong>VKSND tỉnh</strong><span>Viện trưởng · Các Phó Viện trưởng</span></div><div class="org-branches"><div class="org-column"><h3>Phòng chuyên trách</h3>'+departments.map(orgUnitCardHtml).join('')+'</div><div class="org-column"><h3>VKSND khu vực</h3>'+regionals.map(orgUnitCardHtml).join('')+'</div></div></div></section>'
@@ -1278,6 +1285,10 @@ async function ro(){
   $('appView').innerHTML=h;
   document.querySelectorAll('[data-save-role]').forEach(function(b){b.addEventListener('click',function(){saveAccountRole(b.dataset.saveRole)})});
   document.querySelectorAll('[data-toggle-active]').forEach(function(b){b.addEventListener('click',function(){toggleAccountActive(b.dataset.toggleActive,b.dataset.active==='true')})});
+  document.querySelectorAll('[data-org-unit-toggle]').forEach(function(b){b.addEventListener('click',function(){
+    ORG_EXPANDED_UNIT_ID=ORG_EXPANDED_UNIT_ID===b.dataset.orgUnitToggle?null:b.dataset.orgUnitToggle;
+    ro();
+  })});
   bindRoleSelectToggle();
   bindAssignRoleSearch();
 }
