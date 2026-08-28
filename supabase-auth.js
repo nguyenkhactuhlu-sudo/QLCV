@@ -23,8 +23,14 @@
     try{
       var r=await fetch(URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{'apikey':KEY,'Content-Type':'application/json'},body:JSON.stringify({email:em,password:pw})});
       var d=await r.json();if(!r.ok)throw new Error(d.error_description||d.msg||'Sai email hoặc mật khẩu');
-      if(typeof window.QLCV_saveSession==='function')window.QLCV_saveSession(d.access_token,d.refresh_token,d.expires_in);
-      else localStorage.setItem('st',JSON.stringify({t:d.access_token,r:d.refresh_token,e:Date.now()+(d.expires_in||3600)*1000}));
+      var rememberEl=document.getElementById('rememberLogin');
+      var remember=rememberEl?rememberEl.checked:true;
+      if(typeof window.QLCV_saveSession==='function')window.QLCV_saveSession(d.access_token,d.refresh_token,d.expires_in,remember);
+      else{
+        var payload=JSON.stringify({t:d.access_token,r:d.refresh_token,e:Date.now()+(d.expires_in||3600)*1000});
+        (remember?localStorage:sessionStorage).setItem('st',payload);
+        (remember?sessionStorage:localStorage).removeItem('st');
+      }
       btn.disabled=false;btn.textContent='Đăng nhập';
       if(typeof window.QLCV_afterLogin==='function'){
         await window.QLCV_afterLogin(d.access_token,d.user.id,d.user.email);

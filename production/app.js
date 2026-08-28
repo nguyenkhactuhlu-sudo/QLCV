@@ -12,14 +12,29 @@ var NativeURL=window.URL;
 var URL=window.VITE_SUPABASE_URL;
 var KEY=window.VITE_SUPABASE_ANON_KEY;
 var API=URL+'/rest/v1/';var AUTH=URL+'/auth/v1/';
-function tkn(){try{return JSON.parse(localStorage.getItem('st')).t}catch(e){return''}}
+// "Ghi nho dang nhap": phien luu o localStorage (con sau khi dong trinh
+// duyet) neu nguoi dung tich chon, hoac sessionStorage (mat khi dong tab/
+// trinh duyet, giu nguyen khi F5) neu khong tich - dung chung 1 key 'st' o
+// CA HAI noi, chi 1 noi co gia tri that tai 1 thoi diem. activeStorage()
+// tra ve noi dang thuc su giu phien, uu tien localStorage.
+function activeStorage(){
+  if(localStorage.getItem('st'))return localStorage;
+  if(sessionStorage.getItem('st'))return sessionStorage;
+  return localStorage;
+}
+function tkn(){try{return JSON.parse(activeStorage().getItem('st')).t}catch(e){return''}}
 function authHeaders(extra){var h={'apikey':KEY,'Authorization':'Bearer '+tkn()};if(extra)for(var k in extra)h[k]=extra[k];return h}
 
 // Luu phien dang nhap kem thoi diem het han THAT (tu Supabase tra ve), tru
 // bot 30 giay cho an toan, thay vi doan cung 1 gio nhu truoc.
-function saveSession(accessToken,refreshToken,expiresIn){
+// "remember" chi truyen khi dang nhap that (tu form) - khi lam moi ngam
+// (refreshSession) khong truyen, de tu dong giu nguyen noi dang luu.
+function saveSession(accessToken,refreshToken,expiresIn,remember){
   var expiresAt=Date.now()+(Number(expiresIn)||3600)*1000-30000;
-  localStorage.setItem('st',JSON.stringify({t:accessToken,r:refreshToken,e:expiresAt}));
+  var payload=JSON.stringify({t:accessToken,r:refreshToken,e:expiresAt});
+  var target=remember===undefined?activeStorage():(remember?localStorage:sessionStorage);
+  target.setItem('st',payload);
+  (target===localStorage?sessionStorage:localStorage).removeItem('st');
 }
 window.QLCV_saveSession=saveSession;
 
@@ -28,7 +43,7 @@ window.QLCV_saveSession=saveSession;
 // nhung khong co gi thay doi vi phien da het han ma khong ai biet).
 async function refreshSession(){
   try{
-    var st=localStorage.getItem('st');if(!st)return false;
+    var st=activeStorage().getItem('st');if(!st)return false;
     var sj=JSON.parse(st);if(!sj.r)return false;
     var r=await fetch(AUTH+'token?grant_type=refresh_token',{method:'POST',headers:{'apikey':KEY,'Content-Type':'application/json'},body:JSON.stringify({refresh_token:sj.r})});
     var d=await r.json();
@@ -40,7 +55,7 @@ async function refreshSession(){
 
 function scheduleSessionRefresh(){
   setInterval(async function(){
-    var st=localStorage.getItem('st');if(!st)return;
+    var st=activeStorage().getItem('st');if(!st)return;
     try{
       var sj=JSON.parse(st);
       if(sj.e&&sj.e-Date.now()<5*60*1000)await refreshSession();
@@ -2759,7 +2774,7 @@ async function submitAccountPassword(e){
 }
 
 function showToast(m){var t=$('toast');if(t){t.textContent=m;t.classList.add('is-visible');setTimeout(function(){t.classList.remove('is-visible')},3000)}}
-function x(){closeNotificationPanel();cj();localStorage.removeItem('st');U=null;$('appShell').hidden=true;$('loginScreen').hidden=false;document.body.classList.add('login-active')}
+function x(){closeNotificationPanel();cj();localStorage.removeItem('st');sessionStorage.removeItem('st');U=null;$('appShell').hidden=true;$('loginScreen').hidden=false;document.body.classList.add('login-active')}
 
 // Cho supabase-auth.js goi vao sau khi dang nhap/khoi phuc phien, khong can qua su kien rieng
 window.QLCV_afterLogin=initU;
@@ -2827,13 +2842,13 @@ document.addEventListener('DOMContentLoaded',function(){
 
   // Khoi phuc phien dang nhap neu con hieu luc (khong bat nguoi dung dang nhap lai khi tai trang)
   (async function(){
-    var st=localStorage.getItem('st');if(!st)return;
+    var st=activeStorage().getItem('st');if(!st)return;
     try{
       var sj2=JSON.parse(st);
       if(sj2.e<Date.now()){
         var refreshed=await refreshSession();
-        if(!refreshed){localStorage.removeItem('st');return}
-        sj2=JSON.parse(localStorage.getItem('st'));
+        if(!refreshed){localStorage.removeItem('st');sessionStorage.removeItem('st');return}
+        sj2=JSON.parse(activeStorage().getItem('st'));
       }
       var r=await fetch(URL+'/auth/v1/user',{headers:{'apikey':KEY,'Authorization':'Bearer '+sj2.t}});
       var d=await r.json();
