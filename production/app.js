@@ -160,6 +160,24 @@ async function initU(t,uid,em){
   refreshPendingBadge();
   refreshTaskOverdueBadge();
   renderNotificationsUI();
+  startNotificationPolling();
+}
+
+// Tu lam moi chuong thong bao dinh ky khi dang mo app - truoc day chi cap
+// nhat luc dang nhap/doi man hinh, de tab mo ca buoi thi viec moi giao/qua
+// han khong tu hien cho toi khi tai lai trang.
+var NOTIFICATION_POLL_INTERVAL=null;
+function startNotificationPolling(){
+  stopNotificationPolling();
+  NOTIFICATION_POLL_INTERVAL=setInterval(function(){
+    if(!U||U.pending)return;
+    renderNotificationsUI();
+    refreshPendingBadge();
+    refreshTaskOverdueBadge();
+  },120000);
+}
+function stopNotificationPolling(){
+  if(NOTIFICATION_POLL_INTERVAL){clearInterval(NOTIFICATION_POLL_INTERVAL);NOTIFICATION_POLL_INTERVAL=null}
 }
 
 function showPendingScreen(){
@@ -241,10 +259,22 @@ function rp(){
   $('appView').innerHTML='<div class="empty-state"><strong>Tính năng đang được xây dựng</strong><span>Phần này sẽ sớm được nối với dữ liệu thật.</span></div>';
 }
 
+// Nho bo loc lan truoc (ky bao cao, don vi dang xem...) giua cac lan dung,
+// khong phai chon lai tu dau moi lan vao. Chi la tien loi giao dien, KHONG
+// anh huong pham vi du lieu duoc phep xem (van do role/RLS quyet dinh).
+var FILTER_PREFS_KEY='qlcv_filter_prefs';
+function loadFilterPrefs(){try{return JSON.parse(localStorage.getItem(FILTER_PREFS_KEY))||{}}catch(e){return {}}}
+function saveFilterPrefs(patch){
+  var prefs=loadFilterPrefs();
+  for(var k in patch)prefs[k]=patch[k];
+  try{localStorage.setItem(FILTER_PREFS_KEY,JSON.stringify(prefs))}catch(e){}
+}
+var FILTER_PREFS=loadFilterPrefs();
+
 // ============================================
 // DASHBOARD - tong hop that, thay cho du lieu demo
 // ============================================
-var DASHBOARD_PERIOD='month',DASHBOARD_UNIT_FILTER='all',DASHBOARD_COMPARISON_MODE='unit',DASHBOARD_PERSON_UNIT='all';
+var DASHBOARD_PERIOD=FILTER_PREFS.dashboardPeriod||'month',DASHBOARD_UNIT_FILTER=FILTER_PREFS.dashboardUnit||'all',DASHBOARD_COMPARISON_MODE=FILTER_PREFS.dashboardComparisonMode||'unit',DASHBOARD_PERSON_UNIT=FILTER_PREFS.dashboardPersonUnit||'all';
 var DASHBOARD_SORT={key:'quality',direction:'desc'};
 var DASHBOARD_LOGS=[],DASHBOARD_PEOPLE=[];
 
@@ -531,10 +561,10 @@ async function rd(){
 
   $('appView').innerHTML=h;
 
-  var periodSel=$('dashboardPeriodFilter');if(periodSel)periodSel.addEventListener('change',function(e){DASHBOARD_PERIOD=e.target.value;rd()});
-  var unitSel=$('dashboardUnitFilter');if(unitSel)unitSel.addEventListener('change',function(e){DASHBOARD_UNIT_FILTER=e.target.value;rd()});
-  var cmpSel=$('comparisonMode');if(cmpSel)cmpSel.addEventListener('change',function(e){DASHBOARD_COMPARISON_MODE=e.target.value;rd()});
-  var cmpPersonSel=$('comparisonPersonUnit');if(cmpPersonSel)cmpPersonSel.addEventListener('change',function(e){DASHBOARD_PERSON_UNIT=e.target.value;rd()});
+  var periodSel=$('dashboardPeriodFilter');if(periodSel)periodSel.addEventListener('change',function(e){DASHBOARD_PERIOD=e.target.value;saveFilterPrefs({dashboardPeriod:DASHBOARD_PERIOD});rd()});
+  var unitSel=$('dashboardUnitFilter');if(unitSel)unitSel.addEventListener('change',function(e){DASHBOARD_UNIT_FILTER=e.target.value;saveFilterPrefs({dashboardUnit:DASHBOARD_UNIT_FILTER});rd()});
+  var cmpSel=$('comparisonMode');if(cmpSel)cmpSel.addEventListener('change',function(e){DASHBOARD_COMPARISON_MODE=e.target.value;saveFilterPrefs({dashboardComparisonMode:DASHBOARD_COMPARISON_MODE});rd()});
+  var cmpPersonSel=$('comparisonPersonUnit');if(cmpPersonSel)cmpPersonSel.addEventListener('change',function(e){DASHBOARD_PERSON_UNIT=e.target.value;saveFilterPrefs({dashboardPersonUnit:DASHBOARD_PERSON_UNIT});rd()});
   document.querySelectorAll('[data-summary-sort]').forEach(function(b){b.addEventListener('click',function(){
     var key=b.dataset.summarySort;
     DASHBOARD_SORT={key:key,direction:(DASHBOARD_SORT.key===key&&DASHBOARD_SORT.direction==='desc')?'asc':'desc'};
@@ -653,6 +683,23 @@ async function oj(logId,presetTaskId){
     form.elements.selfQuality.value=log.self_quality_score||'';
   }else{
     form.elements.workDate.valueAsDate=new Date();
+    // Khoi phuc nhap dang go do (neu co) - chi khi tao MOI thuc su (khong
+    // phai dang gan san 1 viec duoc giao, tranh de nham noi dung cu).
+    if(!presetTaskId){
+      var draft=loadJournalDraft();
+      if(draft){
+        if(draft.category)form.elements.category.value=draft.category;
+        form.elements.title.value=draft.title||'';
+        form.elements.result.value=draft.result||'';
+        if(draft.workRole)form.elements.workRole.value=draft.workRole;
+        if(draft.duration)form.elements.duration.value=draft.duration;
+        form.elements.evidence.value=draft.evidence||'';
+        if(draft.selfComplexity)form.elements.selfComplexity.value=draft.selfComplexity;
+        if(draft.selfQuality)form.elements.selfQuality.value=draft.selfQuality;
+        if(draft.workDate)form.elements.workDate.value=draft.workDate;
+        showToast('Đã khôi phục nội dung nháp trước đó.');
+      }
+    }
   }
   setVisible($('copyJournalBlock'),!canEdit);
   $('copyJournalPanel').hidden=true;
@@ -662,8 +709,33 @@ async function oj(logId,presetTaskId){
   checkJournalDateWarning();
   $('journalModal').hidden=false;document.body.style.overflow='hidden';
   (canEdit?form.elements.title:form.elements.category).focus();
+  if(!canEdit)bindJournalDraftAutosave();
 }
 function cj(){$('journalModal').hidden=true;document.body.style.overflow='';EDITING_ID=null}
+
+// Tu luu nhap noi dung dang go trong form tao nhat ky MOI (khong ap dung
+// khi dang sua/trinh lai, vi du lieu do da la that) - phong khi lo tat
+// tab/mat mang giua chung, khong mat trang noi dung da go.
+var JOURNAL_DRAFT_KEY='qlcv_journal_draft';
+function loadJournalDraft(){try{return JSON.parse(localStorage.getItem(JOURNAL_DRAFT_KEY))}catch(e){return null}}
+function clearJournalDraft(){localStorage.removeItem(JOURNAL_DRAFT_KEY)}
+function saveJournalDraft(){
+  if(EDITING_ID)return;
+  var f=$('journalForm');if(!f)return;
+  var draft={
+    workDate:f.elements.workDate.value,category:f.elements.category.value,title:f.elements.title.value,
+    result:f.elements.result.value,workRole:f.elements.workRole.value,duration:f.elements.duration.value,
+    evidence:f.elements.evidence.value,selfComplexity:f.elements.selfComplexity.value,selfQuality:f.elements.selfQuality.value
+  };
+  if(!draft.title&&!draft.result){clearJournalDraft();return}
+  try{localStorage.setItem(JOURNAL_DRAFT_KEY,JSON.stringify(draft))}catch(e){}
+}
+var JOURNAL_DRAFT_BOUND=false;
+function bindJournalDraftAutosave(){
+  if(JOURNAL_DRAFT_BOUND)return;
+  JOURNAL_DRAFT_BOUND=true;
+  $('journalForm').addEventListener('input',saveJournalDraft);
+}
 
 // Gan nhat ky voi 1 viec duoc giao (khong bat buoc) - chi cho chon khi
 // TAO MOI, giong "Sao chep nhat ky cu". Danh sach chi liet ke viec dang
@@ -775,6 +847,7 @@ async function sj(e){
           try{await fetch(API+'rpc/link_task_to_log',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_task_id:taskId,p_log_id:created.id})})}catch(e){}
         }
       }
+      clearJournalDraft();
       showToast('Đã gửi nhật ký.');
     }
     cj();
@@ -1758,7 +1831,7 @@ function ujDateGroupHtml(g,showAuthor){
 // DANH GIA THANG - thang diem 0-100 kem xep loai A/B/C theo quy dinh nganh
 // ============================================
 var CURRENT_PERIOD=ymStr(new Date().getFullYear(),new Date().getMonth());
-var MONTHLY_ROWS=[],SELECTED_MONTHLY_ID=null,MONTHLY_UNIT_FILTER='all';
+var MONTHLY_ROWS=[],SELECTED_MONTHLY_ID=null,MONTHLY_UNIT_FILTER=FILTER_PREFS.monthlyUnit||'all';
 
 function periodLabel(p){var parts=p.split('-');return 'Tháng '+parts[1]+'/'+parts[0]}
 function recentPeriods(){
@@ -1877,7 +1950,7 @@ async function rm(){
 
   document.querySelectorAll('[data-monthly-user]').forEach(function(b){b.addEventListener('click',function(){SELECTED_MONTHLY_ID=b.dataset.monthlyUser;rm()})});
   var filterEl=$('monthlyUnitFilter');
-  if(filterEl)filterEl.addEventListener('change',function(e){MONTHLY_UNIT_FILTER=e.target.value;SELECTED_MONTHLY_ID=null;rm()});
+  if(filterEl)filterEl.addEventListener('change',function(e){MONTHLY_UNIT_FILTER=e.target.value;saveFilterPrefs({monthlyUnit:MONTHLY_UNIT_FILTER});SELECTED_MONTHLY_ID=null;rm()});
   $('monthlyPeriodSelect').addEventListener('change',function(e){CURRENT_PERIOD=e.target.value;SELECTED_MONTHLY_ID=null;rm()});
   $('exportMonthly').addEventListener('click',openExportModal);
   if(selected){
@@ -2734,7 +2807,11 @@ function rs(){
     +'<div class="form-actions field-wide"><button type="submit" class="button button-primary">Đổi mật khẩu</button></div>'
     +'</form></div>';
   h+='<div class="panel" style="padding:18px;max-width:520px">'
-    +'<div class="form-actions field-wide"><button type="button" class="button button-danger" id="accountLogout">Đăng xuất</button></div>'
+    +'<div class="form-actions field-wide" style="justify-content:flex-start;gap:10px;flex-wrap:wrap">'
+    +'<button type="button" class="button button-danger" id="accountLogout">Đăng xuất</button>'
+    +'<button type="button" class="button button-secondary" id="accountLogoutEverywhere">Đăng xuất khỏi mọi thiết bị</button>'
+    +'</div>'
+    +'<p style="margin:10px 0 0;color:var(--muted);font-size:12px">Hủy tất cả phiên đăng nhập đang mở ở mọi máy/trình duyệt (kể cả máy đã "Ghi nhớ đăng nhập"), chỉ đăng nhập lại được từ đầu.</p>'
     +'</div>';
   $('appView').innerHTML=h;
   $('accountNameForm').addEventListener('submit',submitAccountName);
@@ -2742,6 +2819,19 @@ function rs(){
   $('toggleNewPassword').addEventListener('click',function(){togglePasswordField('newPasswordInput','toggleNewPassword')});
   $('toggleConfirmNewPassword').addEventListener('click',function(){togglePasswordField('confirmNewPasswordInput','toggleConfirmNewPassword')});
   $('accountLogout').onclick=x;
+  $('accountLogoutEverywhere').onclick=logoutEverywhere;
+}
+
+// Huy TOAN BO refresh token cua tai khoan nay (moi thiet bi/trinh duyet
+// dang con dang nhap), khong chi phien hien tai - dung API logout co san
+// cua Supabase Auth voi scope=global.
+async function logoutEverywhere(){
+  if(!confirm('Đăng xuất khỏi TẤT CẢ thiết bị đang đăng nhập tài khoản này?'))return;
+  try{
+    await fetch(AUTH+'logout?scope=global',{method:'POST',headers:authHeaders()});
+  }catch(e){}
+  showToast('Đã đăng xuất khỏi mọi thiết bị.');
+  x();
 }
 
 async function submitAccountName(e){
@@ -2774,7 +2864,7 @@ async function submitAccountPassword(e){
 }
 
 function showToast(m){var t=$('toast');if(t){t.textContent=m;t.classList.add('is-visible');setTimeout(function(){t.classList.remove('is-visible')},3000)}}
-function x(){closeNotificationPanel();cj();localStorage.removeItem('st');sessionStorage.removeItem('st');U=null;$('appShell').hidden=true;$('loginScreen').hidden=false;document.body.classList.add('login-active')}
+function x(){closeNotificationPanel();cj();stopNotificationPolling();localStorage.removeItem('st');sessionStorage.removeItem('st');U=null;$('appShell').hidden=true;$('loginScreen').hidden=false;document.body.classList.add('login-active')}
 
 // Cho supabase-auth.js goi vao sau khi dang nhap/khoi phuc phien, khong can qua su kien rieng
 window.QLCV_afterLogin=initU;

@@ -264,6 +264,20 @@ function generateMonthlyHistory() {
   return rows;
 }
 
+// Nho bo loc lan truoc (ky bao cao, don vi dang xem...) giua cac lan dung,
+// khong phai chon lai tu dau moi lan vao. Chi la tien loi giao dien, KHONG
+// anh huong pham vi du lieu duoc phep xem.
+const FILTER_PREFS_KEY = "vks-filter-prefs-demo-v1";
+function loadFilterPrefs() {
+  try { return JSON.parse(localStorage.getItem(FILTER_PREFS_KEY)) || {}; } catch { return {}; }
+}
+function saveFilterPrefs(patch) {
+  const prefs = loadFilterPrefs();
+  Object.assign(prefs, patch);
+  localStorage.setItem(FILTER_PREFS_KEY, JSON.stringify(prefs));
+}
+const filterPrefs = loadFilterPrefs();
+
 const query = new URLSearchParams(window.location.search);
 const requestedUser = query.get("role");
 const requestedView = query.get("view");
@@ -273,13 +287,13 @@ const state = {
   selectedReviewId: null,
   editingJournalId: null,
   selectedMonthlyUserId: null,
-  dashboardUnit: "all",
-  dashboardPeriod: "2026-08",
-  dashboardComparisonMode: "unit",
-  dashboardPersonUnit: "all",
+  dashboardUnit: filterPrefs.dashboardUnit || "all",
+  dashboardPeriod: filterPrefs.dashboardPeriod || "2026-08",
+  dashboardComparisonMode: filterPrefs.dashboardComparisonMode || "unit",
+  dashboardPersonUnit: filterPrefs.dashboardPersonUnit || "all",
   dashboardSummarySort: { key: "count", direction: "desc" },
-  monthlyUnit: "all",
-  monthlyPeriod: "2026-06",
+  monthlyUnit: filterPrefs.monthlyUnit || "all",
+  monthlyPeriod: filterPrefs.monthlyPeriod || "2026-06",
   journalStatusFilter: "all",
   journalSearch: "",
   ujMode: "person",
@@ -959,13 +973,13 @@ function renderDashboard() {
     </div>`;
 
   document.getElementById("resetDemo").addEventListener("click", resetDemo);
-  document.getElementById("dashboardPeriodFilter").addEventListener("change", event => { state.dashboardPeriod = event.target.value; renderDashboard(); });
+  document.getElementById("dashboardPeriodFilter").addEventListener("change", event => { state.dashboardPeriod = event.target.value; saveFilterPrefs({ dashboardPeriod: state.dashboardPeriod }); renderDashboard(); });
   const filter = document.getElementById("dashboardUnitFilter");
-  if (filter) filter.addEventListener("change", event => { state.dashboardUnit = event.target.value; renderDashboard(); });
+  if (filter) filter.addEventListener("change", event => { state.dashboardUnit = event.target.value; saveFilterPrefs({ dashboardUnit: state.dashboardUnit }); renderDashboard(); });
   const comparisonModeSelect = document.getElementById("comparisonMode");
-  if (comparisonModeSelect) comparisonModeSelect.addEventListener("change", event => { state.dashboardComparisonMode = event.target.value; renderDashboard(); });
+  if (comparisonModeSelect) comparisonModeSelect.addEventListener("change", event => { state.dashboardComparisonMode = event.target.value; saveFilterPrefs({ dashboardComparisonMode: state.dashboardComparisonMode }); renderDashboard(); });
   const comparisonPersonUnit = document.getElementById("comparisonPersonUnit");
-  if (comparisonPersonUnit) comparisonPersonUnit.addEventListener("change", event => { state.dashboardPersonUnit = event.target.value; renderDashboard(); });
+  if (comparisonPersonUnit) comparisonPersonUnit.addEventListener("change", event => { state.dashboardPersonUnit = event.target.value; saveFilterPrefs({ dashboardPersonUnit: state.dashboardPersonUnit }); renderDashboard(); });
   document.querySelectorAll("[data-summary-sort]").forEach(button => button.addEventListener("click", () => {
     const key = button.dataset.summarySort;
     state.dashboardSummarySort = {
@@ -1898,8 +1912,8 @@ function renderMonthly() {
 
   document.querySelectorAll("[data-monthly-user]").forEach(button => button.addEventListener("click", () => { state.selectedMonthlyUserId = button.dataset.monthlyUser; renderMonthly(); }));
   const filter = document.getElementById("monthlyUnitFilter");
-  if (filter) filter.addEventListener("change", event => { state.monthlyUnit = event.target.value; state.selectedMonthlyUserId = null; renderMonthly(); });
-  document.getElementById("monthlyPeriodFilter").addEventListener("change", event => { state.monthlyPeriod = event.target.value; state.selectedMonthlyUserId = null; renderMonthly(); });
+  if (filter) filter.addEventListener("change", event => { state.monthlyUnit = event.target.value; saveFilterPrefs({ monthlyUnit: state.monthlyUnit }); state.selectedMonthlyUserId = null; renderMonthly(); });
+  document.getElementById("monthlyPeriodFilter").addEventListener("change", event => { state.monthlyPeriod = event.target.value; saveFilterPrefs({ monthlyPeriod: state.monthlyPeriod }); state.selectedMonthlyUserId = null; renderMonthly(); });
   document.getElementById("exportMonthly").addEventListener("click", openExportModal);
   const saveButton = document.getElementById("saveMonthlyReview");
   if (saveButton && selected) saveButton.addEventListener("click", () => saveMonthlyReview(selected));
@@ -2848,6 +2862,23 @@ function openJournalModal(logId = null, presetTaskId = null) {
     form.elements.selfQuality.value = log.selfQuality || "";
   } else {
     form.elements.workDate.value = DEMO_TODAY;
+    // Khoi phuc nhap dang go do (neu co) - chi khi tao MOI thuc su (khong
+    // phai dang gan san 1 viec duoc giao, tranh de nham noi dung cu).
+    if (!presetTaskId) {
+      const draft = loadJournalDraft();
+      if (draft) {
+        if (draft.category) form.elements.category.value = draft.category;
+        form.elements.title.value = draft.title || "";
+        form.elements.result.value = draft.result || "";
+        if (draft.workRole) form.elements.workRole.value = draft.workRole;
+        if (draft.duration) form.elements.duration.value = draft.duration;
+        form.elements.evidence.value = draft.evidence || "";
+        if (draft.selfComplexity) form.elements.selfComplexity.value = draft.selfComplexity;
+        if (draft.selfQuality) form.elements.selfQuality.value = draft.selfQuality;
+        if (draft.workDate) form.elements.workDate.value = draft.workDate;
+        showToast("Đã khôi phục nội dung nháp trước đó.");
+      }
+    }
   }
   setVisible(document.getElementById("copyJournalBlock"), !canEdit);
   document.getElementById("copyJournalPanel").hidden = true;
@@ -2857,6 +2888,34 @@ function openJournalModal(logId = null, presetTaskId = null) {
   checkJournalDateWarning();
   document.getElementById("journalModal").hidden = false;
   (canEdit ? form.elements.title : form.elements.category).focus();
+  if (!canEdit) bindJournalDraftAutosave();
+}
+
+// Tu luu nhap noi dung dang go trong form tao nhat ky MOI (khong ap dung
+// khi dang sua/trinh lai, vi du lieu do da la that) - phong khi lo tat
+// tab/mat mang giua chung, khong mat trang noi dung da go.
+const JOURNAL_DRAFT_KEY = "vks-journal-draft-demo-v1";
+function loadJournalDraft() {
+  try { return JSON.parse(localStorage.getItem(JOURNAL_DRAFT_KEY)); } catch { return null; }
+}
+function clearJournalDraft() { localStorage.removeItem(JOURNAL_DRAFT_KEY); }
+function saveJournalDraft() {
+  if (state.editingJournalId) return;
+  const f = document.getElementById("journalForm");
+  if (!f) return;
+  const draft = {
+    workDate: f.elements.workDate.value, category: f.elements.category.value, title: f.elements.title.value,
+    result: f.elements.result.value, workRole: f.elements.workRole.value, duration: f.elements.duration.value,
+    evidence: f.elements.evidence.value, selfComplexity: f.elements.selfComplexity.value, selfQuality: f.elements.selfQuality.value
+  };
+  if (!draft.title && !draft.result) { clearJournalDraft(); return; }
+  localStorage.setItem(JOURNAL_DRAFT_KEY, JSON.stringify(draft));
+}
+let journalDraftBound = false;
+function bindJournalDraftAutosave() {
+  if (journalDraftBound) return;
+  journalDraftBound = true;
+  document.getElementById("journalForm").addEventListener("input", saveJournalDraft);
 }
 
 // Gan nhat ky voi 1 viec duoc giao (khong bat buoc) - chi cho chon khi
@@ -2985,6 +3044,7 @@ function submitJournal(event) {
   }
   saveLogs();
   closeJournalModal();
+  clearJournalDraft();
   showToast("Đã gửi nhật ký đến người đứng đầu đơn vị.");
   renderJournal();
 }
