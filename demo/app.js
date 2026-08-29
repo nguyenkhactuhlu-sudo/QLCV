@@ -94,21 +94,26 @@ const sampleRegistrationCodes = [
   { code: "P7-2026-C8T3", unitId: "p7", label: "Phòng 7", expiresAt: "2026-09-30", maxUses: 10, used: 10, active: false }
 ];
 
-// Uy quyen cham diem: gan voi danh sach nguoi cu the (scopeUserIds), khong
-// con la "ap dung ca don vi" nhu truoc - Truong phong chi dinh dung ai Pho
-// phong duoc cham thay, trong khoang thoi gian nao.
+// Uy quyen cham diem: THAY MAT 100% toan don vi (khong con chon danh sach
+// nguoi cu the) - Truong phong uy quyen cho 1 Pho phong thay minh cham
+// diem CA DON VI, trong 1 khoang thoi gian. Chi 1 uy quyen active tai 1
+// thoi diem cho 1 nguoi uy quyen (xem grantDelegation()).
 const sampleDelegations = [
-  { id: "DEL001", delegatorId: "u03", delegateId: "u04", unitId: "p1", startsAt: "2026-08-01", endsAt: "2026-08-31", scopeUserIds: ["u05", "u06", "u07"], status: "active" }
+  { id: "DEL001", delegatorId: "u03", delegateId: "u04", unitId: "p1", startsAt: "2026-08-01", endsAt: "2026-08-31", status: "active" }
 ];
 
 // Giao viec: lanh dao giao viec cho cap duoi trong pham vi duyet duoc
 // (dung lai canReviewLog) - hạn gợi ý khong bat buoc, nguoi nhan tu dat
 // han thuc te; bao cao ket qua = 1 nhat ky binh thuong qua dung quy
 // trinh Duyet & cham diem hien co (xem submitJournal/applyReview).
+// Giao viec ho tro giao CUNG LUC cho nhieu nguoi (1 chu tri + N phoi hop),
+// dung chung 1 taskGroupId de gom hien thi phia nguoi giao - moi nguoi
+// van la 1 dong rieng, tu theo doi tien do/han rieng (xem workRole).
 const sampleTaskAssignments = [
-  { id: "TASK001", assignerId: "u03", assigneeId: "u05", unitId: "p1", title: "Rà soát hồ sơ vụ án Nguyễn Văn A", description: "Tổng hợp chứng cứ, đối chiếu với cáo trạng trước khi báo cáo lãnh đạo.", suggestedDueDate: "2026-08-19", actualDueDate: "2026-08-20", status: "done", linkedLogId: "NK001", createdAt: "2026-08-15T09:00:00" },
-  { id: "TASK002", assignerId: "u03", assigneeId: "u06", unitId: "p1", title: "Chuẩn bị báo cáo kiểm sát tháng 8", description: "Tổng hợp số liệu kiểm sát điều tra tháng 8 gửi lãnh đạo phòng trước 30/8.", suggestedDueDate: "2026-08-28", actualDueDate: null, status: "pending", linkedLogId: null, createdAt: "2026-08-20T10:00:00" },
-  { id: "TASK003", assignerId: "u01", assigneeId: "u03", unitId: "p1", title: "Tổng hợp kết quả công tác quý III toàn Viện", description: "Trưởng phòng tổng hợp báo cáo quý III của Phòng 1 gửi Viện trưởng.", suggestedDueDate: "2026-08-20", actualDueDate: "2026-08-20", status: "pending", linkedLogId: null, createdAt: "2026-08-10T08:00:00" }
+  { id: "TASK001", taskGroupId: "TG001", assignerId: "u03", assigneeId: "u05", workRole: "chu_tri", unitId: "p1", title: "Rà soát hồ sơ vụ án Nguyễn Văn A", description: "Tổng hợp chứng cứ, đối chiếu với cáo trạng trước khi báo cáo lãnh đạo.", suggestedDueDate: "2026-08-19T16:30:00", actualDueDate: "2026-08-20T16:30:00", status: "done", linkedLogId: "NK001", createdAt: "2026-08-15T09:00:00" },
+  { id: "TASK002", taskGroupId: "TG002", assignerId: "u03", assigneeId: "u06", workRole: "chu_tri", unitId: "p1", title: "Chuẩn bị báo cáo kiểm sát tháng 8", description: "Tổng hợp số liệu kiểm sát điều tra tháng 8 gửi lãnh đạo phòng trước 30/8.", suggestedDueDate: "2026-08-28T17:00:00", actualDueDate: null, status: "pending", linkedLogId: null, createdAt: "2026-08-20T10:00:00" },
+  { id: "TASK002B", taskGroupId: "TG002", assignerId: "u03", assigneeId: "u07", workRole: "phoi_hop", unitId: "p1", title: "Chuẩn bị báo cáo kiểm sát tháng 8", description: "Tổng hợp số liệu kiểm sát điều tra tháng 8 gửi lãnh đạo phòng trước 30/8.", suggestedDueDate: "2026-08-28T17:00:00", actualDueDate: null, status: "pending", linkedLogId: null, createdAt: "2026-08-20T10:00:00" },
+  { id: "TASK003", taskGroupId: "TG003", assignerId: "u01", assigneeId: "u03", workRole: "chu_tri", unitId: "p1", title: "Tổng hợp kết quả công tác quý III toàn Viện", description: "Trưởng phòng tổng hợp báo cáo quý III của Phòng 1 gửi Viện trưởng.", suggestedDueDate: "2026-08-20T14:30:00", actualDueDate: "2026-08-20T14:30:00", status: "pending", linkedLogId: null, createdAt: "2026-08-10T08:00:00" }
 ];
 
 const sampleLogs = [
@@ -402,8 +407,8 @@ function isDelegationActive(delegation) {
   return delegation.status === "active" && delegation.startsAt <= DEMO_TODAY && DEMO_TODAY <= delegation.endsAt;
 }
 
-function activeDelegationScopeIds(delegateId) {
-  return delegations.filter(d => d.delegateId === delegateId && isDelegationActive(d)).flatMap(d => d.scopeUserIds);
+function hasActiveDelegation(delegateId) {
+  return delegations.some(d => d.delegateId === delegateId && isDelegationActive(d));
 }
 
 // Cap tren cua nguoi VUA THUC HIEN luot cham (khac voi cap tren cua tac
@@ -482,18 +487,37 @@ function dashboardLogs(includeAllPeriods = false) {
   return scoped;
 }
 
+// "Co nam trong chuoi quan ly nguoi nay khong" - dung cho Giao viec va lam
+// nen cho canReviewLog/canApproveMonthly. Khac canReviewLog: KHONG xet
+// nhat ky cu the nao (khong co khai niem "nop cho ai"), chi xet vai
+// tro + don vi - vi du dung de kiem tra "Pho phong nay co giao viec duoc
+// cho cán bo kia khong", ap dung cho MOI Pho phong trong don vi (khong
+// con gioi han theo danh sach uy quyen cu).
+function canManagePerson(person, viewer = currentUser()) {
+  if (!person || person.id === viewer.id) return false;
+  if (viewer.role === "province_head") {
+    return person.role === "province_deputy" || person.role === "unit_head" || person.unitId === "province";
+  }
+  if (viewer.role === "province_deputy") {
+    return person.role === "unit_head" && (viewer.assignedUnits || []).includes(person.unitId);
+  }
+  if (viewer.role === "unit_head") return person.unitId === viewer.unitId && person.role !== "unit_head";
+  if (viewer.role === "unit_deputy") return person.unitId === viewer.unitId && (person.role === "staff" || person.role === "support_staff");
+  return false;
+}
+
+// Co duyet duoc DUNG NHAT KY NAY khong - khac canManagePerson o cho: Pho
+// phong (unit_deputy) chi duyet duoc nhat ky da duoc "nop cho" dung minh
+// (log.submittedToId), TRU KHI dang duoc uy quyen thay mat 100% toan don
+// vi (hasActiveDelegation) thi duyet duoc ca don vi nhu Truong phong.
 function canReviewLog(log, reviewer = currentUser()) {
   const author = userById(log.authorId);
   if (!author || reviewer.id === author.id) return false;
-  if (reviewer.role === "province_head") {
-    return author.role === "province_deputy" || author.role === "unit_head" || author.unitId === "province";
+  if (reviewer.role === "unit_deputy") {
+    if (author.unitId === reviewer.unitId && hasActiveDelegation(reviewer.id)) return true;
+    return log.submittedToId === reviewer.id;
   }
-  if (reviewer.role === "province_deputy") {
-    return author.role === "unit_head" && (reviewer.assignedUnits || []).includes(author.unitId);
-  }
-  if (reviewer.role === "unit_head") return author.unitId === reviewer.unitId && author.role !== "unit_head";
-  if (reviewer.role === "unit_deputy") return activeDelegationScopeIds(reviewer.id).includes(author.id);
-  return false;
+  return canManagePerson(author, reviewer);
 }
 
 function reviewQueue() {
@@ -551,6 +575,7 @@ function initialize() {
   });
   document.getElementById("journalForm").addEventListener("submit", submitJournal);
   document.getElementById("journalForm").elements.workDate.addEventListener("change", checkJournalDateWarning);
+  document.getElementById("journalTaskSelect").addEventListener("change", applyTaskLinkToSubmitTo);
   document.getElementById("toggleCopyJournal").addEventListener("click", () => {
     const panel = document.getElementById("copyJournalPanel");
     panel.hidden = !panel.hidden;
@@ -761,8 +786,8 @@ function notificationsForCurrentUser() {
       id: `task-overdue-assignee-${task.id}`,
       tone: "escalation",
       title: "Việc được giao đã quá hạn",
-      message: `${task.title} — hạn ${formatDate(taskDueDate(task))}`,
-      time: shortDate(taskDueDate(task)),
+      message: `${task.title} — hạn ${formatDateTime(taskDueDate(task))}`,
+      time: formatDateTime(taskDueDate(task)),
       view: "tasks"
     });
   });
@@ -773,7 +798,7 @@ function notificationsForCurrentUser() {
       tone: "escalation",
       title: "Việc đã giao quá hạn chưa hoàn thành",
       message: `${assignee ? assignee.name : "Cán bộ"}: ${task.title}`,
-      time: shortDate(taskDueDate(task)),
+      time: formatDateTime(taskDueDate(task)),
       view: "tasks"
     });
   });
@@ -1237,8 +1262,12 @@ function renderJournal() {
 
 function journalCard(log, opts = {}) {
   const canEdit = log.status === "revision" && log.authorId === currentUser().id && !opts.readOnly;
-  const canOverride = log.status === "approved" && log.reviewerId && canReviewLog({ authorId: log.reviewerId }, currentUser());
+  // "Cap tren" cua nguoi DA CHAM (khong phai tac gia) - cau hoi thu bac
+  // chung, dung canManagePerson (khong phu thuoc submitted_to_id cua
+  // rieng nhat ky nay, khac canReviewLog).
+  const canOverride = log.status === "approved" && log.reviewerId && canManagePerson(userById(log.reviewerId), currentUser());
   const overridden = (log.scoringHistory || []).length >= 2;
+  const submittedToTag = log.submittedToId ? `<span class="meta-tag">Nộp cho: ${userById(log.submittedToId)?.name || "—"}</span>` : "";
   // Tu xoa: chi chinh tac gia, chi khi con "cho duyet"/"can bo sung" (da
   // duyet roi coi la du lieu chinh thuc, phai qua lanh dao). Lanh dao xoa
   // ho cap duoi: dung dung pham vi da co san trong canReviewLog, khong gioi
@@ -1251,7 +1280,7 @@ function journalCard(log, opts = {}) {
   const resubmission = log.revisionCount ? `<span class="meta-tag">Đã trình lại ${log.revisionCount} lần</span>` : "";
   const overriddenTag = overridden ? `<span class="meta-tag meta-tag-warning">Điểm đã được lãnh đạo cấp trên điều chỉnh</span>` : "";
   const authorTag = opts.authorName ? (opts.authorId ? `<button type="button" class="meta-tag journal-author-tag" data-uj-jump-person="${opts.authorId}">${opts.authorName}</button>` : `<span class="meta-tag journal-author-tag">${opts.authorName}</span>`) : "";
-  return `<article class="journal-card ${log.status === "revision" ? "is-revision" : ""}"><div class="journal-date"><strong>${shortDate(log.date)}</strong>${log.date.slice(0,4)}</div><div class="journal-body"><h3>${log.title}</h3><p>${log.result}</p>${revisionFeedback}<div class="journal-meta">${authorTag}<span class="meta-tag">${log.category}</span><span class="meta-tag">${log.workRole}</span><span class="meta-tag">${log.duration}</span>${resubmission}${overriddenTag}<span class="status-pill ${statusClass(log.status)}">${statusLabel(log.status)}</span></div></div><div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>${log.complexity ?? "—"}</strong></div><div class="score-box"><span>Chất lượng</span><strong>${log.quality ?? "—"}</strong></div></div>${canEdit ? `<button type="button" class="button button-primary button-small" data-edit-journal="${log.id}">Sửa và trình lại</button>` : ""}${canOverride ? `<button type="button" class="button button-secondary button-small" data-override-score="${log.id}">Điều chỉnh điểm</button>` : ""}${canDelete ? `<button type="button" class="button button-danger button-small" data-delete-log="${log.id}" data-delete-self="${canDeleteSelf ? "1" : "0"}">Xoá</button>` : ""}</div></article>`;
+  return `<article class="journal-card ${log.status === "revision" ? "is-revision" : ""}"><div class="journal-date"><strong>${shortDate(log.date)}</strong>${log.date.slice(0,4)}</div><div class="journal-body"><h3>${log.title}</h3><p>${log.result}</p>${revisionFeedback}<div class="journal-meta">${authorTag}<span class="meta-tag">${log.category}</span><span class="meta-tag">${log.workRole}</span><span class="meta-tag">${log.duration}</span>${submittedToTag}${resubmission}${overriddenTag}<span class="status-pill ${statusClass(log.status)}">${statusLabel(log.status)}</span></div></div><div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>${log.complexity ?? "—"}</strong></div><div class="score-box"><span>Chất lượng</span><strong>${log.quality ?? "—"}</strong></div></div>${canEdit ? `<button type="button" class="button button-primary button-small" data-edit-journal="${log.id}">Sửa và trình lại</button>` : ""}${canOverride ? `<button type="button" class="button button-secondary button-small" data-override-score="${log.id}">Điều chỉnh điểm</button>` : ""}${canDelete ? `<button type="button" class="button button-danger button-small" data-delete-log="${log.id}" data-delete-self="${canDeleteSelf ? "1" : "0"}">Xoá</button>` : ""}</div></article>`;
 }
 
 // Gom danh sach cho duyet theo tung tac gia (KSV), xep theo lan nop gan
@@ -1936,7 +1965,7 @@ function canApproveMonthly(person, reviewer = currentUser()) {
   if (reviewer.role === "province_head") return person.role === "province_deputy" || person.role === "unit_head";
   if (reviewer.role === "province_deputy") return person.role === "unit_head" && (reviewer.assignedUnits || []).includes(person.unitId);
   if (reviewer.role === "unit_head") return person.unitId === reviewer.unitId && person.role !== "unit_head";
-  if (reviewer.role === "unit_deputy") return activeDelegationScopeIds(reviewer.id).includes(person.id);
+  if (reviewer.role === "unit_deputy") return hasActiveDelegation(reviewer.id) && person.unitId === reviewer.unitId && person.role !== "unit_head";
   return false;
 }
 
@@ -2636,27 +2665,30 @@ function applyPersonnelTransfer() {
 }
 
 // ============================================
-// UY QUYEN THEO DANH SACH NGUOI CU THE - Truong phong/Vien truong KV chi
-// dinh dung ai Pho phong duoc cham thay, trong khoang thoi gian nao (khac
-// co che cu: ap dung ca don vi, khong chon duoc tung nguoi).
+// UY QUYEN THAY MAT 100% TOAN DON VI - Truong phong/Vien truong KV uy
+// quyen cho 1 Pho phong THAY MINH cham diem CA DON VI, trong 1 khoang
+// thoi gian - khong con chon danh sach nguoi cu the (truoc day 1 can
+// bo/KSV co the duoc NHIEU lanh dao khac nhau giao viec, gan co dinh
+// "nguoi nay luon do Pho X cham" khong dung thuc te - xem canReviewLog()
+// va "Nop cho lanh dao" trong form tao nhat ky).
 // ============================================
-function delegationCandidateStaff(unitId) {
-  return users.filter(user => user.unitId === unitId && (user.role === "staff" || user.role === "support_staff"));
-}
-
 // Quan tri vien/Vien truong tinh thay duoc TAT CA Pho phong/don vi; rieng
 // Truong phong/Chanh van phong (unit_head) chi thay va chon duoc pho
-// CUA DUNG DON VI MINH (khop dung pham vi RPC grant_delegation da kiem
-// tra o migration 00030 - khong hien thi cai ma ho khong co quyen dung).
+// CUA DUNG DON VI MINH.
 function delegationGrantFormHtml() {
   const user = currentUser();
   const scoped = !canManageAllAdministration(user);
   const deputies = users.filter(person => person.role === "unit_deputy" && (!scoped || person.unitId === user.unitId));
+  const delegatorId = scoped ? user.id : null;
+  const alreadyHasActive = delegatorId && delegations.some(d => d.delegatorId === delegatorId && isDelegationActive(d));
+  if (alreadyHasActive) {
+    return `<div class="empty-state compact-empty"><strong>Bạn đang có 1 ủy quyền còn hiệu lực</strong><span>Thu hồi ủy quyền hiện tại ở bảng bên dưới trước khi cấp ủy quyền mới.</span></div>`;
+  }
   return `<div class="form-grid compact-form">
     <label class="field field-wide"><span>Phó phòng/Phó Viện trưởng KV được ủy quyền</span><select id="delegationDeputy">${deputies.map(d => `<option value="${d.id}">${d.name} · ${unitById(d.unitId).short}</option>`).join("")}</select></label>
     <label class="field"><span>Từ ngày</span><input type="date" id="delegationStart" value="${DEMO_TODAY}"></label>
     <label class="field"><span>Đến ngày</span><input type="date" id="delegationEnd"></label>
-    <div class="field field-wide"><span>Chọn người được chấm thay</span><div class="unit-checklist" id="delegationScopeChecklist"></div></div>
+    <p class="metric-context field-wide">Trong thời gian này, Phó phòng được chọn sẽ thay mặt chấm điểm và duyệt nhật ký cho <strong>toàn bộ đơn vị</strong>, như Trưởng phòng.</p>
   </div><div class="review-actions"><button class="button button-primary" id="grantDelegation">Cấp ủy quyền</button></div>`;
 }
 
@@ -2665,57 +2697,45 @@ function delegationsTableHtml() {
   const scoped = !canManageAllAdministration(user);
   const visible = scoped ? delegations.filter(d => d.unitId === user.unitId) : delegations;
   if (!visible.length) return `<div class="empty-state compact-empty"><strong>Chưa có ủy quyền nào</strong></div>`;
-  return `<div class="table-wrap"><table><thead><tr><th>Phó phòng/Phó VT KV</th><th>Đơn vị</th><th>Phạm vi được chấm thay</th><th>Thời hạn</th><th>Trạng thái</th><th></th></tr></thead><tbody>${visible.slice().reverse().map(d => {
+  return `<div class="table-wrap"><table><thead><tr><th>Phó phòng/Phó VT KV</th><th>Đơn vị</th><th>Phạm vi</th><th>Thời hạn</th><th>Trạng thái</th><th></th></tr></thead><tbody>${visible.slice().reverse().map(d => {
     const deputy = userById(d.delegateId);
-    const scopeNames = d.scopeUserIds.map(id => userById(id)?.name).filter(Boolean).join(", ");
     const active = isDelegationActive(d);
     const statusLabel = d.status === "revoked" ? "Đã thu hồi" : active ? "Đang hiệu lực" : "Hết hạn";
     const statusTone = d.status === "revoked" ? "status-revision" : active ? "status-approved" : "status-pending";
-    return `<tr><td><strong>${deputy ? deputy.name : "—"}</strong></td><td>${unitDisplayName(d.unitId)}</td><td>${scopeNames || "—"}</td><td>${formatDate(d.startsAt)}–${formatDate(d.endsAt)}</td><td><span class="status-pill ${statusTone}">${statusLabel}</span></td><td class="numeric">${d.status === "active" ? `<button class="button button-danger button-small" data-revoke-delegation="${d.id}">Thu hồi</button>` : ""}</td></tr>`;
+    return `<tr><td><strong>${deputy ? deputy.name : "—"}</strong></td><td>${unitDisplayName(d.unitId)}</td><td>Toàn bộ đơn vị</td><td>${formatDate(d.startsAt)}–${formatDate(d.endsAt)}</td><td><span class="status-pill ${statusTone}">${statusLabel}</span></td><td class="numeric">${d.status === "active" ? `<button class="button button-danger button-small" data-revoke-delegation="${d.id}">Thu hồi</button>` : ""}</td></tr>`;
   }).join("")}</tbody></table></div>`;
 }
 
-function refreshDelegationScopeChecklist() {
-  const deputySelect = document.getElementById("delegationDeputy");
-  const checklist = document.getElementById("delegationScopeChecklist");
-  const deputy = userById(deputySelect.value);
-  const candidates = deputy ? delegationCandidateStaff(deputy.unitId) : [];
-  checklist.innerHTML = candidates.length
-    ? candidates.map(person => `<label><input type="checkbox" value="${person.id}"> ${person.name} · ${ROLE_LABELS[person.role]}</label>`).join("")
-    : `<span class="unit-checklist-empty">Đơn vị này chưa có cán bộ/người lao động</span>`;
-}
-
 function bindDelegationForm() {
-  const deputySelect = document.getElementById("delegationDeputy");
-  if (!deputySelect) return;
-  deputySelect.addEventListener("change", refreshDelegationScopeChecklist);
-  refreshDelegationScopeChecklist();
-  document.getElementById("grantDelegation").addEventListener("click", grantDelegation);
+  const grantButton = document.getElementById("grantDelegation");
+  if (!grantButton) return;
+  grantButton.addEventListener("click", grantDelegation);
 }
 
 function grantDelegation() {
   const deputy = userById(document.getElementById("delegationDeputy").value);
   const startsAt = document.getElementById("delegationStart").value;
   const endsAt = document.getElementById("delegationEnd").value;
-  const scopeUserIds = Array.from(document.querySelectorAll("#delegationScopeChecklist input:checked")).map(cb => cb.value);
   if (!deputy || !startsAt || !endsAt) return showToast("Vui lòng chọn đầy đủ Phó phòng và khoảng thời gian.");
   if (endsAt < startsAt) return showToast("Ngày kết thúc phải sau ngày bắt đầu.");
-  if (!scopeUserIds.length) return showToast("Vui lòng chọn ít nhất 1 người được chấm thay.");
   const delegator = users.find(user => user.unitId === deputy.unitId && user.role === "unit_head");
   const grantedBy = delegator || currentUser();
+  if (delegations.some(d => d.delegatorId === grantedBy.id && isDelegationActive(d))) {
+    return showToast("Bạn đang có 1 ủy quyền còn hiệu lực - hãy thu hồi trước khi cấp ủy quyền mới.");
+  }
   delegations.push({
     id: `DEL-${Date.now()}`, delegatorId: grantedBy.id, delegateId: deputy.id,
-    unitId: deputy.unitId, startsAt, endsAt, scopeUserIds, status: "active"
+    unitId: deputy.unitId, startsAt, endsAt, status: "active"
   });
   saveDelegations();
-  auditEvents.push({ at: new Date().toISOString(), actor: currentUser().name, action: "Cấp ủy quyền chấm điểm", detail: `${deputy.name} · ${scopeUserIds.length} người · ${formatDate(startsAt)}–${formatDate(endsAt)}` });
+  auditEvents.push({ at: new Date().toISOString(), actor: currentUser().name, action: "Cấp ủy quyền chấm điểm", detail: `${deputy.name} · Thay mặt toàn bộ đơn vị · ${formatDate(startsAt)}–${formatDate(endsAt)}` });
   localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(auditEvents));
   // Bao cho NGUOI DUOC UY QUYEN biet - truoc day khong co gi ca, ho phai
   // tu vao "Nhat ky cong tac cua don vi" moi phat hien minh vua duoc uy quyen.
   systemNotifications.push({
     id: `ON-${Date.now()}-${deputy.id}`, userId: deputy.id, type: "delegation_granted",
-    title: "Bạn được ủy quyền chấm điểm thay",
-    message: `${grantedBy.name} đã ủy quyền cho bạn chấm điểm thay ${scopeUserIds.length} người, từ ${formatDate(startsAt)} đến ${formatDate(endsAt)}.`,
+    title: "Bạn được ủy quyền thay mặt chấm điểm toàn bộ đơn vị",
+    message: `${grantedBy.name} đã ủy quyền cho bạn thay mặt chấm điểm toàn bộ đơn vị, từ ${formatDate(startsAt)} đến ${formatDate(endsAt)}.`,
     view: "administration",
     createdAt: new Date().toISOString()
   });
@@ -2748,26 +2768,47 @@ function revokeDelegation(id) {
 
 // ============================================
 // GIAO VIEC - lanh dao giao viec cho cap duoi trong pham vi duyet duoc
-// (dung lai canReviewLog, khong tao ma tran quyen moi). Han gop y khong
-// bat buoc; nguoi nhan tu dat han thuc te. Bao cao ket qua = 1 nhat ky
-// binh thuong, gan qua select "Gan voi viec duoc giao" trong form tao
-// nhat ky (xem submitJournal/openJournalModal); duyet xong tu chuyen
-// task sang "done" (xem applyReview).
+// (dung canManagePerson, khong con gioi han theo danh sach uy quyen cu -
+// bat ky Pho phong nao cung giao viec duoc cho bat ky ai trong don vi,
+// khop voi thuc te "1 nguoi duoc nhieu lanh dao giao viec"). Ho tro giao
+// CUNG LUC cho nhieu nguoi (1 chu tri + N phoi hop, dung chung 1
+// taskGroupId de gom hien thi phia nguoi giao - moi nguoi van la 1 dong
+// rieng, tu theo doi tien do/han rieng). Han gop y/han hoan thanh chinh
+// xac den gio:phut. Bao cao ket qua = 1 nhat ky binh thuong, gan qua
+// select "Gan voi viec duoc giao" trong form tao nhat ky (xem
+// submitJournal/openJournalModal); duyet xong tu chuyen task sang "done"
+// (xem applyReview).
 // ============================================
 const TASK_STATUS_LABELS = { pending: "Chờ thực hiện", reported: "Đã báo cáo, chờ duyệt", done: "Hoàn thành" };
 const TASK_STATUS_TONES = { pending: "status-pending", reported: "status-info", done: "status-approved" };
+const TASK_WORK_ROLE_LABELS = { chu_tri: "Chủ trì", phoi_hop: "Phối hợp" };
+
+// Dinh dang co dinh "dd/mm/yyyy hh:mm" (giong shortDateTime nhung khong co
+// dau phay, dung cho han giao viec).
+function formatDateTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const p2 = n => String(n).padStart(2, "0");
+  return `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+}
 
 function assignableUsers(user = currentUser()) {
-  return users.filter(person => canReviewLog({ authorId: person.id }, user));
+  return users.filter(person => canManagePerson(person, user));
 }
 
 function taskDueDate(task) {
   return task.actualDueDate || task.suggestedDueDate || null;
 }
 
+// So sanh timestamp DAY DU (gio:phut), dung thoi gian THUC TE - giong
+// cach da lam voi dem so lan cham khac de xuat trong thang (dung new
+// Date() that, khong dung lich gia lap co dinh cua demo), vi han giao
+// viec gio la mot moc thoi gian that, khong con la 1 "ngay" trong the
+// gioi demo nua.
 function isTaskOverdue(task) {
   const due = taskDueDate(task);
-  return task.status !== "done" && !!due && due < DEMO_TODAY;
+  return task.status !== "done" && !!due && new Date(due) < new Date();
 }
 
 function tasksAssignedByMe() {
@@ -2778,16 +2819,30 @@ function tasksAssignedToMe() {
   return taskAssignments.filter(task => task.assigneeId === currentUser().id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+// Gom cac dong "Viec toi da giao" theo taskGroupId thanh 1 nhom - 1 lan
+// giao cho nhieu nguoi hien thanh 1 the duy nhat.
+function taskGroupsAssignedByMe() {
+  const mine = tasksAssignedByMe();
+  const seen = new Set();
+  const groups = [];
+  mine.forEach(task => {
+    if (seen.has(task.taskGroupId)) return;
+    seen.add(task.taskGroupId);
+    groups.push(mine.filter(item => item.taskGroupId === task.taskGroupId));
+  });
+  return groups;
+}
+
 function renderTasks() {
   updateChrome("Giao việc", "PHÂN CÔNG VÀ THEO DÕI TIẾN ĐỘ");
   const user = currentUser();
   const candidates = assignableUsers(user);
-  const assignedByMe = tasksAssignedByMe();
+  const groupsByMe = taskGroupsAssignedByMe();
   const assignedToMe = tasksAssignedToMe();
   document.getElementById("appView").innerHTML = `<div class="admin-grid">
-    <section class="panel"><div class="panel-header"><div><h2>Việc tôi đã giao</h2><p>${assignedByMe.length} việc</p></div></div>
+    <section class="panel"><div class="panel-header"><div><h2>Việc tôi đã giao</h2><p>${groupsByMe.length} việc</p></div></div>
       ${candidates.length ? taskAssignFormHtml(candidates) : `<p class="metric-context">Bạn chưa có cán bộ/đơn vị nào thuộc phạm vi được phép giao việc.</p>`}
-      <div class="task-list">${assignedByMe.length ? assignedByMe.map(task => taskCardHtml(task, "assigner")).join("") : `<div class="empty-state compact-empty"><strong>Chưa giao việc nào</strong></div>`}</div>
+      <div class="task-list">${groupsByMe.length ? groupsByMe.map(taskGroupCardHtml).join("") : `<div class="empty-state compact-empty"><strong>Chưa giao việc nào</strong></div>`}</div>
     </section>
     <section class="panel"><div class="panel-header"><div><h2>Việc được giao cho tôi</h2><p>${assignedToMe.length} việc</p></div></div>
       <div class="task-list">${assignedToMe.length ? assignedToMe.map(task => taskCardHtml(task, "assignee")).join("") : `<div class="empty-state compact-empty"><strong>Chưa có việc được giao</strong></div>`}</div>
@@ -2800,11 +2855,13 @@ function renderTasks() {
 
 function taskAssignFormHtml(candidates) {
   const options = candidates.map(person => `<option value="${person.id}">${person.name} · ${unitById(person.unitId).short}</option>`).join("");
+  const checklist = candidates.map(person => `<label><input type="checkbox" name="supportIds" value="${person.id}"> ${person.name} · ${unitById(person.unitId).short}</label>`).join("");
   return `<form class="form-grid compact-form" id="taskAssignForm">
-    <label class="field field-wide"><span>Giao cho</span><select name="assigneeId" required>${options}</select></label>
+    <label class="field field-wide"><span>Người chủ trì</span><select name="leadId" required>${options}</select></label>
+    <div class="field field-wide"><span>Người phối hợp (không bắt buộc)</span><div class="unit-checklist" id="taskSupportChecklist">${checklist}</div></div>
     <label class="field field-wide"><span>Tên công việc</span><input type="text" name="title" required maxlength="200"></label>
     <label class="field field-wide"><span>Mô tả / yêu cầu</span><textarea name="description" rows="2"></textarea></label>
-    <label class="field"><span>Hạn gợi ý (không bắt buộc)</span><input type="date" name="suggestedDueDate"></label>
+    <label class="field"><span>Hạn gợi ý (không bắt buộc)</span><input type="datetime-local" name="suggestedDueDate"></label>
     <div class="review-actions"><button type="submit" class="button button-primary">Giao việc</button></div>
   </form>`;
 }
@@ -2815,20 +2872,50 @@ function bindTaskAssignForm() {
   form.addEventListener("submit", event => {
     event.preventDefault();
     const data = new FormData(form);
-    const assignee = userById(data.get("assigneeId"));
-    if (!assignee) { showToast("Vui lòng chọn người được giao việc."); return; }
+    const lead = userById(data.get("leadId"));
+    if (!lead) { showToast("Vui lòng chọn người chủ trì."); return; }
     const title = String(data.get("title") || "").trim();
     if (!title) { showToast("Vui lòng nhập tên công việc."); return; }
+    const supportUsers = Array.from(form.querySelectorAll('input[name="supportIds"]:checked'))
+      .map(checkbox => checkbox.value).filter(id => id !== lead.id).map(userById).filter(Boolean);
+    const description = String(data.get("description") || "").trim();
+    const suggestedDueDate = data.get("suggestedDueDate") || null;
+    const groupId = `TG-${Date.now()}`;
+    const createdAt = new Date().toISOString();
     taskAssignments.push({
-      id: `TASK-${Date.now()}`, assignerId: currentUser().id, assigneeId: assignee.id, unitId: assignee.unitId,
-      title, description: String(data.get("description") || "").trim(),
-      suggestedDueDate: data.get("suggestedDueDate") || null, actualDueDate: null,
-      status: "pending", linkedLogId: null, createdAt: new Date().toISOString()
+      id: `TASK-${Date.now()}-lead`, taskGroupId: groupId, assignerId: currentUser().id, assigneeId: lead.id, workRole: "chu_tri",
+      unitId: lead.unitId, title, description, suggestedDueDate, actualDueDate: null, status: "pending", linkedLogId: null, createdAt
+    });
+    supportUsers.forEach((person, index) => {
+      taskAssignments.push({
+        id: `TASK-${Date.now()}-s${index}`, taskGroupId: groupId, assignerId: currentUser().id, assigneeId: person.id, workRole: "phoi_hop",
+        unitId: person.unitId, title, description, suggestedDueDate, actualDueDate: null, status: "pending", linkedLogId: null, createdAt
+      });
     });
     saveTaskAssignments();
-    showToast(`Đã giao việc cho ${assignee.name}.`);
+    showToast(`Đã giao việc cho ${1 + supportUsers.length} người.`);
     renderTasks();
   });
+}
+
+// The gop 1 nhom giao viec (phia nguoi giao) - liet ke ro chu tri/phoi
+// hop kem trang thai rieng cua tung nguoi.
+function taskGroupCardHtml(rows) {
+  const lead = rows.find(row => row.workRole === "chu_tri") || rows[0];
+  const others = rows.filter(row => row !== lead);
+  const overdueAny = rows.some(isTaskOverdue);
+  const memberRow = row => {
+    const person = userById(row.assigneeId);
+    return `<div class="task-member-row"><span>${person ? person.name : "—"}</span><span class="meta-tag">${TASK_WORK_ROLE_LABELS[row.workRole]}</span><span class="status-pill ${TASK_STATUS_TONES[row.status]}">${TASK_STATUS_LABELS[row.status]}</span></div>`;
+  };
+  return `<article class="task-card ${overdueAny ? "is-overdue" : ""}">
+    <div class="task-card-header"><strong>${lead.title}</strong>${overdueAny ? `<span class="meta-tag meta-tag-warning">Có người quá hạn</span>` : ""}</div>
+    ${lead.description ? `<p>${lead.description}</p>` : ""}
+    <div class="task-card-meta">
+      ${lead.suggestedDueDate ? `<span>Hạn gợi ý: ${formatDateTime(lead.suggestedDueDate)}</span>` : ""}
+    </div>
+    <div class="task-member-list">${memberRow(lead)}${others.map(memberRow).join("")}</div>
+  </article>`;
 }
 
 function taskCardHtml(task, perspective) {
@@ -2837,8 +2924,12 @@ function taskCardHtml(task, perspective) {
   const counterpart = perspective === "assigner" ? assignee : assigner;
   const counterpartLabel = perspective === "assigner" ? "Giao cho" : "Người giao";
   const overdue = isTaskOverdue(task);
+  const roleTag = perspective === "assignee" ? `<span class="meta-tag">${TASK_WORK_ROLE_LABELS[task.workRole] || "Chủ trì"}</span>` : "";
+  const coAssignees = perspective === "assignee"
+    ? taskAssignments.filter(item => item.taskGroupId === task.taskGroupId && item.id !== task.id).map(item => userById(item.assigneeId)?.name).filter(Boolean)
+    : [];
   const dueSetter = perspective === "assignee" && task.status !== "done"
-    ? `<form class="task-due-form" data-set-due-form="${task.id}"><label><span>Hạn hoàn thành</span><input type="date" name="dueDate" value="${task.actualDueDate || ""}"></label><button type="submit" class="button button-secondary button-small">Đặt hạn</button></form>`
+    ? `<form class="task-due-form" data-set-due-form="${task.id}"><label><span>Hạn hoàn thành</span><input type="datetime-local" name="dueDate" value="${task.actualDueDate || ""}"></label><button type="submit" class="button button-secondary button-small">Đặt hạn</button></form>`
     : "";
   const reportButton = perspective === "assignee" && task.status === "pending"
     ? `<button type="button" class="button button-primary button-small" data-report-task="${task.id}">Ghi nhật ký cho việc này</button>` : "";
@@ -2847,9 +2938,11 @@ function taskCardHtml(task, perspective) {
     ${task.description ? `<p>${task.description}</p>` : ""}
     <div class="task-card-meta">
       <span>${counterpartLabel}: <strong>${counterpart ? counterpart.name : "—"}</strong></span>
-      ${task.suggestedDueDate ? `<span>Hạn gợi ý: ${formatDate(task.suggestedDueDate)}</span>` : ""}
-      ${task.actualDueDate ? `<span>Hạn đã đặt: ${formatDate(task.actualDueDate)}</span>` : ""}
+      ${roleTag}
+      ${task.suggestedDueDate ? `<span>Hạn gợi ý: ${formatDateTime(task.suggestedDueDate)}</span>` : ""}
+      ${task.actualDueDate ? `<span>Hạn đã đặt: ${formatDateTime(task.actualDueDate)}</span>` : ""}
       ${overdue ? `<span class="meta-tag meta-tag-warning">Quá hạn</span>` : ""}
+      ${coAssignees.length ? `<span>Cùng thực hiện: ${coAssignees.join(", ")}</span>` : ""}
     </div>
     ${dueSetter}${reportButton}
   </article>`;
@@ -2861,7 +2954,7 @@ function submitTaskDueDate(event) {
   const task = taskAssignments.find(item => item.id === form.dataset.setDueForm);
   if (!task) return;
   const value = form.elements.dueDate.value;
-  if (!value) { showToast("Vui lòng chọn ngày hoàn thành."); return; }
+  if (!value) { showToast("Vui lòng chọn thời điểm hoàn thành."); return; }
   task.actualDueDate = value;
   saveTaskAssignments();
   showToast("Đã đặt hạn hoàn thành.");
@@ -2972,6 +3065,7 @@ function openJournalModal(logId = null, presetTaskId = null) {
   document.getElementById("copyJournalPanel").hidden = true;
   document.getElementById("copyJournalSearch").value = "";
   renderCopyJournalList("");
+  refreshJournalSubmitToOptions(canEdit ? log : null);
   refreshJournalTaskOptions(canEdit ? log : null, presetTaskId);
   checkJournalDateWarning();
   document.getElementById("journalModal").hidden = false;
@@ -3010,6 +3104,9 @@ function bindJournalDraftAutosave() {
 // TAO MOI (giong "Sao chep nhat ky cu"), vi khi sua/trinh lai lien ket
 // da co san va khong thay doi. Danh sach chi liet ke viec dang "cho
 // thuc hien" cua CHINH minh (task.assigneeId === currentUser().id).
+// Khi chon 1 viec, tu dong "nop" nhat ky cho DUNG nguoi da giao viec do
+// (task.assignerId) va khoa o "Nop cho lanh dao" lai - khong con chon
+// tay, tranh nham lan.
 function refreshJournalTaskOptions(editingLog, presetTaskId) {
   const field = document.getElementById("journalTaskField");
   const select = document.getElementById("journalTaskSelect");
@@ -3023,6 +3120,41 @@ function refreshJournalTaskOptions(editingLog, presetTaskId) {
     const task = pendingTasks.find(item => item.id === presetTaskId);
     if (task) document.getElementById("journalForm").elements.title.value = task.title;
   }
+  applyTaskLinkToSubmitTo();
+}
+
+// Dong bo o "Nop cho lanh dao" theo lua chon o "Gan voi viec duoc giao"
+// hien tai - goi lai moi khi mo form HOAC nguoi dung tu doi lua chon o
+// select viec (xem binding trong initialize()).
+function applyTaskLinkToSubmitTo() {
+  const taskSelect = document.getElementById("journalTaskSelect");
+  const submitToSelect = document.getElementById("journalSubmitToSelect");
+  if (!taskSelect || !submitToSelect) return;
+  const task = taskSelect.value ? taskAssignments.find(item => item.id === taskSelect.value) : null;
+  if (task) {
+    submitToSelect.value = task.assignerId;
+    submitToSelect.disabled = true;
+  } else {
+    submitToSelect.disabled = false;
+  }
+}
+
+// Liet ke lanh dao truc tiep cua 1 don vi (Truong phong + toan bo Pho
+// phong) - cho phep cán bo/KSV tu chon nop nhat ky cho dung nguoi da
+// giao viec do, thay vi gan co dinh 1 nguoi duoc uy quyen (xem
+// canReviewLog()).
+function directLeadersFor(unitId, excludeId = null) {
+  return users.filter(user => user.unitId === unitId && (user.role === "unit_head" || user.role === "unit_deputy") && user.id !== excludeId);
+}
+
+function refreshJournalSubmitToOptions(editingLog) {
+  const select = document.getElementById("journalSubmitToSelect");
+  if (!select) return;
+  const user = currentUser();
+  const leaders = directLeadersFor(user.unitId, user.id);
+  select.innerHTML = leaders.map(leader => `<option value="${leader.id}">${leader.name} · ${ROLE_LABELS[leader.role]}</option>`).join("");
+  select.disabled = false;
+  if (editingLog && editingLog.submittedToId) select.value = editingLog.submittedToId;
 }
 
 // Cho phep nhap lui ngay (khong khoa qua khu), chi canh bao nhe khi chon
@@ -3078,6 +3210,9 @@ function submitJournal(event) {
   event.preventDefault();
   const data = new FormData(event.currentTarget);
   const user = currentUser();
+  // Doc truc tiep tu DOM (khong qua FormData) vi o nay co the bi disable
+  // khi khoa theo viec duoc giao - truong "disabled" bi FormData bo qua.
+  const submittedToId = event.currentTarget.elements.submittedToId.value || null;
   const editingLog = state.editingJournalId ? logs.find(log => log.id === state.editingJournalId) : null;
   if (editingLog) {
     if (editingLog.authorId !== user.id || editingLog.status !== "revision") {
@@ -3102,6 +3237,7 @@ function submitJournal(event) {
       date: data.get("workDate"), category: data.get("category"), title: data.get("title"), result: data.get("result"),
       workRole: data.get("workRole"), duration: data.get("duration"), evidence: data.get("evidence"),
       selfComplexity: Number(data.get("selfComplexity")), selfQuality: Number(data.get("selfQuality")),
+      submittedToId: submittedToId || editingLog.submittedToId,
       status: "pending", complexity: null, quality: null, reviewerId: null, comment: "", reviewedAt: null,
       updatedAt: now, resubmittedAt: now, revisionCount: reviewHistory.length, reviewHistory
     });
@@ -3119,17 +3255,19 @@ function submitJournal(event) {
   }
   const nextId = `NK${String(logs.length + 1).padStart(3, "0")}`;
   const taskAssignmentId = data.get("taskAssignmentId") || null;
+  const linkedTask = taskAssignmentId ? taskAssignments.find(item => item.id === taskAssignmentId && item.assigneeId === user.id && item.status === "pending") : null;
+  // Neu co gan voi 1 viec duoc giao, luon "nop" cho DUNG nguoi da giao
+  // viec do (khong tin o "Nop cho lanh dao" - da bi khoa o giao dien,
+  // nhung van tinh toan lai o day cho chac chan, phong khi bi can thiep).
   logs.push({
     id: nextId, authorId: user.id, unitId: user.unitId, date: data.get("workDate"), category: data.get("category"),
     title: data.get("title"), result: data.get("result"), workRole: data.get("workRole"), duration: data.get("duration"), evidence: data.get("evidence"),
     selfComplexity: Number(data.get("selfComplexity")), selfQuality: Number(data.get("selfQuality")),
+    submittedToId: linkedTask ? linkedTask.assignerId : submittedToId,
     status: "pending", complexity: null, quality: null, reviewerId: null, comment: "", createdAt: new Date().toISOString(), reviewedAt: null,
     taskAssignmentId
   });
-  if (taskAssignmentId) {
-    const task = taskAssignments.find(item => item.id === taskAssignmentId && item.assigneeId === user.id && item.status === "pending");
-    if (task) { task.linkedLogId = nextId; task.status = "reported"; saveTaskAssignments(); }
-  }
+  if (linkedTask) { linkedTask.linkedLogId = nextId; linkedTask.status = "reported"; saveTaskAssignments(); }
   saveLogs();
   closeJournalModal();
   clearJournalDraft();

@@ -143,17 +143,12 @@ async function initU(t,uid,em){
     var aur=await fetch(API+'unit_assignments?user_id=eq.'+uid+'&select=unit_id',{headers:{'apikey':KEY,'Authorization':'Bearer '+t}});
     var au=aur.ok?await aur.json():[];
     U.assignedUnits=(au||[]).map(function(x){return x.unit_id});
+    // Uy quyen gio la "thay mat 100% toan don vi" (khong con danh sach
+    // nguoi cu the) - chi can biet co dang active hay khong.
     var nowIso=new Date().toISOString();
     var delr=await fetch(API+'delegations?delegate_id=eq.'+uid+'&status=eq.active&starts_at=lte.'+nowIso+'&ends_at=gte.'+nowIso+'&select=id&limit=1',{headers:{'apikey':KEY,'Authorization':'Bearer '+t}});
     var del=delr.ok?await delr.json():[];
-    U.delegated=Array.isArray(del)&&del.length>0;
-    if(U.delegated){
-      var dsr=await fetch(API+'delegation_scopes?delegation_id=eq.'+del[0].id+'&select=staff_id',{headers:{'apikey':KEY,'Authorization':'Bearer '+t}});
-      var ds=dsr.ok?await dsr.json():[];
-      U.delegationScope=ds.map(function(x){return x.staff_id});
-    }else{
-      U.delegationScope=[];
-    }
+    U.hasFullDelegation=Array.isArray(del)&&del.length>0;
   }catch(e){}
   $('loginScreen').hidden=true;$('appShell').hidden=false;document.body.classList.remove('login-active');
   ub();V='dashboard';render();showToast('Đăng nhập thành công!');
@@ -589,7 +584,7 @@ async function rj(){
   if(U.rl==='administrator'){V='dashboard';render();return}
   $('appView').innerHTML='<div class="empty-state"><strong>Đang tải...</strong></div>';
   try{
-    var r=await fetch(API+'work_logs?author_id=eq.'+U.id+'&order=log_date.desc,created_at.desc',{headers:authHeaders()});
+    var r=await fetch(API+'work_logs?author_id=eq.'+U.id+'&order=log_date.desc,created_at.desc&select=*,submitted_to:submitted_to_id(full_name)',{headers:authHeaders()});
     if(!r.ok)throw new Error('HTTP '+r.status);
     LOGS=await r.json();
   }catch(e){
@@ -657,10 +652,12 @@ function journalCardHtml(log,opts){
   var resubmission=log.revision_count?'<span class="meta-tag">Đã trình lại '+log.revision_count+' lần</span>':'';
   var overriddenTag=(log._reviewCount||0)>=2?'<span class="meta-tag meta-tag-warning">Điểm đã được lãnh đạo cấp trên điều chỉnh</span>':'';
   var authorTag=opts.authorName?(opts.authorId?'<button type="button" class="meta-tag journal-author-tag" data-uj-jump-person="'+esc(opts.authorId)+'">'+esc(opts.authorName)+'</button>':'<span class="meta-tag journal-author-tag">'+esc(opts.authorName)+'</span>'):'';
+  var submittedToName=opts.submittedToName||(log.submitted_to&&log.submitted_to.full_name)||null;
+  var submittedToTag=submittedToName?'<span class="meta-tag">Nộp cho: '+esc(submittedToName)+'</span>':'';
   return '<article class="journal-card '+(log.status==='revision'?'is-revision':'')+'">'
     +'<div class="journal-date"><strong>'+shortDate(log.log_date)+'</strong>'+(log.log_date||'').slice(0,4)+'</div>'
     +'<div class="journal-body"><h3>'+esc(log.title)+'</h3><p>'+esc(log.result)+'</p>'+revisionFeedback
-    +'<div class="journal-meta">'+authorTag+'<span class="meta-tag">'+esc(catName(log.category_id))+'</span><span class="meta-tag">'+esc(WORK_ROLE_LABEL[log.work_role]||log.work_role)+'</span><span class="meta-tag">'+esc(DURATION_LABEL[log.duration]||log.duration)+'</span>'+resubmission+overriddenTag+'<span class="status-pill '+(STATUS_CLASS[log.status]||'')+'">'+(STATUS_LABEL[log.status]||log.status)+'</span></div></div>'
+    +'<div class="journal-meta">'+authorTag+'<span class="meta-tag">'+esc(catName(log.category_id))+'</span><span class="meta-tag">'+esc(WORK_ROLE_LABEL[log.work_role]||log.work_role)+'</span><span class="meta-tag">'+esc(DURATION_LABEL[log.duration]||log.duration)+'</span>'+submittedToTag+resubmission+overriddenTag+'<span class="status-pill '+(STATUS_CLASS[log.status]||'')+'">'+(STATUS_LABEL[log.status]||log.status)+'</span></div></div>'
     +'<div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>'+(log.complexity_score==null?'—':log.complexity_score)+'</strong></div><div class="score-box"><span>Chất lượng</span><strong>'+(log.quality_score==null?'—':log.quality_score)+'</strong></div></div>'
     +(canEdit?'<button type="button" class="button button-primary button-small" data-edit-journal="'+log.id+'">Sửa và trình lại</button>':'')
     +(opts.canOverride?'<button type="button" class="button button-secondary button-small" data-override-score="'+log.id+'">Điều chỉnh điểm</button>':'')
@@ -713,6 +710,7 @@ async function oj(logId,presetTaskId){
   $('copyJournalPanel').hidden=true;
   $('copyJournalSearch').value='';
   renderCopyJournalList('');
+  await refreshJournalSubmitToOptions(canEdit?log:null);
   await refreshJournalTaskOptions(canEdit?log:null,presetTaskId);
   checkJournalDateWarning();
   $('journalModal').hidden=false;document.body.style.overflow='hidden';
@@ -747,16 +745,20 @@ function bindJournalDraftAutosave(){
 
 // Gan nhat ky voi 1 viec duoc giao (khong bat buoc) - chi cho chon khi
 // TAO MOI, giong "Sao chep nhat ky cu". Danh sach chi liet ke viec dang
-// "cho thuc hien" cua CHINH minh.
+// "cho thuc hien" cua CHINH minh. Khi chon 1 viec, tu dong "nop" nhat ky
+// cho DUNG nguoi da giao viec do (task.assigner_id) va khoa o "Nop cho
+// lanh dao" lai - xem applyTaskLinkToSubmitTo().
+var JOURNAL_PENDING_TASKS=[];
 async function refreshJournalTaskOptions(editingLog,presetTaskId){
   var field=$('journalTaskField'),select=$('journalTaskSelect');
   if(!field||!select)return;
   if(editingLog){field.hidden=true;return}
   var pendingTasks=[];
   try{
-    var r=await fetch(API+'task_assignments?assignee_id=eq.'+U.id+'&status=eq.pending&select=id,title',{headers:authHeaders()});
+    var r=await fetch(API+'task_assignments?assignee_id=eq.'+U.id+'&status=eq.pending&select=id,title,assigner_id',{headers:authHeaders()});
     pendingTasks=r.ok?await r.json():[];
   }catch(e){}
+  JOURNAL_PENDING_TASKS=pendingTasks;
   field.hidden=pendingTasks.length===0;
   select.innerHTML='<option value="">— Không gắn với việc được giao —</option>'+pendingTasks.map(function(t){return '<option value="'+t.id+'">'+esc(t.title)+'</option>'}).join('');
   if(presetTaskId&&pendingTasks.some(function(t){return t.id===presetTaskId})){
@@ -764,6 +766,42 @@ async function refreshJournalTaskOptions(editingLog,presetTaskId){
     var task=pendingTasks.find(function(t){return t.id===presetTaskId});
     if(task)$('journalForm').elements.title.value=task.title;
   }
+  applyTaskLinkToSubmitTo();
+}
+
+// Dong bo o "Nop cho lanh dao" theo lua chon o "Gan voi viec duoc giao"
+// hien tai - goi lai moi khi mo form HOAC nguoi dung tu doi lua chon o
+// select viec (xem binding trong DOMContentLoaded).
+function applyTaskLinkToSubmitTo(){
+  var taskSelect=$('journalTaskSelect'),submitToSelect=$('journalSubmitToSelect');
+  if(!taskSelect||!submitToSelect)return;
+  var task=taskSelect.value?JOURNAL_PENDING_TASKS.find(function(t){return t.id===taskSelect.value}):null;
+  if(task){
+    submitToSelect.value=task.assigner_id;
+    submitToSelect.disabled=true;
+  }else{
+    submitToSelect.disabled=false;
+  }
+}
+
+// Liet ke lanh dao truc tiep cua don vi minh (Truong phong + toan bo Pho
+// phong) - cho phep cán bo/KSV tu chon nop nhat ky cho dung nguoi da
+// giao viec do, thay vi gan co dinh 1 nguoi duoc uy quyen (xem canReviewLog()).
+async function directLeadersFor(unitId,excludeId){
+  try{
+    var r=await fetch(API+'profiles?unit_id=eq.'+unitId+'&role=in.(unit_head,unit_deputy)&is_active=eq.true&select=id,full_name,role&order=full_name',{headers:authHeaders()});
+    var list=r.ok?await r.json():[];
+    return list.filter(function(p){return p.id!==excludeId});
+  }catch(e){return []}
+}
+
+async function refreshJournalSubmitToOptions(editingLog){
+  var select=$('journalSubmitToSelect');
+  if(!select)return;
+  var leaders=await directLeadersFor(U.uid,U.id);
+  select.innerHTML=leaders.map(function(l){return '<option value="'+l.id+'">'+esc(l.full_name)+' · '+(ROLE_LABELS[l.role]||l.role)+'</option>'}).join('');
+  select.disabled=false;
+  if(editingLog&&editingLog.submitted_to_id)select.value=editingLog.submitted_to_id;
 }
 
 // Cho phep nhap lui ngay (khong khoa qua khu), chi canh bao nhe khi chon
@@ -816,7 +854,11 @@ function applyCopyJournal(logId){
 async function sj(e){
   e.preventDefault();
   if(!requireActive())return;
-  var f=new FormData($('journalForm'));
+  var form=e.currentTarget;
+  var f=new FormData(form);
+  // Doc truc tiep tu DOM (khong qua FormData) vi o nay co the bi disable
+  // khi khoa theo viec duoc giao - truong "disabled" bi FormData bo qua.
+  var submittedToId=form.elements.submittedToId.value||null;
   var payload={
     log_date:f.get('workDate'),
     category_id:f.get('category'),
@@ -834,6 +876,7 @@ async function sj(e){
     if(EDITING_ID){
       var existing=LOGS.find(function(l){return l.id===EDITING_ID});
       payload.status='pending';
+      payload.submitted_to_id=submittedToId||(existing?existing.submitted_to_id:null);
       payload.reviewer_id=null;payload.reviewed_at=null;payload.review_comment=null;
       payload.revision_count=(existing?existing.revision_count:0)+1;
       var r=await fetch(API+'work_logs?id=eq.'+EDITING_ID,{method:'PATCH',headers:authHeaders({'Content-Type':'application/json','Prefer':'return=minimal'}),body:JSON.stringify(payload)});
@@ -846,6 +889,7 @@ async function sj(e){
       showToast('Đã chỉnh sửa và trình lại lãnh đạo chấm điểm.');
     }else{
       payload.author_id=U.id;payload.unit_id=U.uid;payload.status='pending';
+      payload.submitted_to_id=submittedToId;
       var taskId=f.get('taskAssignmentId')||null;
       var r2=await fetch(API+'work_logs',{method:'POST',headers:authHeaders({'Content-Type':'application/json','Prefer':taskId?'return=representation':'return=minimal'}),body:JSON.stringify(payload)});
       if(!r2.ok)throw new Error('HTTP '+r2.status);
@@ -867,20 +911,48 @@ async function sj(e){
 function unitShort(id){var u=UNITS.find(function(x){return x.id===id});return u?(u.short_name||u.code):'—'}
 
 // ============================================
-// GIAO VIEC - lanh dao giao viec cho cap duoi trong pham vi duyet duoc
-// (dung lai can_review_log, khong tao ma tran quyen moi). Han goi y khong
-// bat buoc; nguoi nhan tu dat han thuc te. Bao cao ket qua = 1 nhat ky
-// binh thuong, gan qua select "Gan voi viec duoc giao" trong form tao
-// nhat ky (oj/sj/refreshJournalTaskOptions o tren); duyet/tra lai tu
-// dong bo trang thai task (server-side, trong approve_work_log/
-// reject_work_log - migration 00031).
+// GIAO VIEC - lanh dao giao viec cho cap duoi trong pham vi canManagePerson
+// (bat ky Pho phong nao cung giao viec duoc cho bat ky ai trong don vi,
+// khop thuc te "1 nguoi duoc nhieu lanh dao cung giao viec"). Ho tro giao
+// CUNG LUC cho nhieu nguoi (1 chu tri + N phoi hop, dung chung 1
+// task_group_id de gom hien thi phia nguoi giao - moi nguoi van la 1 dong
+// rieng, tu theo doi tien do/han rieng). Han goi y/han hoan thanh chinh
+// xac den gio:phut. Bao cao ket qua = 1 nhat ky binh thuong, gan qua
+// select "Gan voi viec duoc giao" trong form tao nhat ky (oj/sj/
+// refreshJournalTaskOptions o tren); duyet/tra lai tu dong bo trang thai
+// task (server-side, trong approve_work_log/reject_work_log).
 // ============================================
 var TASK_STATUS_LABELS={pending:'Chờ thực hiện',reported:'Đã báo cáo, chờ duyệt',done:'Hoàn thành'};
 var TASK_STATUS_TONES={pending:'status-pending',reported:'status-info',done:'status-approved'};
-var TASKS_BY_ME=[],TASKS_TO_ME=[],TASK_CANDIDATES=[];
+var TASK_WORK_ROLE_LABELS={chu_tri:'Chủ trì',phoi_hop:'Phối hợp'};
+var TASKS_BY_ME=[],TASKS_TO_ME=[],TASK_CANDIDATES=[],TASK_GROUP_MEMBERS=[];
+
+// Dinh dang co dinh "dd/mm/yyyy hh:mm" (giong shortDateTime nhung khong co
+// dau phay, dung cho han giao viec).
+function formatDateTime(iso){
+  if(!iso)return '';
+  var d=new Date(iso);
+  if(isNaN(d.getTime()))return '';
+  var p2=function(n){return String(n).padStart(2,'0')};
+  return p2(d.getDate())+'/'+p2(d.getMonth()+1)+'/'+d.getFullYear()+' '+p2(d.getHours())+':'+p2(d.getMinutes());
+}
 
 function taskDueDate(t){return t.actual_due_date||t.suggested_due_date||null}
-function isTaskOverdue(t){var due=taskDueDate(t);return t.status!=='done'&&!!due&&due<todayStr()}
+// So sanh timestamp DAY DU (gio:phut), dung thoi gian THUC TE - han giao
+// viec gio la mot moc thoi gian that (TIMESTAMPTZ), khong con la 1 "ngay".
+function isTaskOverdue(t){var due=taskDueDate(t);return t.status!=='done'&&!!due&&new Date(due)<new Date()}
+
+// Gom cac dong "Viec toi da giao" theo task_group_id thanh 1 nhom - 1 lan
+// giao cho nhieu nguoi hien thanh 1 the duy nhat.
+function taskGroupsAssignedByMe(){
+  var seen={},groups=[];
+  TASKS_BY_ME.forEach(function(t){
+    if(seen[t.task_group_id])return;
+    seen[t.task_group_id]=true;
+    groups.push(TASKS_BY_ME.filter(function(x){return x.task_group_id===t.task_group_id}));
+  });
+  return groups;
+}
 
 async function rt(){
   $('pageEyebrow').textContent='GIAO VIỆC';$('pageTitle').textContent='Phân công và theo dõi tiến độ';
@@ -889,22 +961,33 @@ async function rt(){
   try{
     var pr=await fetch(API+'profiles?is_active=eq.true&select=id,full_name,role,unit_id&order=full_name',{headers:authHeaders()});
     var people=pr.ok?await pr.json():[];
-    // Pham vi duoc phep giao viec = dung pham vi da co trong canReviewLog
-    // (ai review duoc nhat ky cua ai thi giao viec duoc cho nguoi do) -
-    // tai dung logic phan cap hien co, khong tao ma tran quyen moi.
-    TASK_CANDIDATES=people.filter(function(p){return canReviewLog({author_id:p.id},p)});
+    // Pham vi duoc phep giao viec = dung pham vi quan ly nguoi (khong con
+    // gioi han theo danh sach uy quyen cu) - moi Pho phong deu giao viec
+    // duoc cho bat ky ai trong don vi, dung thuc te "1 nguoi duoc nhieu
+    // lanh dao cung giao viec".
+    TASK_CANDIDATES=people.filter(function(p){return canManagePerson(p)});
     var byMeR=await fetch(API+'task_assignments?assigner_id=eq.'+U.id+'&order=created_at.desc&select=*,assignee:assignee_id(full_name)',{headers:authHeaders()});
     TASKS_BY_ME=byMeR.ok?await byMeR.json():[];
     var toMeR=await fetch(API+'task_assignments?assignee_id=eq.'+U.id+'&order=created_at.desc&select=*,assigner:assigner_id(full_name)',{headers:authHeaders()});
     TASKS_TO_ME=toMeR.ok?await toMeR.json():[];
+    // "Cung thuc hien" - ten nhung nguoi khac trong CUNG 1 lan giao (cung
+    // task_group_id) - can fetch rieng vi TASKS_TO_ME chi loc theo
+    // assignee_id=chinh minh (RLS cho xem them nho migration 00044).
+    TASK_GROUP_MEMBERS=[];
+    var groupIds=Array.from(new Set(TASKS_TO_ME.map(function(t){return t.task_group_id}))).filter(Boolean);
+    if(groupIds.length){
+      var gmR=await fetch(API+'task_assignments?task_group_id=in.('+groupIds.join(',')+')&select=id,task_group_id,assignee_id,work_role,assignee:assignee_id(full_name)',{headers:authHeaders()});
+      TASK_GROUP_MEMBERS=gmR.ok?await gmR.json():[];
+    }
   }catch(e){
     $('appView').innerHTML='<div class="empty-state"><strong>Không tải được dữ liệu</strong><span>'+esc(e.message)+'</span></div>';
     return;
   }
+  var groupsByMe=taskGroupsAssignedByMe();
   var h='<div class="admin-grid">';
-  h+='<section class="panel"><div class="panel-header"><div><h2>Việc tôi đã giao</h2><p>'+TASKS_BY_ME.length+' việc</p></div></div>'
+  h+='<section class="panel"><div class="panel-header"><div><h2>Việc tôi đã giao</h2><p>'+groupsByMe.length+' việc</p></div></div>'
     +(TASK_CANDIDATES.length?taskAssignFormHtml():'<p class="metric-context">Bạn chưa có cán bộ/đơn vị nào thuộc phạm vi được phép giao việc.</p>')
-    +'<div class="task-list">'+(TASKS_BY_ME.length?TASKS_BY_ME.map(function(t){return taskCardHtml(t,'assigner')}).join(''):'<div class="empty-state compact-empty"><strong>Chưa giao việc nào</strong></div>')+'</div></section>';
+    +'<div class="task-list">'+(groupsByMe.length?groupsByMe.map(taskGroupCardHtml).join(''):'<div class="empty-state compact-empty"><strong>Chưa giao việc nào</strong></div>')+'</div></section>';
   h+='<section class="panel"><div class="panel-header"><div><h2>Việc được giao cho tôi</h2><p>'+TASKS_TO_ME.length+' việc</p></div></div>'
     +'<div class="task-list">'+(TASKS_TO_ME.length?TASKS_TO_ME.map(function(t){return taskCardHtml(t,'assignee')}).join(''):'<div class="empty-state compact-empty"><strong>Chưa có việc được giao</strong></div>')+'</div></section>';
   h+='</div>';
@@ -918,11 +1001,13 @@ async function rt(){
 
 function taskAssignFormHtml(){
   var options=TASK_CANDIDATES.map(function(p){return '<option value="'+p.id+'">'+esc(p.full_name)+' · '+esc(unitShort(p.unit_id))+'</option>'}).join('');
+  var checklist=TASK_CANDIDATES.map(function(p){return '<label><input type="checkbox" name="supportIds" value="'+p.id+'"> '+esc(p.full_name)+' · '+esc(unitShort(p.unit_id))+'</label>'}).join('');
   return '<form class="form-grid compact-form" id="taskAssignForm">'
-    +'<label class="field field-wide"><span>Giao cho</span><select name="assigneeId" required>'+options+'</select></label>'
+    +'<label class="field field-wide"><span>Người chủ trì</span><select name="leadId" required>'+options+'</select></label>'
+    +'<div class="field field-wide"><span>Người phối hợp (không bắt buộc)</span><div class="unit-checklist" id="taskSupportChecklist">'+checklist+'</div></div>'
     +'<label class="field field-wide"><span>Tên công việc</span><input type="text" name="title" required maxlength="200"></label>'
     +'<label class="field field-wide"><span>Mô tả / yêu cầu</span><textarea name="description" rows="2"></textarea></label>'
-    +'<label class="field"><span>Hạn gợi ý (không bắt buộc)</span><input type="date" name="suggestedDueDate"></label>'
+    +'<label class="field"><span>Hạn gợi ý (không bắt buộc)</span><input type="datetime-local" name="suggestedDueDate"></label>'
     +'<div class="review-actions"><button type="submit" class="button button-primary">Giao việc</button></div>'
     +'</form>';
 }
@@ -930,27 +1015,52 @@ function taskAssignFormHtml(){
 async function submitTaskAssignment(e){
   e.preventDefault();
   if(!requireActive())return;
-  var f=new FormData(e.currentTarget);
-  var assigneeId=f.get('assigneeId');
+  var form=e.currentTarget;
+  var f=new FormData(form);
+  var leadId=f.get('leadId');
   var title=(f.get('title')||'').trim();
-  if(!assigneeId){showToast('Vui lòng chọn người được giao việc.');return}
+  if(!leadId){showToast('Vui lòng chọn người chủ trì.');return}
   if(!title){showToast('Vui lòng nhập tên công việc.');return}
-  var btn=e.currentTarget.querySelector('button[type="submit"]');btn.disabled=true;
+  var supportIds=Array.from(form.querySelectorAll('input[name="supportIds"]:checked')).map(function(cb){return cb.value}).filter(function(id){return id!==leadId});
+  var suggestedDueDate=f.get('suggestedDueDate')?new Date(f.get('suggestedDueDate')).toISOString():null;
+  var btn=form.querySelector('button[type="submit"]');btn.disabled=true;
   try{
-    var r=await fetch(API+'rpc/create_task_assignment',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_assignee_id:assigneeId,p_title:title,p_description:(f.get('description')||'').trim()||null,p_suggested_due_date:f.get('suggestedDueDate')||null})});
+    var r=await fetch(API+'rpc/create_task_assignment',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_lead_assignee_id:leadId,p_support_assignee_ids:supportIds,p_title:title,p_description:(f.get('description')||'').trim()||null,p_suggested_due_date:suggestedDueDate})});
     var data=await r.json();
     if(!r.ok||data.success===false){showToast('Lỗi: '+(data.error||'HTTP '+r.status));btn.disabled=false;return}
-    showToast('Đã giao việc.');
+    showToast('Đã giao việc cho '+(1+supportIds.length)+' người.');
     rt();
   }catch(err){showToast('Lỗi: '+err.message);btn.disabled=false}
+}
+
+// The gop 1 nhom giao viec (phia nguoi giao) - liet ke ro chu tri/phoi
+// hop kem trang thai rieng cua tung nguoi.
+function taskGroupCardHtml(rows){
+  var lead=rows.find(function(r){return r.work_role==='chu_tri'})||rows[0];
+  var others=rows.filter(function(r){return r!==lead});
+  var overdueAny=rows.some(isTaskOverdue);
+  function memberRow(row){
+    var name=row.assignee&&row.assignee.full_name;
+    return '<div class="task-member-row"><span>'+esc(name||'—')+'</span><span class="meta-tag">'+TASK_WORK_ROLE_LABELS[row.work_role]+'</span><span class="status-pill '+TASK_STATUS_TONES[row.status]+'">'+TASK_STATUS_LABELS[row.status]+'</span></div>';
+  }
+  return '<article class="task-card '+(overdueAny?'is-overdue':'')+'">'
+    +'<div class="task-card-header"><strong>'+esc(lead.title)+'</strong>'+(overdueAny?'<span class="meta-tag meta-tag-warning">Có người quá hạn</span>':'')+'</div>'
+    +(lead.description?('<p>'+esc(lead.description)+'</p>'):'')
+    +'<div class="task-card-meta">'+(lead.suggested_due_date?('<span>Hạn gợi ý: '+formatDateTime(lead.suggested_due_date)+'</span>'):'')+'</div>'
+    +'<div class="task-member-list">'+memberRow(lead)+others.map(memberRow).join('')+'</div>'
+    +'</article>';
 }
 
 function taskCardHtml(task,perspective){
   var counterpart=perspective==='assigner'?(task.assignee&&task.assignee.full_name):(task.assigner&&task.assigner.full_name);
   var counterpartLabel=perspective==='assigner'?'Giao cho':'Người giao';
   var overdue=isTaskOverdue(task);
+  var roleTag=perspective==='assignee'?('<span class="meta-tag">'+(TASK_WORK_ROLE_LABELS[task.work_role]||'Chủ trì')+'</span>'):'';
+  var coAssignees=perspective==='assignee'
+    ?TASK_GROUP_MEMBERS.filter(function(m){return m.task_group_id===task.task_group_id&&m.id!==task.id})
+    :[];
   var dueSetter=(perspective==='assignee'&&task.status!=='done')
-    ?('<form class="task-due-form" data-set-due-form="'+task.id+'"><label><span>Hạn hoàn thành</span><input type="date" name="dueDate" value="'+(task.actual_due_date||'')+'"></label><button type="submit" class="button button-secondary button-small">Đặt hạn</button></form>')
+    ?('<form class="task-due-form" data-set-due-form="'+task.id+'"><label><span>Hạn hoàn thành</span><input type="datetime-local" name="dueDate" value="'+(task.actual_due_date?toDatetimeLocalValue(task.actual_due_date):'')+'"></label><button type="submit" class="button button-secondary button-small">Đặt hạn</button></form>')
     :'';
   var reportButton=(perspective==='assignee'&&task.status==='pending')
     ?('<button type="button" class="button button-primary button-small" data-report-task="'+task.id+'">Ghi nhật ký cho việc này</button>')
@@ -959,10 +1069,22 @@ function taskCardHtml(task,perspective){
     +'<div class="task-card-header"><strong>'+esc(task.title)+'</strong><span class="status-pill '+TASK_STATUS_TONES[task.status]+'">'+TASK_STATUS_LABELS[task.status]+'</span></div>'
     +(task.description?('<p>'+esc(task.description)+'</p>'):'')
     +'<div class="task-card-meta"><span>'+counterpartLabel+': <strong>'+esc(counterpart||'—')+'</strong></span>'
-    +(task.suggested_due_date?('<span>Hạn gợi ý: '+fullDate(task.suggested_due_date)+'</span>'):'')
-    +(task.actual_due_date?('<span>Hạn đã đặt: '+fullDate(task.actual_due_date)+'</span>'):'')
+    +roleTag
+    +(task.suggested_due_date?('<span>Hạn gợi ý: '+formatDateTime(task.suggested_due_date)+'</span>'):'')
+    +(task.actual_due_date?('<span>Hạn đã đặt: '+formatDateTime(task.actual_due_date)+'</span>'):'')
     +(overdue?'<span class="meta-tag meta-tag-warning">Quá hạn</span>':'')
+    +(coAssignees.length?('<span>Cùng thực hiện: '+esc(coAssignees.map(function(m){return m.assignee&&m.assignee.full_name}).filter(Boolean).join(', '))+'</span>'):'')
     +'</div>'+dueSetter+reportButton+'</article>';
+}
+
+// Chuyen 1 timestamp ISO ve dung dinh dang "YYYY-MM-DDTHH:mm" theo GIO DIA
+// PHUONG de gan lam value cho input[type=datetime-local] (khac
+// toISOString() la UTC, se lech gio hien thi so voi luc nguoi dung da chon).
+function toDatetimeLocalValue(iso){
+  var d=new Date(iso);
+  if(isNaN(d.getTime()))return '';
+  var p2=function(n){return String(n).padStart(2,'0')};
+  return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())+'T'+p2(d.getHours())+':'+p2(d.getMinutes());
 }
 
 async function submitTaskDueDate(e){
@@ -971,9 +1093,9 @@ async function submitTaskDueDate(e){
   var form=e.currentTarget;
   var taskId=form.dataset.setDueForm;
   var value=form.elements.dueDate.value;
-  if(!value){showToast('Vui lòng chọn ngày hoàn thành.');return}
+  if(!value){showToast('Vui lòng chọn thời điểm hoàn thành.');return}
   try{
-    var r=await fetch(API+'rpc/set_task_due_date',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_task_id:taskId,p_due_date:value})});
+    var r=await fetch(API+'rpc/set_task_due_date',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_task_id:taskId,p_due_date:new Date(value).toISOString()})});
     var data=await r.json();
     if(!r.ok||data.success===false){showToast('Lỗi: '+(data.error||'HTTP '+r.status));return}
     showToast('Đã đặt hạn hoàn thành.');
@@ -1430,12 +1552,15 @@ function updateTaskOverdueBadge(n){var el=$('taskOverdueNavCount');if(el){el.tex
 async function refreshTaskOverdueBadge(){
   if(U.rl==='administrator')return;
   try{
-    var todayS=todayStr();
+    var now=new Date();
     var r1=await fetch(API+'task_assignments?assignee_id=eq.'+U.id+'&status=neq.done&select=suggested_due_date,actual_due_date',{headers:authHeaders()});
     var mine=r1.ok?await r1.json():[];
     var r2=await fetch(API+'task_assignments?assigner_id=eq.'+U.id+'&status=neq.done&select=suggested_due_date,actual_due_date',{headers:authHeaders()});
     var given=r2.ok?await r2.json():[];
-    var count=mine.concat(given).filter(function(t){var due=t.actual_due_date||t.suggested_due_date;return due&&due<todayS}).length;
+    // So sanh timestamp DAY DU (gio:phut), dung thoi gian THUC TE - han
+    // giao viec gio la mot moc thoi gian that (TIMESTAMPTZ), khong con la
+    // 1 "ngay" nen khong the so sanh chuoi ngay nhu truoc.
+    var count=mine.concat(given).filter(function(t){var due=t.actual_due_date||t.suggested_due_date;return due&&new Date(due)<now}).length;
     updateTaskOverdueBadge(count);
   }catch(e){}
 }
@@ -1456,14 +1581,32 @@ function filterVisibleInUnitScope(list){
   return list.filter(function(p){return isVisibleInUnitScope(p.role)});
 }
 
-function canReviewLog(log,author){
-  if(!author||log.author_id===U.id)return false;
-  var ar=author.role,auid=author.unit_id;
+// "Co nam trong chuoi quan ly nguoi nay khong" - dung cho Giao viec va
+// lam nen cho canReviewLog/canApproveMonthly. Khac canReviewLog: KHONG
+// xet nhat ky cu the nao (khong co khai niem "nop cho ai"), chi xet vai
+// tro + don vi - ap dung cho MOI Pho phong trong don vi (khong con gioi
+// han theo danh sach uy quyen cu).
+function canManagePerson(person){
+  if(!person||person.id===U.id)return false;
+  var ar=person.role,auid=person.unit_id;
   if(U.rl==='province_head')return ar==='province_deputy'||ar==='unit_head'||auid===PROVINCE_UNIT_ID;
   if(U.rl==='province_deputy')return ar==='unit_head'&&(U.assignedUnits||[]).indexOf(auid)>=0;
   if(U.rl==='unit_head')return auid===U.uid&&ar!=='unit_head';
-  if(U.rl==='unit_deputy')return (U.delegationScope||[]).indexOf(author.id)>=0;
+  if(U.rl==='unit_deputy')return auid===U.uid&&(ar==='staff'||ar==='support_staff');
   return false;
+}
+
+// Co duyet duoc DUNG NHAT KY NAY khong - khac canManagePerson o cho: Pho
+// phong (unit_deputy) chi duyet duoc nhat ky da duoc "nop cho" dung minh
+// (log.submitted_to_id), TRU KHI dang duoc uy quyen thay mat 100% toan
+// don vi (U.hasFullDelegation) thi duyet duoc ca don vi nhu Truong phong.
+function canReviewLog(log,author){
+  if(!author||log.author_id===U.id)return false;
+  if(U.rl==='unit_deputy'){
+    if(author.unit_id===U.uid&&U.hasFullDelegation)return true;
+    return log.submitted_to_id===U.id;
+  }
+  return canManagePerson(author);
 }
 
 async function fetchReviewQueue(){
@@ -1887,12 +2030,15 @@ function ujDateGroupHtml(g,showAuthor){
   var items=g.items.map(function(l,idx){
     var opts={readOnly:true};
     if(showAuthor){opts.authorName=ujAuthorName(l.author_id);opts.authorId=l.author_id}
+    if(l.submitted_to_id){var stp=UJ_PEOPLE.find(function(p){return p.id===l.submitted_to_id});if(stp)opts.submittedToName=stp.full_name}
     if(l.status==='approved'&&l.reviewer_id&&l.reviewer_id!==U.id){
       var prevReviewer=UJ_PEOPLE.find(function(p){return p.id===l.reviewer_id});
-      if(prevReviewer)opts.canOverride=canReviewLog({author_id:l.reviewer_id},prevReviewer);
+      // Dieu chinh diem la kiem tra thu bac voi NGUOI DA CHAM truoc, khong
+      // lien quan toi "nop cho ai" cua log nay - dung canManagePerson.
+      if(prevReviewer)opts.canOverride=canManagePerson(prevReviewer);
     }
     var author=UJ_PEOPLE.find(function(p){return p.id===l.author_id});
-    if(author)opts.canDelete=canReviewLog({author_id:l.author_id},author);
+    if(author)opts.canDelete=canReviewLog(l,author);
     return '<div class="uj-numbered-item"><span class="queue-index">'+(idx+1)+'</span>'+journalCardHtml(l,opts)+'</div>';
   }).join('');
   return '<div class="uj-date-group"><div class="uj-date-group-header"><strong>'+esc(fullDate(g.date)||'Không xác định ngày')+'</strong><span>'+g.items.length+' việc</span></div><div class="uj-date-items">'+items+'</div></div>';
@@ -1919,7 +2065,7 @@ function canApproveMonthly(person){
   if(U.rl==='province_head')return person.role==='province_deputy'||person.role==='unit_head';
   if(U.rl==='province_deputy')return person.role==='unit_head'&&(U.assignedUnits||[]).indexOf(person.unit_id)>=0;
   if(U.rl==='unit_head')return person.unit_id===U.uid&&person.role!=='unit_head';
-  if(U.rl==='unit_deputy')return (U.delegationScope||[]).indexOf(person.id)>=0;
+  if(U.rl==='unit_deputy')return U.hasFullDelegation&&person.unit_id===U.uid&&person.role!=='unit_head';
   return false;
 }
 
@@ -2473,19 +2619,25 @@ async function fetchNotifications(){
     });
   }catch(e){}
   // Nhac qua han giao viec: ad-hoc nhu cac loai khac (khong dung bang
-  // notifications) - hien cho CA nguoi giao va nguoi nhan.
+  // notifications) - hien cho CA nguoi giao va nguoi nhan. Han gio la
+  // TIMESTAMPTZ day du (gio:phut) - PHAI dung formatDateTime() va so sanh
+  // Date that, KHONG dung shortDate()/todayStr() (chi danh cho chuoi ngay
+  // "YYYY-MM-DD" don thuan, se nem RangeError: Invalid time value neu
+  // truyen 1 timestamp day du vao).
   try{
+    var nowT=new Date();
     var tar=await fetch(API+'task_assignments?assignee_id=eq.'+U.id+'&status=neq.done&select=id,title,suggested_due_date,actual_due_date',{headers:authHeaders()});
     (tar.ok?await tar.json():[]).forEach(function(t){
       var due=t.actual_due_date||t.suggested_due_date;
-      if(due&&due<todayStr())list.push({id:'task-overdue-assignee-'+t.id,tone:'escalation',title:'Việc được giao đã quá hạn',message:t.title+' — hạn '+shortDate(due),time:shortDate(due),view:'tasks'});
+      if(due&&new Date(due)<nowT)list.push({id:'task-overdue-assignee-'+t.id,tone:'escalation',title:'Việc được giao đã quá hạn',message:t.title+' — hạn '+formatDateTime(due),time:formatDateTime(due),view:'tasks'});
     });
   }catch(e){}
   try{
+    var nowT2=new Date();
     var tbr=await fetch(API+'task_assignments?assigner_id=eq.'+U.id+'&status=neq.done&select=id,title,suggested_due_date,actual_due_date,assignee:assignee_id(full_name)',{headers:authHeaders()});
     (tbr.ok?await tbr.json():[]).forEach(function(t){
       var due=t.actual_due_date||t.suggested_due_date;
-      if(due&&due<todayStr())list.push({id:'task-overdue-assigner-'+t.id,tone:'escalation',title:'Việc đã giao quá hạn chưa hoàn thành',message:((t.assignee&&t.assignee.full_name)||'Cán bộ')+': '+t.title,time:shortDate(due),view:'tasks'});
+      if(due&&new Date(due)<nowT2)list.push({id:'task-overdue-assigner-'+t.id,tone:'escalation',title:'Việc đã giao quá hạn chưa hoàn thành',message:((t.assignee&&t.assignee.full_name)||'Cán bộ')+': '+t.title,time:formatDateTime(due),view:'tasks'});
     });
   }catch(e){}
   if(isLeader()){
@@ -2595,14 +2747,7 @@ async function ra(){
     people=ppr.ok?await ppr.json():[];
     var delUrl=API+'delegations?select=id,delegate_id,unit_id,starts_at,ends_at,status&order=created_at.desc'+(fullAccess?'':'&unit_id=eq.'+U.uid);
     var dr=await fetch(delUrl,{headers:authHeaders()});
-    var delegationList=dr.ok?await dr.json():[];
-    if(delegationList.length){
-      var ids=delegationList.map(function(d){return d.id}).join(',');
-      var dsr=await fetch(API+'delegation_scopes?delegation_id=in.('+ids+')&select=delegation_id,staff_id',{headers:authHeaders()});
-      var scopeRows=dsr.ok?await dsr.json():[];
-      delegationList.forEach(function(d){d.scopeUserIds=scopeRows.filter(function(s){return s.delegation_id===d.id}).map(function(s){return s.staff_id})});
-    }
-    delegationRows=delegationList;
+    delegationRows=dr.ok?await dr.json():[];
   }catch(e){}
   ADMIN_CODES=codes;ADMIN_PENDING=pendingProfiles;ADMIN_DELEGATION_PEOPLE=people;ADMIN_DELEGATIONS=delegationRows;
 
@@ -2621,8 +2766,8 @@ async function ra(){
       +registrationCodeTableHtml(codes)+'</section>';
     h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Tài khoản chờ xác nhận</h2><p>Đối chiếu đúng người, đúng đơn vị trước khi kích hoạt</p></div></div>'+pendingAccountTableHtml(pendingProfiles)+'</section>';
   }
-  h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Ủy quyền có thời hạn</h2><p>Chỉ định cụ thể Phó phòng/Phó Viện trưởng KV được chấm điểm thay cho những ai, trong khoảng thời gian nào'+(fullAccess?'':' (trong đơn vị của bạn)')+'</p></div></div>'
-    +delegationGrantFormHtml(people)+delegationsTableHtml(delegationRows,people)+'</section>';
+  h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Ủy quyền có thời hạn</h2><p>Ủy quyền cho 1 Phó phòng/Phó Viện trưởng KV thay mặt chấm điểm toàn bộ đơn vị'+(fullAccess?'':' (đơn vị của bạn)')+', trong một khoảng thời gian</p></div></div>'
+    +delegationGrantFormHtml(people,delegationRows)+delegationsTableHtml(delegationRows,people)+'</section>';
   if(fullAccess&&U.rl==='administrator'){
     h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Nhật ký kiểm toán</h2><p>50 thay đổi gần nhất đối với điểm số, trạng thái, quyền hạn và nhân sự</p></div></div>'+auditLogTableHtml(auditLogs)+'</section>';
   }
@@ -2648,52 +2793,42 @@ function isDelegationActiveRow(d){
   return d.status==='active' && new Date(d.starts_at)<=now && now<=new Date(d.ends_at);
 }
 
-function delegationCandidateStaff(unitId){
-  return ADMIN_DELEGATION_PEOPLE.filter(function(p){return p.unit_id===unitId && (p.role==='staff'||p.role==='support_staff')});
-}
-
-function delegationGrantFormHtml(people){
-  var deputies=people.filter(function(p){return p.role==='unit_deputy'});
+// Quan tri vien/Vien truong tinh thay duoc TAT CA Pho phong/don vi; rieng
+// Truong phong/Chanh van phong (unit_head, U.rl==='unit_head') chi thay
+// va chon duoc pho CUA DUNG DON VI MINH - va bi chan cap moi neu dang co
+// 1 uy quyen active (dung tinh than "thay mat trong 1 giai doan nhat dinh").
+function delegationGrantFormHtml(people,delegations){
+  var scoped=U.rl==='unit_head';
+  var deputies=people.filter(function(p){return p.role==='unit_deputy' && (!scoped||p.unit_id===U.uid)});
+  if(scoped && delegations.some(function(d){return d.unit_id===U.uid && isDelegationActiveRow(d)})){
+    return '<div class="empty-state compact-empty"><strong>Bạn đang có 1 ủy quyền còn hiệu lực</strong><span>Thu hồi ủy quyền hiện tại ở bảng bên dưới trước khi cấp ủy quyền mới.</span></div>';
+  }
   var options=deputies.map(function(d){return '<option value="'+d.id+'">'+esc(d.full_name)+' · '+esc(unitShort(d.unit_id))+'</option>'}).join('');
   var todayStr=new Date().toISOString().slice(0,10);
   return '<div class="form-grid compact-form">'
     +'<label class="field field-wide"><span>Phó phòng/Phó Viện trưởng KV được ủy quyền</span><select id="delegationDeputy">'+options+'</select></label>'
     +'<label class="field"><span>Từ ngày</span><input type="date" id="delegationStart" value="'+todayStr+'"></label>'
     +'<label class="field"><span>Đến ngày</span><input type="date" id="delegationEnd"></label>'
-    +'<div class="field field-wide"><span>Chọn người được chấm thay</span><div class="unit-checklist" id="delegationScopeChecklist"></div></div>'
+    +'<p class="metric-context field-wide">Trong thời gian này, Phó phòng được chọn sẽ thay mặt chấm điểm và duyệt nhật ký cho <strong>toàn bộ đơn vị</strong>, như Trưởng phòng.</p>'
     +'</div><div class="review-actions"><button class="button button-primary" id="grantDelegation">Cấp ủy quyền</button></div>';
 }
 
 function delegationsTableHtml(delegations,people){
   if(!delegations.length)return '<div class="empty-state compact-empty"><strong>Chưa có ủy quyền nào</strong></div>';
   function personById(id){return people.find(function(p){return p.id===id})}
-  return '<div class="table-wrap"><table><thead><tr><th>Phó phòng/Phó VT KV</th><th>Đơn vị</th><th>Phạm vi được chấm thay</th><th>Thời hạn</th><th>Trạng thái</th><th></th></tr></thead><tbody>'+delegations.map(function(d){
+  return '<div class="table-wrap"><table><thead><tr><th>Phó phòng/Phó VT KV</th><th>Đơn vị</th><th>Phạm vi</th><th>Thời hạn</th><th>Trạng thái</th><th></th></tr></thead><tbody>'+delegations.map(function(d){
     var deputy=personById(d.delegate_id);
-    var scopeNames=(d.scopeUserIds||[]).map(function(id){var p=personById(id);return p?p.full_name:null}).filter(Boolean).join(', ');
     var active=isDelegationActiveRow(d);
     var statusLabel=d.status==='revoked'?'Đã thu hồi':active?'Đang hiệu lực':'Hết hạn';
     var statusTone=d.status==='revoked'?'status-revision':active?'status-approved':'status-pending';
-    return '<tr><td><strong>'+(deputy?esc(deputy.full_name):'—')+'</strong></td><td>'+esc(unitShort(d.unit_id))+'</td><td>'+(esc(scopeNames)||'—')+'</td><td>'+new Date(d.starts_at).toLocaleDateString('vi-VN')+'–'+new Date(d.ends_at).toLocaleDateString('vi-VN')+'</td><td><span class="status-pill '+statusTone+'">'+statusLabel+'</span></td><td class="numeric">'+(d.status==='active'?'<button class="button button-danger button-small" data-revoke-delegation="'+d.id+'">Thu hồi</button>':'')+'</td></tr>';
+    return '<tr><td><strong>'+(deputy?esc(deputy.full_name):'—')+'</strong></td><td>'+esc(unitShort(d.unit_id))+'</td><td>Toàn bộ đơn vị</td><td>'+new Date(d.starts_at).toLocaleDateString('vi-VN')+'–'+new Date(d.ends_at).toLocaleDateString('vi-VN')+'</td><td><span class="status-pill '+statusTone+'">'+statusLabel+'</span></td><td class="numeric">'+(d.status==='active'?'<button class="button button-danger button-small" data-revoke-delegation="'+d.id+'">Thu hồi</button>':'')+'</td></tr>';
   }).join('')+'</tbody></table></div>';
 }
 
-function refreshDelegationScopeChecklist(){
-  var deputySelect=$('delegationDeputy');
-  var checklist=$('delegationScopeChecklist');
-  if(!deputySelect||!checklist)return;
-  var deputy=ADMIN_DELEGATION_PEOPLE.find(function(p){return p.id===deputySelect.value});
-  var candidates=deputy?delegationCandidateStaff(deputy.unit_id):[];
-  checklist.innerHTML=candidates.length
-    ?candidates.map(function(p){return '<label><input type="checkbox" value="'+p.id+'"> '+esc(p.full_name)+' · '+(ROLE_LABELS[p.role]||p.role)+'</label>'}).join('')
-    :'<span class="unit-checklist-empty">Đơn vị này chưa có cán bộ/người lao động</span>';
-}
-
 function bindDelegationForm(){
-  var deputySelect=$('delegationDeputy');
-  if(!deputySelect)return;
-  deputySelect.addEventListener('change',refreshDelegationScopeChecklist);
-  refreshDelegationScopeChecklist();
-  $('grantDelegation').addEventListener('click',grantDelegationClick);
+  var grantButton=$('grantDelegation');
+  if(!grantButton)return;
+  grantButton.addEventListener('click',grantDelegationClick);
 }
 
 async function grantDelegationClick(){
@@ -2701,13 +2836,11 @@ async function grantDelegationClick(){
   var deputyId=$('delegationDeputy').value;
   var startsAt=$('delegationStart').value;
   var endsAt=$('delegationEnd').value;
-  var scopeUserIds=Array.from(document.querySelectorAll('#delegationScopeChecklist input:checked')).map(function(cb){return cb.value});
   if(!deputyId||!startsAt||!endsAt){showToast('Vui lòng chọn đầy đủ Phó phòng và khoảng thời gian.');return}
   if(endsAt<startsAt){showToast('Ngày kết thúc phải sau ngày bắt đầu.');return}
-  if(!scopeUserIds.length){showToast('Vui lòng chọn ít nhất 1 người được chấm thay.');return}
   var btn=$('grantDelegation');btn.disabled=true;
   try{
-    var r=await fetch(API+'rpc/grant_delegation',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_delegate_id:deputyId,p_starts_at:new Date(startsAt).toISOString(),p_ends_at:new Date(endsAt).toISOString(),p_scope_user_ids:scopeUserIds})});
+    var r=await fetch(API+'rpc/grant_delegation',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_delegate_id:deputyId,p_starts_at:new Date(startsAt).toISOString(),p_ends_at:new Date(endsAt).toISOString()})});
     var data=await r.json();
     if(!r.ok||data.success===false){showToast('Lỗi: '+(data.error||'HTTP '+r.status));btn.disabled=false;return}
     showToast('Đã cấp ủy quyền.');
@@ -2955,6 +3088,7 @@ document.addEventListener('DOMContentLoaded',function(){
   $('journalModal').addEventListener('click',function(e){if(e.target.id==='journalModal')cj()});
   $('journalForm').addEventListener('submit',sj);
   $('journalForm').elements.workDate.addEventListener('change',checkJournalDateWarning);
+  $('journalTaskSelect').addEventListener('change',applyTaskLinkToSubmitTo);
   $('toggleCopyJournal').addEventListener('click',function(){
     var panel=$('copyJournalPanel');
     panel.hidden=!panel.hidden;
