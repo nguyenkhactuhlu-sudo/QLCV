@@ -2711,13 +2711,15 @@ async function openNotificationItem(button){
 }
 
 // ============================================
-// QUAN TRI - ma dang ky don vi + duyet tai khoan cho xac nhan + uy quyen
-// cham diem theo danh sach nguoi cu the
+// QUAN TRI - duyet tai khoan cho xac nhan + uy quyen thay mat 100% toan
+// don vi. KHONG con co che tu dang ky/ma dang ky theo don vi nua - tai
+// khoan gio chi duoc admin cap truc tiep qua SQL Editor (dung mau
+// _seed_test_account), xem PROJECT_STRUCTURE.md muc 8.
 // ============================================
-var ADMIN_CODES=[],ADMIN_PENDING=[],ADMIN_DELEGATION_PEOPLE=[],ADMIN_DELEGATIONS=[];
+var ADMIN_PENDING=[],ADMIN_DELEGATION_PEOPLE=[],ADMIN_DELEGATIONS=[];
 
-// Quan tri toan phan (ma dang ky, duyet tai khoan, audit log) chi danh
-// cho Quan tri vien/Vien truong tinh. Rieng "Uy quyen co thoi han" con
+// Quan tri toan phan (duyet tai khoan, audit log) chi danh cho Quan tri
+// vien/Vien truong tinh. Rieng "Uy quyen co thoi han" con
 // mo them cho Truong phong/Chanh van phong (unit_head) de HO TU uy
 // quyen cho pho cua chinh minh - dung RPC grant_delegation/
 // revoke_delegation da cho phep tu migration 00030, truoc day chi
@@ -2725,14 +2727,12 @@ var ADMIN_CODES=[],ADMIN_PENDING=[],ADMIN_DELEGATION_PEOPLE=[],ADMIN_DELEGATIONS
 async function ra(){
   var fullAccess=isAdminOrProvinceHead();
   $('pageEyebrow').textContent=fullAccess?'QUẢN TRỊ':'ỦY QUYỀN';
-  $('pageTitle').textContent=fullAccess?'Quản trị tài khoản và mã đăng ký':'Ủy quyền có thời hạn';
+  $('pageTitle').textContent=fullAccess?'Quản trị tài khoản':'Ủy quyền có thời hạn';
   if(!(fullAccess||U.rl==='unit_head')){V='dashboard';render();return}
   $('appView').innerHTML='<div class="empty-state"><strong>Đang tải...</strong></div>';
-  var codes=[],pendingProfiles=[],auditLogs=[],people=[],delegationRows=[];
+  var pendingProfiles=[],auditLogs=[],people=[],delegationRows=[];
   try{
     if(fullAccess){
-      var cr=await fetch(API+'registration_codes?select=*&order=created_at.desc',{headers:authHeaders()});
-      codes=cr.ok?await cr.json():[];
       var pr=await fetch(API+'profiles?is_active=eq.false&select=id,full_name,role,unit_id,created_at&order=created_at.desc',{headers:authHeaders()});
       pendingProfiles=pr.ok?await pr.json():[];
       if(U.rl==='administrator'){
@@ -2749,21 +2749,15 @@ async function ra(){
     var dr=await fetch(delUrl,{headers:authHeaders()});
     delegationRows=dr.ok?await dr.json():[];
   }catch(e){}
-  ADMIN_CODES=codes;ADMIN_PENDING=pendingProfiles;ADMIN_DELEGATION_PEOPLE=people;ADMIN_DELEGATIONS=delegationRows;
-
-  var unitOptions=UNITS.filter(function(u){return u.type!=='province'}).map(function(u){return '<option value="'+u.id+'">'+esc(u.short_name||u.code)+'</option>'}).join('');
+  ADMIN_PENDING=pendingProfiles;ADMIN_DELEGATION_PEOPLE=people;ADMIN_DELEGATIONS=delegationRows;
 
   var activeDelegationsCount=delegationRows.filter(isDelegationActiveRow).length;
   var h=fullAccess?('<div class="metric-grid">'
-    +metricCard('Mã đang cấp',codes.filter(function(c){return c.is_active}).length,codes.length+' mã đã tạo','')
     +metricCard('Tài khoản chờ xác nhận',pendingProfiles.length,'Cần đối chiếu trước khi kích hoạt','gold')
     +metricCard('Ủy quyền đang hiệu lực',activeDelegationsCount,'Có thể thu hồi tức thời','blue')
     +'</div>'):'';
   h+='<div class="admin-grid">';
   if(fullAccess){
-    h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Mã đăng ký theo đơn vị</h2><p>Mã chỉ xác định đơn vị; người đăng ký luôn nhận quyền cán bộ mặc định, không tự chọn quyền lãnh đạo</p></div></div>'
-      +'<div class="code-generator"><label class="filter-field"><span>Đơn vị cấp mã</span><select id="codeUnit">'+unitOptions+'</select></label><button class="button button-primary" id="generateCode">Tạo mã đơn vị</button></div>'
-      +registrationCodeTableHtml(codes)+'</section>';
     h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Tài khoản chờ xác nhận</h2><p>Đối chiếu đúng người, đúng đơn vị trước khi kích hoạt</p></div></div>'+pendingAccountTableHtml(pendingProfiles)+'</section>';
   }
   h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Ủy quyền có thời hạn</h2><p>Ủy quyền cho 1 Phó phòng/Phó Viện trưởng KV thay mặt chấm điểm toàn bộ đơn vị'+(fullAccess?'':' (đơn vị của bạn)')+', trong một khoảng thời gian</p></div></div>'
@@ -2775,8 +2769,6 @@ async function ra(){
   $('appView').innerHTML=h;
 
   if(fullAccess){
-    $('generateCode').addEventListener('click',generateRegistrationCode);
-    document.querySelectorAll('[data-toggle-code]').forEach(function(b){b.addEventListener('click',function(){toggleRegistrationCode(b.dataset.toggleCode)})});
     document.querySelectorAll('[data-approve-account]').forEach(function(b){b.addEventListener('click',function(){approvePendingAccount(b.dataset.approveAccount)})});
   }
   bindDelegationForm();
@@ -2860,13 +2852,6 @@ async function revokeDelegation(id){
   }catch(e){showToast('Lỗi: '+e.message)}
 }
 
-function registrationCodeTableHtml(codes){
-  if(!codes.length)return '<div class="empty-state compact-empty"><strong>Chưa có mã nào</strong><span>Tạo mã đầu tiên cho một đơn vị.</span></div>';
-  return '<div class="table-wrap code-table"><table><thead><tr><th>Đơn vị</th><th>Mã đăng ký</th><th class="numeric">Đã dùng</th><th>Hết hạn</th><th>Trạng thái</th><th></th></tr></thead><tbody>'+codes.map(function(item){
-    return '<tr><td><strong>'+esc(unitShort(item.unit_id))+'</strong></td><td><code>'+esc(item.code)+'</code></td><td class="numeric">'+item.use_count+'</td><td>'+(item.expires_at?new Date(item.expires_at).toLocaleDateString('vi-VN'):'Không giới hạn')+'</td><td><span class="status-pill '+(item.is_active?'status-approved':'status-revision')+'">'+(item.is_active?'Đang cấp':'Đã khóa')+'</span></td><td class="numeric"><button class="button button-secondary button-small" data-toggle-code="'+item.id+'">'+(item.is_active?'Khóa mã':'Mở lại')+'</button></td></tr>';
-  }).join('')+'</tbody></table></div>';
-}
-
 function pendingAccountTableHtml(accounts){
   if(!accounts.length)return '<div class="empty-state compact-empty"><strong>Không có tài khoản chờ xử lý</strong><span>Tài khoản đăng ký hợp lệ sẽ xuất hiện tại đây.</span></div>';
   return '<div class="table-wrap"><table><thead><tr><th>Người đăng ký</th><th>Đơn vị</th><th>Ngày đăng ký</th><th></th></tr></thead><tbody>'+accounts.map(function(a){
@@ -2885,36 +2870,6 @@ function auditLogTableHtml(logs){
   }).join('')+'</tbody></table></div>';
 }
 
-async function generateRegistrationCode(){
-  if(!requireActive())return;
-  var unitId=$('codeUnit').value;
-  if(!unitId){showToast('Vui lòng chọn đơn vị.');return}
-  var unit=unitShort(unitId);
-  var prefix=unit.replace(/\s+/g,'').toUpperCase().slice(0,8);
-  var year=new Date().getFullYear();
-  var suffix=Math.random().toString(36).slice(2,6).toUpperCase();
-  var code=prefix+'-'+year+'-'+suffix;
-  var btn=$('generateCode');btn.disabled=true;
-  try{
-    var r=await fetch(API+'registration_codes',{method:'POST',headers:authHeaders({'Content-Type':'application/json','Prefer':'return=minimal'}),body:JSON.stringify({code:code,unit_id:unitId,is_active:true,created_by:U.id})});
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    showToast('Đã tạo mã '+code+'.');
-    ra();
-  }catch(e){showToast('Lỗi: '+e.message);btn.disabled=false}
-}
-
-async function toggleRegistrationCode(id){
-  if(!requireActive())return;
-  var item=ADMIN_CODES.find(function(c){return c.id===id});
-  if(!item)return;
-  try{
-    var r=await fetch(API+'registration_codes?id=eq.'+id,{method:'PATCH',headers:authHeaders({'Content-Type':'application/json','Prefer':'return=minimal'}),body:JSON.stringify({is_active:!item.is_active})});
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    showToast(item.is_active?'Đã khóa mã đăng ký.':'Đã mở lại mã đăng ký.');
-    ra();
-  }catch(e){showToast('Lỗi: '+e.message)}
-}
-
 async function approvePendingAccount(id){
   if(!requireActive())return;
   try{
@@ -2927,18 +2882,7 @@ async function approvePendingAccount(id){
   }catch(e){showToast('Lỗi: '+e.message)}
 }
 
-// ============================================
-// DANG KY TAI KHOAN BANG MA DON VI
-// ============================================
-async function checkRegCode(code){
-  try{
-    var r=await fetch(API+'rpc/check_registration_code',{method:'POST',headers:{'apikey':KEY,'Authorization':'Bearer '+KEY,'Content-Type':'application/json'},body:JSON.stringify({p_code:code})});
-    return await r.json();
-  }catch(e){return {valid:false}}
-}
-
-// Dung chung cho moi o mat khau co nut an/hien (dang nhap, dang ky, doi
-// mat khau...).
+// Dung chung cho moi o mat khau co nut an/hien (dang nhap, doi mat khau...).
 function togglePasswordField(inputId,buttonId){
   var input=$(inputId),button=$(buttonId);
   if(!input||!button)return;
@@ -2946,50 +2890,6 @@ function togglePasswordField(inputId,buttonId){
   input.type=showing?'password':'text';
   button.textContent=showing?'Hiện':'Ẩn';
   button.setAttribute('aria-label',showing?'Hiện mật khẩu':'Ẩn mật khẩu');
-}
-
-function openRegisterModal(){
-  var form=$('registerForm');form.reset();
-  var hint=$('registerCodeHint');if(hint){hint.textContent='';hint.style.color=''}
-  // Luon dong lai o mat khau moi lan mo, tranh lo lai mat khau nguoi dung
-  // truoc do da bam "Hien" con ngo.
-  form.elements.password.type='password';
-  form.elements.confirmPassword.type='password';
-  var tp=$('toggleRegisterPassword'),tcp=$('toggleRegisterConfirmPassword');
-  if(tp)tp.textContent='Hiện';
-  if(tcp)tcp.textContent='Hiện';
-  $('registerModal').hidden=false;
-  form.elements.fullName.focus();
-}
-function closeRegisterModal(){$('registerModal').hidden=true}
-
-async function submitRegistration(e){
-  e.preventDefault();
-  var f=new FormData($('registerForm'));
-  var fullName=(f.get('fullName')||'').trim();
-  var email=(f.get('email')||'').trim().toLowerCase();
-  var code=(f.get('registrationCode')||'').trim().toUpperCase();
-  var password=f.get('password')||'';
-  var confirmPassword=f.get('confirmPassword')||'';
-  if(!fullName||!email){showToast('Vui lòng nhập đủ họ tên và email.');return}
-  if(password!==confirmPassword){showToast('Mật khẩu nhập lại chưa khớp.');return}
-  if(password.length<8){showToast('Mật khẩu cần tối thiểu 8 ký tự.');return}
-  var btn=$('registerForm').querySelector('button[type=submit]');btn.disabled=true;
-  try{
-    var check=await checkRegCode(code);
-    if(!check.valid){showToast('Mã đăng ký không hợp lệ hoặc đã hết hạn.');btn.disabled=false;return}
-    var r=await fetch(AUTH+'signup',{method:'POST',headers:{'apikey':KEY,'Content-Type':'application/json'},body:JSON.stringify({email:email,password:password,data:{full_name:fullName,registration_code:code}})});
-    var d=await r.json();
-    if(!r.ok)throw new Error(d.error_description||d.msg||d.error||'Đăng ký thất bại');
-    closeRegisterModal();
-    if(d.access_token){
-      saveSession(d.access_token,d.refresh_token,d.expires_in);
-      await initU(d.access_token,d.user.id,d.user.email);
-    }else{
-      showToast('Đăng ký thành công. Vui lòng xác nhận email rồi đăng nhập lại.');
-    }
-  }catch(err){showToast('Lỗi: '+err.message)}
-  btn.disabled=false;
 }
 
 // ============================================
@@ -3122,21 +3022,7 @@ document.addEventListener('DOMContentLoaded',function(){
   document.addEventListener('keydown',function(e){
     if(e.key==='Escape')closeNotificationPanel();
   });
-  $('openRegister') && ($('openRegister').onclick=openRegisterModal);
-  document.querySelectorAll('[data-close-register]').forEach(function(b){b.addEventListener('click',closeRegisterModal)});
   $('toggleLoginPassword') && $('toggleLoginPassword').addEventListener('click',function(){togglePasswordField('loginPassword','toggleLoginPassword')});
-  $('toggleRegisterPassword') && $('toggleRegisterPassword').addEventListener('click',function(){togglePasswordField('registerPassword','toggleRegisterPassword')});
-  $('toggleRegisterConfirmPassword') && $('toggleRegisterConfirmPassword').addEventListener('click',function(){togglePasswordField('registerConfirmPassword','toggleRegisterConfirmPassword')});
-  $('registerModal') && $('registerModal').addEventListener('click',function(e){if(e.target.id==='registerModal')closeRegisterModal()});
-  $('registerForm') && $('registerForm').addEventListener('submit',submitRegistration);
-  $('registrationCodeInput') && $('registrationCodeInput').addEventListener('blur',async function(){
-    var hint=$('registerCodeHint');if(!hint)return;
-    var code=this.value.trim().toUpperCase();
-    if(!code){hint.textContent='';return}
-    var check=await checkRegCode(code);
-    if(check.valid){hint.textContent='Đơn vị: '+check.unit_name;hint.style.color='#1f7a55'}
-    else{hint.textContent='Mã không hợp lệ hoặc đã hết hạn';hint.style.color='#b3261e'}
-  });
 
   // Khoi phuc phien dang nhap neu con hieu luc (khong bat nguoi dung dang nhap lai khi tai trang)
   (async function(){
