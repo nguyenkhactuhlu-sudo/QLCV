@@ -2,7 +2,6 @@ const STORAGE_KEY = "vks-worklog-demo-v3";
 const MONTHLY_STORAGE_KEY = "vks-monthly-demo-v1";
 const PERSONNEL_STORAGE_KEY = "vks-personnel-demo-v1";
 const AUDIT_STORAGE_KEY = "vks-audit-demo-v1";
-const REGISTRATION_CODE_STORAGE_KEY = "vks-registration-codes-demo-v1";
 const REGISTERED_ACCOUNT_STORAGE_KEY = "vks-registered-accounts-demo-v1";
 const NOTIFICATION_READ_STORAGE_KEY = "vks-notification-read-demo-v1";
 const PERSONAL_NOTES_STORAGE_KEY = "vks-personal-notes-demo-v1";
@@ -86,13 +85,6 @@ const sampleMonthly = [
   userId, period: "2026-06", selfScore, officialScore, classification,
   status: officialScore == null ? "pending" : "approved", note: "", approvedAt: officialScore == null ? null : "2026-07-27T09:00:00"
 }));
-
-const sampleRegistrationCodes = [
-  { code: "P1-2026-A7K9", unitId: "p1", label: "Phòng 1", expiresAt: "2026-12-31", maxUses: 12, used: 4, active: true },
-  { code: "KV1-2026-M4N8", unitId: "kv1", label: "Khu vực 1", expiresAt: "2026-12-31", maxUses: 24, used: 8, active: true },
-  { code: "VP-2026-Q2R6", unitId: "vp", label: "Văn phòng", expiresAt: "2026-10-31", maxUses: 20, used: 11, active: true },
-  { code: "P7-2026-C8T3", unitId: "p7", label: "Phòng 7", expiresAt: "2026-09-30", maxUses: 10, used: 10, active: false }
-];
 
 // Uy quyen cham diem: THAY MAT 100% toan don vi (khong con chon danh sach
 // nguoi cu the) - Truong phong uy quyen cho 1 Pho phong thay minh cham
@@ -331,7 +323,6 @@ const samplePersonalNotes = [
 
 let logs = loadLogs();
 let monthlyReviews = loadJson(MONTHLY_STORAGE_KEY, sampleMonthly.concat(generateMonthlyHistory()));
-let registrationCodes = loadJson(REGISTRATION_CODE_STORAGE_KEY, sampleRegistrationCodes);
 let registeredAccounts = loadJson(REGISTERED_ACCOUNT_STORAGE_KEY, []);
 let notificationReadState = loadJson(NOTIFICATION_READ_STORAGE_KEY, {});
 let personalNotes = loadJson(PERSONAL_NOTES_STORAGE_KEY, samplePersonalNotes);
@@ -543,8 +534,6 @@ function initialize() {
   document.querySelectorAll("[data-login-account]").forEach(button => button.addEventListener("click", () => selectDemoAccount(button.dataset.loginAccount)));
   document.getElementById("demoLoginForm").addEventListener("submit", submitDemoLogin);
   document.getElementById("toggleLoginPassword").addEventListener("click", toggleLoginPassword);
-  document.getElementById("toggleRegisterPassword").addEventListener("click", () => togglePasswordField("registerPassword", "toggleRegisterPassword"));
-  document.getElementById("toggleRegisterConfirmPassword").addEventListener("click", () => togglePasswordField("registerConfirmPassword", "toggleRegisterConfirmPassword"));
   selectDemoAccount(state.currentUserId);
 
   document.querySelectorAll(".nav-item").forEach(button => {
@@ -604,15 +593,6 @@ function initialize() {
     if (event.target.id === "deleteLogModal") closeDeleteLogModal();
   });
   document.getElementById("deleteLogForm").addEventListener("submit", submitDeleteLogForm);
-  document.getElementById("openRegister").addEventListener("click", openRegisterModal);
-  document.querySelectorAll("[data-close-register]").forEach(button => button.addEventListener("click", closeRegisterModal));
-  document.getElementById("registerModal").addEventListener("click", event => {
-    if (event.target.id === "registerModal") closeRegisterModal();
-  });
-  document.getElementById("registerForm").addEventListener("submit", submitRegistration);
-  document.querySelectorAll("[data-demo-code]").forEach(button => button.addEventListener("click", () => {
-    document.getElementById("registerForm").elements.registrationCode.value = button.dataset.demoCode;
-  }));
   updateNav();
   render();
   document.getElementById("loginUserSelect").focus();
@@ -2581,11 +2561,7 @@ function renderAdministration() {
         ${delegationGrantFormHtml()}
         ${delegationsTableHtml()}
       </section>`;
-  if (fullAccess) html += `<section class="panel panel-wide"><div class="panel-header"><div><h2>Mã đăng ký theo đơn vị</h2><p>Mã chỉ xác định đơn vị và quyền cán bộ mặc định; không cấp quyền lãnh đạo hoặc quản trị</p></div></div>
-        <div class="code-generator"><label class="filter-field"><span>Đơn vị cấp mã</span><select id="codeUnit">${units.filter(unit => unit.id !== "province").map(unit => `<option value="${unit.id}">${unit.short}</option>`).join("")}</select></label><label class="filter-field"><span>Số lượt tối đa</span><input id="codeMaxUses" type="number" min="1" max="100" value="20"></label><label class="filter-field"><span>Ngày hết hạn</span><input id="codeExpiry" type="date" value="2026-12-31"></label><button class="button button-primary" id="generateCode">Tạo mã đơn vị</button></div>
-        ${registrationCodeTable()}
-      </section>
-      <section class="panel panel-wide"><div class="panel-header"><div><h2>Tài khoản chờ xác nhận</h2><p>Đơn vị đã được xác định từ mã; quản trị chỉ đối chiếu danh sách nhân sự và kích hoạt</p></div></div>${pendingAccountTable(pendingAccounts)}</section>
+  if (fullAccess) html += `<section class="panel panel-wide"><div class="panel-header"><div><h2>Tài khoản chờ xác nhận</h2><p>Đối chiếu đúng người, đúng đơn vị trước khi kích hoạt</p></div></div>${pendingAccountTable(pendingAccounts)}</section>
       <section class="panel panel-wide"><div class="panel-header"><div><h2>Nhật ký thay đổi</h2><p>Không xóa lịch sử thay đổi nhân sự và phân quyền</p></div></div><div class="audit-list">${auditEvents.slice().reverse().map(event => `<div class="audit-row"><span class="audit-time">${new Date(event.at).toLocaleString("vi-VN")}</span><div><strong>${event.action}</strong><p>${event.detail}</p></div><span>${event.actor}</span></div>`).join("")}</div></section>`;
   html += `</div>`;
   document.getElementById("appView").innerHTML = html;
@@ -2593,46 +2569,13 @@ function renderAdministration() {
   bindDelegationForm();
   document.querySelectorAll("[data-revoke-delegation]").forEach(button => button.addEventListener("click", () => revokeDelegation(button.dataset.revokeDelegation)));
   if (fullAccess) {
-    document.getElementById("generateCode").addEventListener("click", generateRegistrationCode);
-    document.querySelectorAll("[data-toggle-code]").forEach(button => button.addEventListener("click", () => toggleRegistrationCode(button.dataset.toggleCode)));
     document.querySelectorAll("[data-approve-account]").forEach(button => button.addEventListener("click", () => approveRegisteredAccount(button.dataset.approveAccount)));
   }
-}
-
-function registrationCodeTable() {
-  return `<div class="table-wrap code-table"><table><thead><tr><th>Đơn vị</th><th>Mã đăng ký</th><th class="numeric">Đã dùng</th><th>Hết hạn</th><th>Trạng thái</th><th></th></tr></thead><tbody>${registrationCodes.map(item => `<tr><td><strong>${unitById(item.unitId).short}</strong></td><td><code>${item.code}</code></td><td class="numeric">${item.used}/${item.maxUses}</td><td>${formatDate(item.expiresAt)}</td><td><span class="status-pill ${item.active ? "status-approved" : "status-revision"}">${item.active ? "Đang cấp" : "Đã khóa"}</span></td><td class="numeric"><button class="button button-secondary button-small" data-toggle-code="${item.code}">${item.active ? "Khóa mã" : "Mở lại"}</button></td></tr>`).join("")}</tbody></table></div>`;
 }
 
 function pendingAccountTable(accounts) {
   if (!accounts.length) return `<div class="empty-state compact-empty"><strong>Không có tài khoản chờ xử lý</strong>Tài khoản đăng ký hợp lệ sẽ xuất hiện tại đây.</div>`;
   return `<div class="table-wrap"><table><thead><tr><th>Người đăng ký</th><th>Email</th><th>Đơn vị từ mã</th><th>Mã sử dụng</th><th></th></tr></thead><tbody>${accounts.map(account => `<tr><td><strong>${account.name}</strong></td><td>${account.email}</td><td>${unitById(account.unitId).short}</td><td><code>${account.registrationCode}</code></td><td class="numeric"><button class="button button-primary button-small" data-approve-account="${account.id}">Xác nhận tài khoản</button></td></tr>`).join("")}</tbody></table></div>`;
-}
-
-function generateRegistrationCode() {
-  const unitId = document.getElementById("codeUnit").value;
-  const maxUses = Number(document.getElementById("codeMaxUses").value);
-  const expiresAt = document.getElementById("codeExpiry").value;
-  if (!unitId || !expiresAt || !Number.isInteger(maxUses) || maxUses < 1) return showToast("Thông tin tạo mã chưa hợp lệ.");
-  const prefix = unitById(unitId).short.replaceAll(" ", "").replaceAll("Phòng", "P").replaceAll("Khuvực", "KV").toUpperCase();
-  const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
-  const code = `${prefix}-2026-${suffix}`;
-  registrationCodes.push({ code, unitId, label: unitById(unitId).short, expiresAt, maxUses, used: 0, active: true });
-  localStorage.setItem(REGISTRATION_CODE_STORAGE_KEY, JSON.stringify(registrationCodes));
-  auditEvents.push({ at: new Date().toISOString(), actor: currentUser().name, action: "Tạo mã đăng ký đơn vị", detail: `${unitById(unitId).short} · ${maxUses} lượt · hết hạn ${formatDate(expiresAt)}` });
-  localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(auditEvents));
-  showToast(`Đã tạo mã ${code}.`);
-  renderAdministration();
-}
-
-function toggleRegistrationCode(codeValue) {
-  const item = registrationCodes.find(code => code.code === codeValue);
-  if (!item) return;
-  item.active = !item.active;
-  localStorage.setItem(REGISTRATION_CODE_STORAGE_KEY, JSON.stringify(registrationCodes));
-  auditEvents.push({ at: new Date().toISOString(), actor: currentUser().name, action: item.active ? "Mở lại mã đăng ký" : "Khóa mã đăng ký", detail: `${item.code} · ${unitById(item.unitId).short}` });
-  localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(auditEvents));
-  showToast(item.active ? "Đã mở lại mã đăng ký." : "Đã khóa mã đăng ký.");
-  renderAdministration();
 }
 
 function approveRegisteredAccount(accountId) {
@@ -2972,54 +2915,6 @@ function orgUnitCard(unit) {
   return `<div class="org-unit-wrap"><button type="button" class="org-unit ${expanded ? "is-expanded" : ""}" data-org-unit-toggle="${unit.id}"><div><strong>${unit.short}</strong><span>${head ? head.name : "Chưa phân công người đứng đầu"}</span></div><span class="score-pill score-mid">${members.length} người</span></button>${memberRows}</div>`;
 }
 
-function openRegisterModal() {
-  const form = document.getElementById("registerForm");
-  form.reset();
-  // Luon dong lai o mat khau moi lan mo, tranh lo lai mat khau nguoi dung
-  // truoc do da bam "Hien" con ngo.
-  form.elements.password.type = "password";
-  form.elements.confirmPassword.type = "password";
-  document.getElementById("toggleRegisterPassword").textContent = "Hiện";
-  document.getElementById("toggleRegisterConfirmPassword").textContent = "Hiện";
-  document.getElementById("registerModal").hidden = false;
-  form.elements.fullName.focus();
-}
-
-function closeRegisterModal() { document.getElementById("registerModal").hidden = true; }
-
-function submitRegistration(event) {
-  event.preventDefault();
-  const data = new FormData(event.currentTarget);
-  const codeValue = String(data.get("registrationCode") || "").trim().toUpperCase();
-  const code = registrationCodes.find(item => item.code === codeValue);
-  const password = String(data.get("password") || "");
-  const confirmPassword = String(data.get("confirmPassword") || "");
-  const email = String(data.get("email") || "").trim().toLowerCase();
-  if (!code) return showToast("Mã đăng ký không tồn tại.");
-  if (!code.active || code.used >= code.maxUses) return showToast("Mã đăng ký đã hết lượt sử dụng hoặc bị khóa.");
-  if (new Date(`${code.expiresAt}T23:59:59`) < new Date()) return showToast("Mã đăng ký đã hết hạn.");
-  if (password !== confirmPassword) return showToast("Mật khẩu nhập lại chưa khớp.");
-  if (users.some(user => user.email === email)) return showToast("Email này đã được đăng ký.");
-  const fullName = String(data.get("fullName") || "").trim();
-  const initials = fullName.split(/\s+/).slice(-2).map(part => part[0]).join("").toUpperCase();
-  const account = {
-    id: `reg-${Date.now()}`, name: fullName, email, title: "Cán bộ đăng ký", professionalTitle: "Chờ cập nhật",
-    role: "staff", unitId: code.unitId, initials, accountStatus: "pending", registeredAt: new Date().toISOString(), registrationCode: code.code
-  };
-  users.push(account);
-  registeredAccounts.push(account);
-  code.used += 1;
-  if (code.used >= code.maxUses) code.active = false;
-  localStorage.setItem(REGISTERED_ACCOUNT_STORAGE_KEY, JSON.stringify(registeredAccounts));
-  localStorage.setItem(REGISTRATION_CODE_STORAGE_KEY, JSON.stringify(registrationCodes));
-  auditEvents.push({ at: new Date().toISOString(), actor: fullName, action: "Đăng ký tài khoản bằng mã đơn vị", detail: `${email} · ${unitById(code.unitId).short} · trạng thái chờ xác nhận` });
-  localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(auditEvents));
-  closeRegisterModal();
-  showToast(`Đã đăng ký đúng ${unitById(code.unitId).short}; tài khoản đang chờ xác nhận.`);
-  renderNotifications();
-  if (state.currentView === "administration") renderAdministration();
-}
-
 function openJournalModal(logId = null, presetTaskId = null) {
   const form = document.getElementById("journalForm");
   form.reset();
@@ -3285,7 +3180,6 @@ function resetDemo() {
   monthlyReviews = structuredClone(sampleMonthly.concat(generateMonthlyHistory()));
   users.splice(0, users.length, ...users.filter(user => !user.id.startsWith("reg-")));
   registeredAccounts = [];
-  registrationCodes = structuredClone(sampleRegistrationCodes);
   defaultPersonnelState.forEach(item => {
     const user = userById(item.id);
     if (user) Object.assign(user, structuredClone(item));
@@ -3302,7 +3196,6 @@ function resetDemo() {
   saveTaskAssignments();
   localStorage.setItem(MONTHLY_STORAGE_KEY, JSON.stringify(monthlyReviews));
   localStorage.setItem(REGISTERED_ACCOUNT_STORAGE_KEY, JSON.stringify(registeredAccounts));
-  localStorage.setItem(REGISTRATION_CODE_STORAGE_KEY, JSON.stringify(registrationCodes));
   savePersonnelState();
   localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(auditEvents));
   notificationReadState = {};
