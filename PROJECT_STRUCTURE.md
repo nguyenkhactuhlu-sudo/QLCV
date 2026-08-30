@@ -2,6 +2,7 @@
 
 > Tài liệu đọc nhanh dành cho lập trình viên hoặc LLM tiếp quản dự án. Cập nhật gần nhất: 29/08/2026.
 > Tài liệu này **thay thế hoàn toàn** bản trước đó (23/08/2026) — bản cũ mô tả 1 kiến trúc single-file demo đã lỗi thời, không còn đúng thực tế từ khi dự án tách thành 2 nhánh `demo/` + `production/` và có backend Supabase thật.
+> File này mô tả *cấu trúc code/deploy*. Xem [ARCHITECTURE.md](ARCHITECTURE.md) để biết *cơ chế nghiệp vụ/luồng dữ liệu* (vai trò, quyền hạn, luồng nhật ký/đánh giá/thông báo) + quy trình rà soát lỗi logic định kỳ.
 
 ## 0. Đọc trước — cảnh báo về mã nguồn tàn dư trong repo
 

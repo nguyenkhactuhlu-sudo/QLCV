@@ -171,14 +171,23 @@ body.login-active { overflow: hidden; }
    vi class do dung chung voi ban demo). Dung selector ghep ".brand.sidebar-
    brand-soft" de dam bao thang do dac ta hon ".brand", khong phu thuoc thu
    tu khai bao trong file (tranh lap lai loi da gap voi topbar/notification). */
+/* The/ten he thong duoc tach het khoi nen xanh cua sidebar - the trang,
+   noi bat han len tren nen gradient thay vi hoa vao danh sach dieu huong
+   ben duoi. Vien vang phia tren la diem nhan mau the che (dong bo voi
+   --gold dung o vien phai sidebar/trang thai dang chon trong nav). */
 .brand.sidebar-brand-soft {
   position: relative;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
   margin: 0 0 20px;
-  padding: 16px 14px;
-  border: 1px solid rgba(255,255,255,.16);
-  border-radius: 16px;
-  background: linear-gradient(150deg, rgba(255,255,255,.14), rgba(255,255,255,.03));
-  box-shadow: 0 10px 26px rgba(6,59,115,.24);
+  padding: 18px 12px 16px;
+  border: none;
+  border-top: 4px solid var(--gold);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 14px 30px rgba(6,39,74,.38);
   overflow: hidden;
   /* La flex item trong ".sidebar" (flex-direction:column) - KHONG duoc de
      flexbox tu co lai khi zoom cao/man hinh thap khien tong chieu cao vuot
@@ -187,15 +196,14 @@ body.login-active { overflow: hidden; }
      ".nav-list" (da co min-height:0 + overflow-y:auto) duoc phep co/cuon. */
   flex-shrink: 0;
 }
-.sidebar-brand-soft::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,.1) 52%, transparent 68%);
-  pointer-events: none;
-}
-.sidebar-brand-soft .brand-logo { position: relative; z-index: 1; }
+.sidebar-brand-soft .brand-logo { position: relative; z-index: 1; box-shadow: none; border-color: var(--line); width: 56px; height: 56px; }
 .sidebar-brand-soft > div { position: relative; z-index: 1; }
+/* The nen trang can doi lai mau chu (mac dinh ".brand strong/span" danh
+   cho chu trang tren nen xanh) - ".brand strong" xuong dong theo <br>
+   tuong minh trong HTML (khong de wrap tu do) de tranh cat chu lung
+   chung, xau nhu truoc. */
+.sidebar-brand-soft strong { color: var(--primary-dark); font-size: 15px; font-weight: 800; line-height: 1.3; letter-spacing: 0; }
+.sidebar-brand-soft span { color: var(--muted); font-weight: 600; }
 
 /* O thong tin nguoi dang dang nhap, dat giua khoi logo va danh sach tab
    de tranh dang nhap nham tai khoan. */
@@ -624,6 +632,12 @@ tbody tr:hover { background: #fbfbfc; }
 .revision-feedback strong, .revision-notice strong, .resubmission-context strong { color: var(--red); font-size: 12px; }
 .revision-feedback span, .revision-notice span, .resubmission-context span { font-size: 12px; line-height: 1.45; }
 .resubmission-context { margin-bottom: 16px; border-left-color: var(--blue); background: var(--blue-soft); }
+/* Bao cho tac gia/nguoi cham truoc biet lanh dao cap tren vua dieu chinh
+   diem - dung tong mau vang (giong .meta-tag-warning), khac mau do cua
+   ".revision-feedback" vi day khong phai "can bo sung", chi la thong tin. */
+.override-feedback { display: grid; gap: 4px; margin: 10px 0; padding: 10px 12px; border-left: 3px solid #d4af37; border-radius: 8px; color: #6b5310; background: #fffaf0; }
+.override-feedback strong { color: #8a650d; font-size: 12px; }
+.override-feedback span { font-size: 12px; line-height: 1.45; }
 .resubmission-context strong { color: var(--blue); }
 .resubmission-badge { display: inline-flex; margin: 0 0 5px; padding: 3px 7px; border-radius: 999px; color: var(--blue); background: var(--blue-soft); font-size: 10px; font-weight: 700; }
 .score-box { min-width: 76px; padding: 8px; border-radius: 9px; background: var(--surface-soft); text-align: center; }
