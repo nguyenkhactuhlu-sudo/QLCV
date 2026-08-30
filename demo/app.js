@@ -749,7 +749,7 @@ function notificationsForCurrentUser() {
   // Canh bao chenh lech dat NGAY SAU nhom "can bo sung" (ca 2 deu la tin
   // rieng, quan trong) va TRUOC hang doi cho cham diem (co the rat dai voi
   // lanh dao pham vi rong) - de khong bi ".slice(0, 20)" ben duoi cat mat.
-  const SYSTEM_NOTIFICATION_TONES = { score_overridden: "revision", delegation_granted: "account", delegation_revoked: "account", work_log_deleted: "revision" };
+  const SYSTEM_NOTIFICATION_TONES = { score_overridden: "revision", score_overridden_reviewer_notice: "revision", delegation_granted: "account", delegation_revoked: "account", work_log_deleted: "revision" };
   systemNotifications.filter(n => n.userId === user.id).forEach(n => {
     notifications.push({
       id: n.id,
@@ -1270,8 +1270,12 @@ function journalCard(log, opts = {}) {
   const revisionFeedback = log.status === "revision" ? `<div class="revision-feedback"><strong>Lãnh đạo yêu cầu bổ sung</strong><span>${log.comment || "Cần chỉnh sửa, làm rõ kết quả công tác."}</span></div>` : "";
   const resubmission = log.revisionCount ? `<span class="meta-tag">Đã trình lại ${log.revisionCount} lần</span>` : "";
   const overriddenTag = overridden ? `<span class="meta-tag meta-tag-warning">Điểm đã được lãnh đạo cấp trên điều chỉnh</span>` : "";
+  // Cho tac gia/nguoi cham truoc biet AI vua dieu chinh + vi sao (khong bat
+  // buoc co ly do).
+  const overrideReviewer = overridden ? userById(log.reviewerId) : null;
+  const overriddenFeedback = overridden ? `<div class="override-feedback"><strong>Điểm đã được lãnh đạo cấp trên điều chỉnh${overrideReviewer ? " · " + overrideReviewer.name : ""}</strong><span>${log.comment || "Không có giải thích thêm."}</span></div>` : "";
   const authorTag = opts.authorName ? (opts.authorId ? `<button type="button" class="meta-tag journal-author-tag" data-uj-jump-person="${opts.authorId}">${opts.authorName}</button>` : `<span class="meta-tag journal-author-tag">${opts.authorName}</span>`) : "";
-  return `<article class="journal-card ${log.status === "revision" ? "is-revision" : ""}"><div class="journal-date"><strong>${shortDate(log.date)}</strong>${log.date.slice(0,4)}</div><div class="journal-body"><h3>${log.title}</h3><p>${log.result}</p>${revisionFeedback}<div class="journal-meta">${authorTag}<span class="meta-tag">${log.category}</span><span class="meta-tag">${log.workRole}</span><span class="meta-tag">${log.duration}</span>${submittedToTag}${resubmission}${overriddenTag}<span class="status-pill ${statusClass(log.status)}">${statusLabel(log.status)}</span></div></div><div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>${log.complexity ?? "—"}</strong></div><div class="score-box"><span>Chất lượng</span><strong>${log.quality ?? "—"}</strong></div></div>${canEdit ? `<button type="button" class="button button-primary button-small" data-edit-journal="${log.id}">Sửa và trình lại</button>` : ""}${canOverride ? `<button type="button" class="button button-secondary button-small" data-override-score="${log.id}">Điều chỉnh điểm</button>` : ""}${canDelete ? `<button type="button" class="button button-danger button-small" data-delete-log="${log.id}" data-delete-self="${canDeleteSelf ? "1" : "0"}">Xoá</button>` : ""}</div></article>`;
+  return `<article class="journal-card ${log.status === "revision" ? "is-revision" : ""}"><div class="journal-date"><strong>${shortDate(log.date)}</strong>${log.date.slice(0,4)}</div><div class="journal-body"><h3>${log.title}</h3><p>${log.result}</p>${revisionFeedback}${overriddenFeedback}<div class="journal-meta">${authorTag}<span class="meta-tag">${log.category}</span><span class="meta-tag">${log.workRole}</span><span class="meta-tag">${log.duration}</span>${submittedToTag}${resubmission}${overriddenTag}<span class="status-pill ${statusClass(log.status)}">${statusLabel(log.status)}</span></div></div><div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>${log.complexity ?? "—"}</strong></div><div class="score-box"><span>Chất lượng</span><strong>${log.quality ?? "—"}</strong></div></div>${canEdit ? `<button type="button" class="button button-primary button-small" data-edit-journal="${log.id}">Sửa và trình lại</button>` : ""}${canOverride ? `<button type="button" class="button button-secondary button-small" data-override-score="${log.id}">Điều chỉnh điểm</button>` : ""}${canDelete ? `<button type="button" class="button button-danger button-small" data-delete-log="${log.id}" data-delete-self="${canDeleteSelf ? "1" : "0"}">Xoá</button>` : ""}</div></article>`;
 }
 
 // Gom danh sach cho duyet theo tung tac gia (KSV), xep theo lan nop gan
@@ -1727,7 +1731,6 @@ function submitOverrideScore(event) {
   const complexity = Number(data.get("overrideComplexity"));
   const quality = Number(data.get("overrideQuality"));
   const comment = String(data.get("overrideComment") || "").trim();
-  if (!comment) { showToast("Vui lòng nhập nhận xét khi điều chỉnh điểm."); return; }
   const previousReviewer = userById(log.reviewerId);
   const reviewer = currentUser();
   const reviewedAt = new Date().toISOString();
@@ -1735,13 +1738,20 @@ function submitOverrideScore(event) {
   log.scoringHistory = [...(log.scoringHistory || []), { reviewerId: reviewer.id, complexity, quality, comment, at: reviewedAt }];
   saveLogs();
   const author = userById(log.authorId);
-  const notifyTargets = [author, previousReviewer].filter(Boolean);
-  notifyTargets.forEach(target => {
+  // Tach rieng thong bao cho tac gia (co the la nhan vien thuong, khong
+  // vao duoc "Nhat ky cong tac cua don vi" - trang chi lanh dao) va nguoi
+  // DA CHAM TRUOC (luon la 1 lanh dao, moi duyet duoc nhat ky nguoi khac)
+  // de dieu huong dung trang khi bam vao thong bao.
+  const notifyTargets = [
+    author && { user: author, type: "score_overridden", title: "Điểm nhật ký đã bị lãnh đạo cấp trên thay đổi", message: `Công việc "${log.title}" đã bị lãnh đạo cấp trên thay đổi điểm.`, view: "journal" },
+    previousReviewer && { user: previousReviewer, type: "score_overridden_reviewer_notice", title: "Điểm bạn đã chấm đã bị lãnh đạo cấp trên điều chỉnh", message: `Công việc "${log.title}" bạn đã chấm đã bị lãnh đạo cấp trên điều chỉnh lại điểm.`, view: "unitJournal" }
+  ].filter(Boolean);
+  notifyTargets.forEach(({ user: target, type, title, message, view }) => {
     systemNotifications.push({
-      id: `ON-${Date.now()}-${target.id}`, userId: target.id, type: "score_overridden",
-      title: "Điểm nhật ký đã bị lãnh đạo cấp trên thay đổi",
-      message: `Công việc "${log.title}" đã bị lãnh đạo cấp trên thay đổi điểm.`,
-      view: "unitJournal",
+      id: `ON-${Date.now()}-${target.id}`, userId: target.id, type,
+      title,
+      message,
+      view,
       createdAt: reviewedAt
     });
   });

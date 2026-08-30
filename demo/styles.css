@@ -624,6 +624,12 @@ tbody tr:hover { background: #fbfbfc; }
 .revision-feedback strong, .revision-notice strong, .resubmission-context strong { color: var(--red); font-size: 12px; }
 .revision-feedback span, .revision-notice span, .resubmission-context span { font-size: 12px; line-height: 1.45; }
 .resubmission-context { margin-bottom: 16px; border-left-color: var(--blue); background: var(--blue-soft); }
+/* Bao cho tac gia/nguoi cham truoc biet lanh dao cap tren vua dieu chinh
+   diem - dung tong mau vang (giong .meta-tag-warning), khac mau do cua
+   ".revision-feedback" vi day khong phai "can bo sung", chi la thong tin. */
+.override-feedback { display: grid; gap: 4px; margin: 10px 0; padding: 10px 12px; border-left: 3px solid #d4af37; border-radius: 8px; color: #6b5310; background: #fffaf0; }
+.override-feedback strong { color: #8a650d; font-size: 12px; }
+.override-feedback span { font-size: 12px; line-height: 1.45; }
 .resubmission-context strong { color: var(--blue); }
 .resubmission-badge { display: inline-flex; margin: 0 0 5px; padding: 3px 7px; border-radius: 999px; color: var(--blue); background: var(--blue-soft); font-size: 10px; font-weight: 700; }
 .score-box { min-width: 76px; padding: 8px; border-radius: 9px; background: var(--surface-soft); text-align: center; }

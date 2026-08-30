@@ -593,9 +593,23 @@ async function rj(){
   if(U.rl==='administrator'){V='dashboard';render();return}
   $('appView').innerHTML='<div class="empty-state"><strong>Đang tải...</strong></div>';
   try{
-    var r=await fetch(API+'work_logs?author_id=eq.'+U.id+'&order=log_date.desc,created_at.desc&select=*,submitted_to:submitted_to_id(full_name)',{headers:authHeaders()});
+    var r=await fetch(API+'work_logs?author_id=eq.'+U.id+'&order=log_date.desc,created_at.desc&select=*,submitted_to:submitted_to_id(full_name),reviewer:reviewer_id(full_name)',{headers:authHeaders()});
     if(!r.ok)throw new Error('HTTP '+r.status);
     LOGS=await r.json();
+    // De biet nhat ky nao TUNG bi lanh dao cap tren dieu chinh diem sau khi
+    // da duyet (khong chi lan cham dau) - dem so dong work_log_reviews,
+    // giong het cach fetchUnitJournalLogs() lam cho man hinh cua lanh dao,
+    // de chinh chu nhan (can bo/KSV) cung xem duoc ai vua sua + vi sao.
+    var approvedIds=LOGS.filter(function(l){return l.status==='approved'}).map(function(l){return l.id});
+    if(approvedIds.length){
+      try{
+        var rr=await fetch(API+'work_log_reviews?log_id=in.('+approvedIds.join(',')+')&select=log_id',{headers:authHeaders()});
+        var reviewRows=rr.ok?await rr.json():[];
+        var counts={};
+        reviewRows.forEach(function(row){counts[row.log_id]=(counts[row.log_id]||0)+1});
+        LOGS.forEach(function(l){l._reviewCount=counts[l.id]||0});
+      }catch(e){}
+    }
   }catch(e){
     $('appView').innerHTML='<div class="empty-state"><strong>Không tải được nhật ký</strong><span>'+esc(e.message)+'</span></div>';
     return;
@@ -659,13 +673,19 @@ function journalCardHtml(log,opts){
   var canDelete=opts.canDelete||canDeleteSelf;
   var revisionFeedback=log.status==='revision'?'<div class="revision-feedback"><strong>Lãnh đạo yêu cầu bổ sung</strong><span>'+esc(log.review_comment||'Cần chỉnh sửa, làm rõ kết quả công tác.')+'</span></div>':'';
   var resubmission=log.revision_count?'<span class="meta-tag">Đã trình lại '+log.revision_count+' lần</span>':'';
-  var overriddenTag=(log._reviewCount||0)>=2?'<span class="meta-tag meta-tag-warning">Điểm đã được lãnh đạo cấp trên điều chỉnh</span>':'';
+  var isOverridden=log.status==='approved'&&(log._reviewCount||0)>=2;
+  var overriddenTag=isOverridden?'<span class="meta-tag meta-tag-warning">Điểm đã được lãnh đạo cấp trên điều chỉnh</span>':'';
+  // Cho tac gia/nguoi cham truoc biet AI vua dieu chinh + vi sao (khong bat
+  // buoc co ly do - xem migration 00048). reviewerName lay tu opts (ruj -
+  // tra cuu qua UJ_PEOPLE) hoac tu log.reviewer (rj - join san qua select).
+  var overrideReviewerName=opts.reviewerName||(log.reviewer&&log.reviewer.full_name)||'';
+  var overriddenFeedback=isOverridden?'<div class="override-feedback"><strong>Điểm đã được lãnh đạo cấp trên điều chỉnh'+(overrideReviewerName?(' · '+esc(overrideReviewerName)):'')+'</strong><span>'+esc(log.review_comment||'Không có giải thích thêm.')+'</span></div>':'';
   var authorTag=opts.authorName?(opts.authorId?'<button type="button" class="meta-tag journal-author-tag" data-uj-jump-person="'+esc(opts.authorId)+'">'+esc(opts.authorName)+'</button>':'<span class="meta-tag journal-author-tag">'+esc(opts.authorName)+'</span>'):'';
   var submittedToName=opts.submittedToName||(log.submitted_to&&log.submitted_to.full_name)||null;
   var submittedToTag=submittedToName?'<span class="meta-tag">Nộp cho: '+esc(submittedToName)+'</span>':'';
   return '<article class="journal-card '+(log.status==='revision'?'is-revision':'')+'">'
     +'<div class="journal-date"><strong>'+shortDate(log.log_date)+'</strong>'+(log.log_date||'').slice(0,4)+'</div>'
-    +'<div class="journal-body"><h3>'+esc(log.title)+'</h3><p>'+esc(log.result)+'</p>'+revisionFeedback
+    +'<div class="journal-body"><h3>'+esc(log.title)+'</h3><p>'+esc(log.result)+'</p>'+revisionFeedback+overriddenFeedback
     +'<div class="journal-meta">'+authorTag+'<span class="meta-tag">'+esc(catName(log.category_id))+'</span><span class="meta-tag">'+esc(WORK_ROLE_LABEL[log.work_role]||log.work_role)+'</span><span class="meta-tag">'+esc(DURATION_LABEL[log.duration]||log.duration)+'</span>'+submittedToTag+resubmission+overriddenTag+'<span class="status-pill '+(STATUS_CLASS[log.status]||'')+'">'+(STATUS_LABEL[log.status]||log.status)+'</span></div></div>'
     +'<div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>'+(log.complexity_score==null?'—':log.complexity_score)+'</strong></div><div class="score-box"><span>Chất lượng</span><strong>'+(log.quality_score==null?'—':log.quality_score)+'</strong></div></div>'
     +(canEdit?'<button type="button" class="button button-primary button-small" data-edit-journal="'+log.id+'">Sửa và trình lại</button>':'')
@@ -1922,7 +1942,6 @@ async function submitOverrideScore(e){
   var complexity=Number(f.get('overrideComplexity'));
   var quality=Number(f.get('overrideQuality'));
   var comment=(f.get('overrideComment')||'').trim();
-  if(!comment){showToast('Vui lòng nhập nhận xét khi điều chỉnh điểm.');return}
   var btn=$('overrideScoreForm').querySelector('button[type=submit]');btn.disabled=true;
   try{
     var r=await fetch(API+'rpc/override_work_log_score',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_log_id:OVERRIDING_LOG_ID,p_complexity_score:complexity,p_quality_score:quality,p_comment:comment})});
@@ -2167,11 +2186,12 @@ function ujDateGroupHtml(g,showAuthor){
     var opts={readOnly:true};
     if(showAuthor){opts.authorName=ujAuthorName(l.author_id);opts.authorId=l.author_id}
     if(l.submitted_to_id){var stp=UJ_PEOPLE.find(function(p){return p.id===l.submitted_to_id});if(stp)opts.submittedToName=stp.full_name}
-    if(l.status==='approved'&&l.reviewer_id&&l.reviewer_id!==U.id){
-      var prevReviewer=UJ_PEOPLE.find(function(p){return p.id===l.reviewer_id});
+    if(l.status==='approved'&&l.reviewer_id){
+      var curReviewer=UJ_PEOPLE.find(function(p){return p.id===l.reviewer_id});
+      if(curReviewer)opts.reviewerName=curReviewer.full_name;
       // Dieu chinh diem la kiem tra thu bac voi NGUOI DA CHAM truoc, khong
       // lien quan toi "nop cho ai" cua log nay - dung canManagePerson.
-      if(prevReviewer)opts.canOverride=canManagePerson(prevReviewer);
+      if(l.reviewer_id!==U.id&&curReviewer)opts.canOverride=canManagePerson(curReviewer);
     }
     var author=UJ_PEOPLE.find(function(p){return p.id===l.author_id});
     if(author)opts.canDelete=canReviewLog(l,author);
@@ -2814,8 +2834,15 @@ async function fetchNotifications(){
   try{
     var nr=await fetch(API+'notifications?user_id=eq.'+U.id+'&order=created_at.desc&limit=20',{headers:authHeaders()});
     (nr.ok?await nr.json():[]).forEach(function(n){
-      var tone=n.type==='score_override_escalation'?'escalation':n.type==='score_overridden_by_senior'?'revision':'account';
-      var view=(n.type==='delegation_granted'||n.type==='delegation_revoked')?'administration':'unitJournal';
+      var tone=n.type==='score_override_escalation'?'escalation':(n.type==='score_overridden_by_senior'||n.type==='score_overridden_reviewer_notice')?'revision':'account';
+      // score_overridden_by_senior = gui cho TAC GIA (co the la nhan vien
+      // thuong, khong vao duoc "Nhat ky cong tac cua don vi" - trang chi
+      // lanh dao) -> ve "Nhat ky cua toi". score_overridden_reviewer_notice
+      // = gui cho NGUOI DA CHAM TRUOC (luon la 1 lanh dao) -> ve trang do.
+      var view=(n.type==='delegation_granted'||n.type==='delegation_revoked')?'administration'
+        :n.type==='score_overridden_by_senior'?'journal'
+        :n.type==='score_overridden_reviewer_notice'?'unitJournal'
+        :'unitJournal';
       list.push({id:'db-'+n.id,tone:tone,title:n.title,message:n.body||'',time:shortDate((n.created_at||'').slice(0,10)),view:view});
     });
   }catch(e){}
