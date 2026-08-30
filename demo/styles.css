@@ -123,22 +123,29 @@ body.login-active { overflow: hidden; }
 
 .sidebar {
   position: fixed;
-  inset: 0 auto 0 0;
+  /* Bat dau tu duoi khoi logo/ten he thong (".brand-notch", cao 62px) +
+     1 khoang nen trung tinh (~14px) ngan cach - KHONG con noi lien truc
+     tiep vao day cua khoi do nhu truoc, de lo net "2 khoi rieng biet". */
+  inset: 76px auto 0 0;
   width: var(--sidebar);
   display: flex;
   flex-direction: column;
-  padding: 24px 16px;
+  padding: 18px 16px 24px;
   color: #fff;
-  background: linear-gradient(180deg, #1d71b8 0%, #063b73 100%);
-  border-right: 3px solid var(--gold);
+  /* Tong xanh SANG va NHE hon han khoi logo (khoi logo moi giu dung tong
+     dam/bao hoa cu cua sidebar) - tao phan tang: khoi thuong hieu la diem
+     nhan dam nhat, sidebar la nen dieu huong nhe nhang hon. */
+  background: linear-gradient(180deg, #4c93c9 0%, #285f8f 100%);
+  border-right: 2px solid #c8963e;
+  border-radius: 0 14px 0 0;
   z-index: 20;
-  /* Sidebar co chieu cao co dinh = 100vh (inset 0 auto 0 0). Man hinh
-     laptop thap (~700px hoac thap hon khi tinh ca thanh dia chi/tab cua
-     trinh duyet) khong du cho brand + the nguoi dung + toan bo danh sach
-     dieu huong + footer - truoc day phan tran o duoi (vi du "Quan tri
+  /* Sidebar co chieu cao co dinh (inset object tren = 76px co dinh, duoi =
+     0). Man hinh laptop thap (~700px hoac thap hon khi tinh ca thanh dia
+     chi/tab cua trinh duyet) khong du cho the nguoi dung + toan bo danh
+     sach dieu huong + footer - truoc day phan tran o duoi (vi du "Quan tri
      nhan su", "Cai dat") bi day ra ngoai vung nhin va KHONG the bam duoc,
      vi day la vi tri fixed, khong co scroll. Chi ".nav-list" ben duoi
-     duoc phep cuon rieng, brand/the nguoi dung/footer luon co dinh. */
+     duoc phep cuon rieng, the nguoi dung/footer luon co dinh. */
   overflow: hidden;
 }
 
@@ -166,44 +173,42 @@ body.login-active { overflow: hidden; }
 .brand strong { font-size: 14px; letter-spacing: .04em; }
 .brand span { margin-top: 2px; color: rgba(255,255,255,.72); font-size: 12px; }
 
-/* The logo/ten he thong dang the mem, tach khoi danh sach dieu huong ben
-   duoi - chi ban production dung class nay (khong sua ".brand" truc tiep
-   vi class do dung chung voi ban demo). Dung selector ghep ".brand.sidebar-
-   brand-soft" de dam bao thang do dac ta hon ".brand", khong phu thuoc thu
-   tu khai bao trong file (tranh lap lai loi da gap voi topbar/notification). */
-/* The/ten he thong duoc tach het khoi nen xanh cua sidebar - the trang,
-   noi bat han len tren nen gradient thay vi hoa vao danh sach dieu huong
-   ben duoi. Vien vang phia tren la diem nhan mau the che (dong bo voi
-   --gold dung o vien phai sidebar/trang thai dang chon trong nav). */
-.brand.sidebar-brand-soft {
-  position: relative;
-  flex-direction: column;
+/* Khoi logo/ten he thong TACH HAN khoi nen xanh cua sidebar - dat "noi"
+   (position:fixed) rieng o goc tren-trai, rong hon het bề ngang sidebar
+   (tu co dung theo do dai dong chu, khong dat cung 1 con so), thap va gon,
+   vien dong vang mong chay duoi + goc duoi-phai bo tron, tao dang nhu 1
+   "notch" nho hon ra ngoai luoi vuong thay vi nam gon trong 1 o phang.
+   Van la CON cua ".sidebar" trong HTML (khong doi cau truc) nhung tu dat
+   position:fixed rieng - tren desktop (".sidebar" khong co transform) no
+   noi doc lap voi ca man hinh, khong bi be ngang cua sidebar rang buoc;
+   tren mobile (".sidebar" co transform luc dong/mo) no tu dong "an theo"
+   sidebar vi transform tao containing block moi cho phan tu fixed ben
+   trong no - truot vao/ra CUNG sidebar, khong can code rieng cho mobile.
+   Ca production lan demo deu dung class nay (khong sua ".brand" truc
+   tiep vi class do la style nen dung chung, dung cho ca 2 ban). */
+.brand.brand-notch {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 25;
+  width: max-content;
+  height: 62px;
+  flex-direction: row;
   align-items: center;
-  gap: 10px;
-  text-align: center;
-  margin: 0 0 20px;
-  padding: 18px 12px 16px;
-  border: none;
-  border-top: 4px solid var(--gold);
-  border-radius: 14px;
-  background: #fff;
-  box-shadow: 0 14px 30px rgba(6,39,74,.38);
-  overflow: hidden;
-  /* La flex item trong ".sidebar" (flex-direction:column) - KHONG duoc de
-     flexbox tu co lai khi zoom cao/man hinh thap khien tong chieu cao vuot
-     100vh, neu khong chu "He thong Quan ly Nhat ky cong tac..." (dai hon
-     ten don vi truoc day) se bi cat mat vi overflow:hidden ngay tren. Chi
-     ".nav-list" (da co min-height:0 + overflow-y:auto) duoc phep co/cuon. */
-  flex-shrink: 0;
+  gap: 11px;
+  text-align: left;
+  margin: 0;
+  padding: 0 20px;
+  border: 2px solid #c8963e;
+  border-top: none;
+  border-left: none;
+  border-radius: 0 0 16px 0;
+  background: linear-gradient(120deg, #1d71b8 0%, #0c4a80 100%);
+  box-shadow: 5px 6px 14px rgba(6,39,74,.26);
 }
-.sidebar-brand-soft .brand-logo { position: relative; z-index: 1; box-shadow: none; border-color: var(--line); width: 56px; height: 56px; }
-.sidebar-brand-soft > div { position: relative; z-index: 1; }
-/* The nen trang can doi lai mau chu (mac dinh ".brand strong/span" danh
-   cho chu trang tren nen xanh) - ".brand strong" xuong dong theo <br>
-   tuong minh trong HTML (khong de wrap tu do) de tranh cat chu lung
-   chung, xau nhu truoc. */
-.sidebar-brand-soft strong { color: var(--primary-dark); font-size: 15px; font-weight: 800; line-height: 1.3; letter-spacing: 0; }
-.sidebar-brand-soft span { color: var(--muted); font-weight: 600; }
+.brand-notch .brand-logo { width: 34px; height: 34px; box-shadow: none; border-color: rgba(255,255,255,.55); background: rgba(255,255,255,.96); }
+.brand-notch strong { display: block; white-space: nowrap; color: #fff; font-size: 13px; font-weight: 800; line-height: 1.2; letter-spacing: 0; }
+.brand-notch span { display: block; margin-top: 2px; white-space: nowrap; color: rgba(255,255,255,.72); font-weight: 600; font-size: 10.5px; }
 
 /* O thong tin nguoi dang dang nhap, dat giua khoi logo va danh sach tab
    de tranh dang nhap nham tai khoan. */
@@ -1093,6 +1098,15 @@ tbody tr:hover { background: #fbfbfc; }
   .login-brand-copy p { display: none; }
   .login-card { width: min(520px, 100%); justify-self: center; }
   .sidebar { transform: translateX(-100%); transition: transform .2s ease; }
+  /* ".brand-notch" la 1 phan tu fixed DOC LAP (khong con la con cua
+     ".sidebar" trong HTML - tung thu qua cach long ben trong nhung bi
+     chinh overflow:hidden cua sidebar cat mat chu khi mo tren mobile, vi
+     transform bien sidebar thanh containing block kiem luon vung cat cho
+     no). La phan tu doc lap thi luon "noi" o goc tren-trai bat ke sidebar
+     dong/mo - phai an/hien thu cong dung luc bang selector ke ".sidebar.
+     is-open ~ .brand-notch" (".brand-notch" nam SAU ".sidebar" trong HTML). */
+  .brand-notch { visibility: hidden; }
+  .sidebar.is-open ~ .brand-notch { visibility: visible; }
   .sidebar.is-open { transform: translateX(0); }
   .main-content { margin-left: 0; }
   .mobile-menu { display: inline-block; }
