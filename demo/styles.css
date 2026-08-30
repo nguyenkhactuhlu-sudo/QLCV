@@ -180,6 +180,12 @@ body.login-active { overflow: hidden; }
   background: linear-gradient(150deg, rgba(255,255,255,.14), rgba(255,255,255,.03));
   box-shadow: 0 10px 26px rgba(6,59,115,.24);
   overflow: hidden;
+  /* La flex item trong ".sidebar" (flex-direction:column) - KHONG duoc de
+     flexbox tu co lai khi zoom cao/man hinh thap khien tong chieu cao vuot
+     100vh, neu khong chu "He thong Quan ly Nhat ky cong tac..." (dai hon
+     ten don vi truoc day) se bi cat mat vi overflow:hidden ngay tren. Chi
+     ".nav-list" (da co min-height:0 + overflow-y:auto) duoc phep co/cuon. */
+  flex-shrink: 0;
 }
 .sidebar-brand-soft::after {
   content: "";
@@ -198,6 +204,7 @@ body.login-active { overflow: hidden; }
   padding: 10px 14px;
   border-radius: 12px;
   background: rgba(255,255,255,.07);
+  flex-shrink: 0;
 }
 .sidebar-user-card strong { display: block; overflow: hidden; color: #fff; font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .sidebar-user-card span { display: block; margin-top: 2px; overflow: hidden; color: rgba(255,255,255,.6); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
@@ -259,7 +266,7 @@ body.login-active { overflow: hidden; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #6ee7a8; box-shadow: 0 0 0 3px rgba(110,231,168,.17); }
 
 /* Chan sidebar - dong chu ghi nguon, khong con hien ten/vai tro dang nhap */
-.sidebar-footer { position: relative; margin-top: auto; padding-top: 16px; }
+.sidebar-footer { position: relative; margin-top: auto; padding-top: 16px; flex-shrink: 0; }
 .sidebar-footer::before { content: ""; position: absolute; top: 0; left: 4px; right: 4px; height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,.22) 50%, transparent); }
 .sidebar-footer-credit span { display: block; color: rgba(255,255,255,.5); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
 .sidebar-footer-credit strong { display: block; margin-top: 3px; color: rgba(255,255,255,.88); font-size: 12px; font-weight: 600; }
