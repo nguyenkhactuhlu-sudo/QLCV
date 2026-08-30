@@ -749,7 +749,7 @@ function notificationsForCurrentUser() {
   // Canh bao chenh lech dat NGAY SAU nhom "can bo sung" (ca 2 deu la tin
   // rieng, quan trong) va TRUOC hang doi cho cham diem (co the rat dai voi
   // lanh dao pham vi rong) - de khong bi ".slice(0, 20)" ben duoi cat mat.
-  const SYSTEM_NOTIFICATION_TONES = { score_overridden: "revision", score_overridden_reviewer_notice: "revision", delegation_granted: "account", delegation_revoked: "account", work_log_deleted: "revision" };
+  const SYSTEM_NOTIFICATION_TONES = { score_overridden: "revision", score_overridden_reviewer_notice: "revision", monthly_score_deviation_notice: "escalation", delegation_granted: "account", delegation_revoked: "account", work_log_deleted: "revision" };
   systemNotifications.filter(n => n.userId === user.id).forEach(n => {
     notifications.push({
       id: n.id,
@@ -2141,6 +2141,7 @@ function monthlyDetail(row) {
     </div>
     <div class="detail-section"><h3>Căn cứ hỗ trợ quyết định</h3><p class="metric-context">Dữ liệu nhật ký chỉ là căn cứ tham khảo; người có thẩm quyền vẫn quyết định điểm chính thức và xếp loại theo quy định.</p><div class="progress-line"><span>Tỷ lệ nhật ký đã xử lý</span><strong>${evidence.reviewRate.toFixed(0)}%</strong><div class="bar-track"><div class="bar-fill green" style="width:${evidence.reviewRate}%"></div></div></div></div>
     <div class="detail-section"><div class="detail-grid"><div class="detail-item"><span>Điểm tự chấm</span><strong>${row.selfScore ?? "Chưa có"}</strong></div><div class="detail-item"><span>Điểm được duyệt</span><strong>${row.officialScore ?? "Chưa duyệt"}</strong></div></div></div>
+    ${row.note ? `<div class="override-feedback"><strong>Giải trình khi chấm điểm chính thức</strong><span>${row.note}</span></div>` : ""}
     ${mayApprove ? `<div class="detail-section"><div class="form-grid compact-form"><label class="field"><span>Điểm chính thức</span><input id="officialScore" type="number" min="0" max="100" step="0.25" value="${row.officialScore ?? row.selfScore ?? 0}"></label><label class="field"><span>Xếp loại</span><select id="classification"><option ${row.classification === "A" ? "selected" : ""}>A</option><option ${row.classification === "B" ? "selected" : ""}>B</option><option ${row.classification === "C" ? "selected" : ""}>C</option><option ${row.classification === "D" ? "selected" : ""}>D</option></select></label><label class="field field-wide"><span>Nhận xét/giải trình điều chỉnh</span><textarea id="monthlyNote" rows="2">${row.note || ""}</textarea></label></div><div class="review-actions"><button class="button button-primary" id="saveMonthlyReview">Duyệt và lưu</button></div></div>` : ""}
     ${isSelf && person.role === "province_head" ? `<div class="detail-section"><p class="metric-context">Viện trưởng tỉnh không có cấp trên trong hệ thống nên tự chấm điểm và tự xếp loại; không có điểm duyệt chính thức.</p><div class="form-grid compact-form"><label class="field"><span>Điểm tự chấm</span><input id="headSelfScore" type="number" min="0" max="100" step="0.25" value="${row.selfScore ?? 0}"></label><label class="field"><span>Xếp loại</span><select id="headSelfClassification"><option ${row.classification === "A" ? "selected" : ""}>A</option><option ${row.classification === "B" ? "selected" : ""}>B</option><option ${row.classification === "C" ? "selected" : ""}>C</option><option ${row.classification === "D" ? "selected" : ""}>D</option></select></label></div><div class="review-actions"><button class="button button-primary" id="saveHeadSelfEvaluation">Lưu điểm và xếp loại</button></div></div>` : ""}
     ${isSelf && person.role !== "province_head" ? `<div class="detail-section"><label class="field"><span>Điểm tự chấm của cá nhân</span><input id="selfScore" type="number" min="0" max="100" step="0.25" value="${row.selfScore ?? 0}"></label><div class="review-actions"><button class="button button-primary" id="saveSelfScore">Lưu điểm tự chấm</button></div></div>` : ""}
@@ -2152,9 +2153,27 @@ function saveMonthlyReview(row) {
   const classification = document.getElementById("classification").value;
   const note = document.getElementById("monthlyNote").value.trim();
   if (!Number.isFinite(score) || score < 0 || score > 100) return showToast("Điểm chính thức phải nằm trong khoảng 0–100.");
-  if (Number.isFinite(row.selfScore) && Math.abs(score - row.selfScore) >= 2 && !note) return showToast("Vui lòng nhập giải trình khi điều chỉnh từ 2 điểm trở lên.");
-  Object.assign(row, { officialScore: score, classification, note, status: "approved", approvedAt: new Date().toISOString(), approverId: currentUser().id });
+  const isDeviation = Number.isFinite(row.selfScore) && Math.abs(score - row.selfScore) >= 2;
+  if (isDeviation && !note) return showToast("Vui lòng nhập giải trình khi điều chỉnh từ 2 điểm trở lên.");
+  const reviewer = currentUser();
+  Object.assign(row, { officialScore: score, classification, note, status: "approved", approvedAt: new Date().toISOString(), approverId: reviewer.id });
   localStorage.setItem(MONTHLY_STORAGE_KEY, JSON.stringify(monthlyReviews));
+  // Bao cho cap tren cua NGUOI VUA CHAM biet co 1 truong hop cham lech >=2
+  // diem so voi tu cham (khac canh bao "vuot qua 3 lan" cua work_logs - ho
+  // so thang chi cham 1 lan/thang nen bao TUNG lan, khong theo nguong).
+  if (isDeviation) {
+    const superior = findSuperiorFor(reviewer);
+    if (superior) {
+      systemNotifications.push({
+        id: `ON-${Date.now()}`, userId: superior.id, type: "monthly_score_deviation_notice",
+        title: "Chấm điểm tháng lệch so với tự chấm",
+        message: `${reviewer.name} đã chấm điểm chính thức lệch ${Math.abs(score - row.selfScore).toFixed(1)} điểm so với tự chấm của ${userById(row.userId).name} (${periodLabel(row.period)}).`,
+        view: "monthly",
+        createdAt: new Date().toISOString()
+      });
+      saveSystemNotifications();
+    }
+  }
   showToast("Đã lưu điểm chính thức và xếp loại.");
   renderMonthly();
 }
@@ -2793,7 +2812,7 @@ function grantDelegation() {
     id: `ON-${Date.now()}-${deputy.id}`, userId: deputy.id, type: "delegation_granted",
     title: "Bạn được ủy quyền thay mặt chấm điểm toàn bộ đơn vị",
     message: `${grantedBy.name} đã ủy quyền cho bạn thay mặt chấm điểm toàn bộ đơn vị, từ ${formatDate(startsAt)} đến ${formatDate(endsAt)}.`,
-    view: "administration",
+    view: "unitJournal",
     createdAt: new Date().toISOString()
   });
   saveSystemNotifications();
@@ -2814,7 +2833,7 @@ function revokeDelegation(id) {
       id: `ON-${Date.now()}-${deputy.id}`, userId: deputy.id, type: "delegation_revoked",
       title: "Ủy quyền chấm điểm đã bị thu hồi",
       message: `${currentUser().name} đã thu hồi ủy quyền chấm điểm của bạn.`,
-      view: "administration",
+      view: "unitJournal",
       createdAt: new Date().toISOString()
     });
     saveSystemNotifications();

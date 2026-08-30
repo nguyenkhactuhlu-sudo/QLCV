@@ -2427,6 +2427,7 @@ function monthlyDetailHtml(x,evidence){
     +'<div class="evidence-grid"><div><span>Nhật ký</span><strong>'+evidence.total+'</strong></div><div><span>Được công nhận</span><strong>'+evidence.approved+'</strong></div><div><span>Tổng phức tạp</span><strong>'+evidence.complexity+'</strong></div><div><span>Chất lượng trọng số</span><strong>'+(evidence.quality?evidence.quality.toFixed(1):'—')+'</strong></div></div>'
     +'<div class="detail-section"><h3>Căn cứ hỗ trợ quyết định</h3><p class="metric-context">Dữ liệu nhật ký chỉ là căn cứ tham khảo; người có thẩm quyền vẫn quyết định điểm chính thức và xếp loại theo quy định.</p><div class="progress-line"><span>Tỷ lệ nhật ký đã xử lý</span><strong>'+evidence.reviewRate.toFixed(0)+'%</strong><div class="bar-track"><div class="bar-fill green" style="width:'+evidence.reviewRate+'%"></div></div></div></div>'
     +'<div class="detail-section"><div class="detail-grid"><div class="detail-item"><span>Điểm tự chấm</span><strong>'+(row.self_score!=null?row.self_score:'Chưa có')+'</strong></div><div class="detail-item"><span>Điểm được duyệt</span><strong>'+(row.official_score!=null?row.official_score:'Chưa duyệt')+'</strong></div></div></div>'
+    +(row.note?('<div class="override-feedback"><strong>Giải trình khi chấm điểm chính thức</strong><span>'+esc(row.note)+'</span></div>'):'')
     +(mayApprove?('<div class="detail-section"><div class="form-grid compact-form"><label class="field"><span>Điểm chính thức</span><input id="officialScore" type="number" min="0" max="100" step="0.25" value="'+(row.official_score!=null?row.official_score:(row.self_score!=null?row.self_score:0))+'"></label><label class="field"><span>Xếp loại</span><select id="classification"><option '+(row.classification==='A'?'selected':'')+'>A</option><option '+(row.classification==='B'?'selected':'')+'>B</option><option '+(row.classification==='C'?'selected':'')+'>C</option><option '+(row.classification==='D'?'selected':'')+'>D</option></select></label><label class="field field-wide"><span>Nhận xét/giải trình điều chỉnh</span><textarea id="monthlyNote" rows="2">'+esc(row.note||'')+'</textarea></label></div><div class="review-actions"><button class="button button-primary" id="saveMonthlyReview">Duyệt và lưu</button></div></div>'):'')
     +(isSelf&&person.role==='province_head'?('<div class="detail-section"><p class="metric-context">Viện trưởng tỉnh không có cấp trên trong hệ thống nên tự chấm điểm và tự xếp loại; không có điểm duyệt chính thức.</p><div class="form-grid compact-form"><label class="field"><span>Điểm tự chấm</span><input id="headSelfScore" type="number" min="0" max="100" step="0.25" value="'+(row.self_score!=null?row.self_score:0)+'"></label><label class="field"><span>Xếp loại</span><select id="headSelfClassification"><option '+(row.classification==='A'?'selected':'')+'>A</option><option '+(row.classification==='B'?'selected':'')+'>B</option><option '+(row.classification==='C'?'selected':'')+'>C</option><option '+(row.classification==='D'?'selected':'')+'>D</option></select></label></div><div class="review-actions"><button class="button button-primary" id="saveHeadSelfEvaluation">Lưu điểm và xếp loại</button></div></div>'):'')
     +(isSelf&&person.role!=='province_head'?('<div class="detail-section"><label class="field"><span>Điểm tự chấm của cá nhân</span><input id="selfScore" type="number" min="0" max="100" step="0.25" value="'+(row.self_score!=null?row.self_score:0)+'"></label><div class="review-actions"><button class="button button-primary" id="saveSelfScore">Lưu điểm tự chấm</button></div></div>'):'')
@@ -2834,14 +2835,22 @@ async function fetchNotifications(){
   try{
     var nr=await fetch(API+'notifications?user_id=eq.'+U.id+'&order=created_at.desc&limit=20',{headers:authHeaders()});
     (nr.ok?await nr.json():[]).forEach(function(n){
-      var tone=n.type==='score_override_escalation'?'escalation':(n.type==='score_overridden_by_senior'||n.type==='score_overridden_reviewer_notice')?'revision':'account';
-      // score_overridden_by_senior = gui cho TAC GIA (co the la nhan vien
-      // thuong, khong vao duoc "Nhat ky cong tac cua don vi" - trang chi
-      // lanh dao) -> ve "Nhat ky cua toi". score_overridden_reviewer_notice
-      // = gui cho NGUOI DA CHAM TRUOC (luon la 1 lanh dao) -> ve trang do.
-      var view=(n.type==='delegation_granted'||n.type==='delegation_revoked')?'administration'
-        :n.type==='score_overridden_by_senior'?'journal'
+      var tone=(n.type==='score_override_escalation'||n.type==='monthly_score_deviation_notice')?'escalation':(n.type==='score_overridden_by_senior'||n.type==='score_overridden_reviewer_notice')?'revision':'account';
+      // score_overridden_by_senior/work_log_deleted_by_leader = gui cho TAC
+      // GIA (co the la nhan vien thuong, khong vao duoc "Nhat ky cong tac
+      // cua don vi"/"Quan tri" - cac trang chi lanh dao) -> ve "Nhat ky cua
+      // toi". score_overridden_reviewer_notice/delegation_granted/
+      // delegation_revoked = gui cho 1 lanh dao (nguoi da cham truoc, hoac
+      // Pho phong duoc/bi (thu) uy quyen - unit_deputy VAN vao duoc
+      // unitJournal du khong vao duoc "Quan tri") -> ve unitJournal.
+      // monthly_score_deviation_notice = gui cho cap tren cua nguoi vua
+      // cham lech diem -> ve thang "Cham diem thang" de xem lai ho so.
+      var view=n.type==='score_overridden_by_senior'?'journal'
+        :n.type==='work_log_deleted_by_leader'?'journal'
+        :n.type==='delegation_granted'?'unitJournal'
+        :n.type==='delegation_revoked'?'unitJournal'
         :n.type==='score_overridden_reviewer_notice'?'unitJournal'
+        :n.type==='monthly_score_deviation_notice'?'monthly'
         :'unitJournal';
       list.push({id:'db-'+n.id,tone:tone,title:n.title,message:n.body||'',time:shortDate((n.created_at||'').slice(0,10)),view:view});
     });
