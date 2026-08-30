@@ -1,5 +1,5 @@
 // QLCV Production - Ket noi Supabase that, khong co du lieu demo
-var U=null,V='dashboard',LOGS=[],UNITS=[],CATS=[],EDITING_ID=null,PROVINCE_UNIT_ID=null,REVIEW_QUEUE=[],SELECTED_REVIEW_ID=null;
+var U=null,V='dashboard',LOGS=[],UNITS=[],CATS=[],EDITING_ID=null,PROVINCE_UNIT_ID=null,REVIEW_QUEUE=[],SELECTED_REVIEW_ID=null,REVIEW_QUEUE_COLLAPSED=false;
 function $(i){return document.getElementById(i)}
 // .sidebar va .nav-item co san "display:flex" trong styles.css, manh hon
 // thuoc tinh "hidden" mac dinh cua trinh duyet - phai ep display truc tiep
@@ -11,7 +11,7 @@ function setVisible(el,visible){if(el)el.style.display=visible?'':'none'}
 var NativeURL=window.URL;
 var URL=window.VITE_SUPABASE_URL;
 var KEY=window.VITE_SUPABASE_ANON_KEY;
-var API=URL+'/rest/v1/';var AUTH=URL+'/auth/v1/';
+var API=URL+'/rest/v1/';var AUTH=URL+'/auth/v1/';var FUNCTIONS=URL+'/functions/v1/';
 // "Ghi nho dang nhap": phien luu o localStorage (con sau khi dong trinh
 // duyet) neu nguoi dung tich chon, hoac sessionStorage (mat khi dong tab/
 // trinh duyet, giu nguyen khi F5) neu khong tich - dung chung 1 key 'st' o
@@ -609,7 +609,7 @@ function renderJournalList(){
   var noJournalToday=!LOGS.some(function(l){return l.log_date===todayStr()});
   var h=noJournalToday?'<div class="demo-notice journal-reminder-notice"><strong>Nhắc nhở</strong><span>Hôm nay bạn chưa ghi nhật ký công tác. Hãy ghi lại kết quả trong ngày để không bỏ sót khi chấm điểm cuối tháng.</span></div>':'';
   h+='<div class="journal-header"><div><h2>'+esc(U.n)+'</h2><p>'+esc(U.tl||'')+'</p></div><button class="button button-primary" id="nj">+ Ghi nhật ký mới</button></div>';
-  h+='<div class="metric-grid">'
+  h+='<div class="metric-grid journal-stats-row">'
     +metricCard('Nhật ký đã gửi',LOGS.length,'Tổng số đã ghi','')
     +metricCard('Đã xác nhận',LOGS.filter(function(l){return l.status==='approved'}).length,'Kết quả được công nhận','green')
     +metricCard('Cần xử lý',pendingCount+revisionCount,pendingCount+' chờ đánh giá · '+revisionCount+' cần bổ sung','gold')
@@ -994,22 +994,48 @@ async function rt(){
   $('appView').innerHTML=h;
   updateTaskOverdueBadge(TASKS_BY_ME.concat(TASKS_TO_ME).filter(isTaskOverdue).length);
   var assignForm=$('taskAssignForm');
-  if(assignForm)assignForm.addEventListener('submit',submitTaskAssignment);
+  if(assignForm){assignForm.addEventListener('submit',submitTaskAssignment);bindTaskAssignExtras();}
   document.querySelectorAll('[data-set-due-form]').forEach(function(form){form.addEventListener('submit',submitTaskDueDate)});
   document.querySelectorAll('[data-report-task]').forEach(function(b){b.addEventListener('click',function(){oj(null,b.dataset.reportTask)})});
 }
 
 function taskAssignFormHtml(){
   var options=TASK_CANDIDATES.map(function(p){return '<option value="'+p.id+'">'+esc(p.full_name)+' · '+esc(unitShort(p.unit_id))+'</option>'}).join('');
-  var checklist=TASK_CANDIDATES.map(function(p){return '<label><input type="checkbox" name="supportIds" value="'+p.id+'"> '+esc(p.full_name)+' · '+esc(unitShort(p.unit_id))+'</label>'}).join('');
+  var checklist=TASK_CANDIDATES.map(function(p){return '<label data-name="'+esc((p.full_name||'').toLowerCase())+'"><input type="checkbox" name="supportIds" value="'+p.id+'"> '+esc(p.full_name)+' · '+esc(unitShort(p.unit_id))+'</label>'}).join('');
   return '<form class="form-grid compact-form" id="taskAssignForm">'
     +'<label class="field field-wide"><span>Người chủ trì</span><select name="leadId" required>'+options+'</select></label>'
-    +'<div class="field field-wide"><span>Người phối hợp (không bắt buộc)</span><div class="unit-checklist" id="taskSupportChecklist">'+checklist+'</div></div>'
+    +'<div class="field field-wide"><span>Người phối hợp (không bắt buộc) — <span id="taskSupportCount">chưa chọn ai</span></span>'
+    +(TASK_CANDIDATES.length>6?'<input type="text" id="taskSupportSearch" placeholder="Tìm theo tên...">':'')
+    +'<div class="unit-checklist" id="taskSupportChecklist">'+checklist+'</div></div>'
     +'<label class="field field-wide"><span>Tên công việc</span><input type="text" name="title" required maxlength="200"></label>'
     +'<label class="field field-wide"><span>Mô tả / yêu cầu</span><textarea name="description" rows="2"></textarea></label>'
     +'<label class="field"><span>Hạn gợi ý (không bắt buộc)</span><input type="datetime-local" name="suggestedDueDate"></label>'
     +'<div class="review-actions"><button type="submit" class="button button-primary">Giao việc</button></div>'
     +'</form>';
+}
+
+// Tim theo ten (khong dau khong phan biet, giong renderCopyJournalList) +
+// dem so nguoi da chon - can thiet tu khi don vi co toi 30-70 nguoi
+// (truoc day chi vai nguoi, khung 5 dong la du dung).
+function bindTaskAssignExtras(){
+  var search=$('taskSupportSearch');
+  var checklist=$('taskSupportChecklist');
+  if(!checklist)return;
+  function updateCount(){
+    var n=checklist.querySelectorAll('input[type="checkbox"]:checked').length;
+    var el=$('taskSupportCount');
+    if(el)el.textContent=n?n+' đã chọn':'chưa chọn ai';
+  }
+  checklist.addEventListener('change',updateCount);
+  updateCount();
+  if(search){
+    search.addEventListener('input',function(){
+      var q=search.value.trim().normalize('NFC').toLowerCase();
+      checklist.querySelectorAll('label').forEach(function(label){
+        label.style.display=(!q||(label.dataset.name||'').indexOf(q)>=0)?'':'none';
+      });
+    });
+  }
 }
 
 async function submitTaskAssignment(e){
@@ -1395,7 +1421,7 @@ async function ro(){
     }).join(''):'<span class="unit-checklist-empty">Chưa có nhân sự</span>')+'</div>'):'';
     return '<div class="org-unit-wrap"><button type="button" class="org-unit '+(expanded?'is-expanded':'')+'" data-org-unit-toggle="'+unit.id+'"><div><strong>'+esc(unit.short_name||unit.code)+'</strong><span>'+(head?esc(head.full_name):'Chưa xác định người đứng đầu')+'</span></div><span class="score-pill score-mid">'+members.length+' người</span></button>'+memberRows+'</div>';
   }
-  var h='<div class="dashboard-grid">'
+  var h=credentialNoticeHtml()+'<div class="dashboard-grid">'
     +'<section class="panel panel-wide"><div class="panel-header"><div><h2>Cây tổ chức</h2><p>Hai nhóm đơn vị ngang cấp, cùng trực thuộc VKSND tỉnh</p></div></div><div class="org-tree"><div class="org-root"><strong>VKSND tỉnh</strong><span>Viện trưởng · Các Phó Viện trưởng</span></div><div class="org-branches"><div class="org-column"><h3>Phòng chuyên trách</h3>'+departments.map(orgUnitCardHtml).join('')+'</div><div class="org-column"><h3>VKSND khu vực</h3>'+regionals.map(orgUnitCardHtml).join('')+'</div></div></div></section>'
     +'<section class="panel panel-wide"><div class="panel-header"><div><h2>Gán vai trò và đơn vị</h2><p>Chỉ định đúng chức vụ và đơn vị cho từng tài khoản, nhóm theo đơn vị. Tài khoản đang chờ xác nhận sẽ được kích hoạt luôn khi gán. Viện trưởng/Phó Viện trưởng tỉnh chọn "Lãnh đạo Viện tỉnh" làm đơn vị. Với vai trò Phó Viện trưởng tỉnh, tick chọn thêm các đơn vị được phân công phụ trách.</p></div></div>'+assignRoleGroupedHtml(people,assignedByUser)+'</section>'
     +'<section class="panel panel-wide"><div class="panel-header"><div><h2>Quy tắc người chấm</h2><p>Không cho phép người dùng tự chấm nhật ký của mình</p></div></div><div class="org-role-list">'
@@ -1407,10 +1433,12 @@ async function ro(){
   $('appView').innerHTML=h;
   document.querySelectorAll('[data-save-role]').forEach(function(b){b.addEventListener('click',function(){saveAccountRole(b.dataset.saveRole)})});
   document.querySelectorAll('[data-toggle-active]').forEach(function(b){b.addEventListener('click',function(){toggleAccountActive(b.dataset.toggleActive,b.dataset.active==='true')})});
+  document.querySelectorAll('[data-reset-password]').forEach(function(b){b.addEventListener('click',function(){resetPasswordFor(b.dataset.resetPassword,b.dataset.personFullName)})});
   document.querySelectorAll('[data-org-unit-toggle]').forEach(function(b){b.addEventListener('click',function(){
     ORG_EXPANDED_UNIT_ID=ORG_EXPANDED_UNIT_ID===b.dataset.orgUnitToggle?null:b.dataset.orgUnitToggle;
     ro();
   })});
+  bindCredentialNoticeDismiss();
   bindRoleSelectToggle();
   bindAssignRoleSearch();
 }
@@ -1438,7 +1466,8 @@ function assignRoleTableHtml(people,assignedByUser){
       +'<span class="unit-checklist-empty" data-assigned-empty="'+p.id+'" style="display:'+(isDeputy?'none':'')+'">Chỉ áp dụng cho Phó Viện trưởng tỉnh</span>';
     var isSelf=p.id===U.id;
     var lockBtn=isSelf?'':'<button type="button" class="button button-small '+(p.is_active?'button-danger':'button-secondary')+'" data-toggle-active="'+p.id+'" data-active="'+p.is_active+'">'+(p.is_active?'Khoá':'Mở lại')+'</button>';
-    return '<tr data-person-name="'+esc((p.full_name||'').normalize('NFC').toLowerCase())+'"><td><strong>'+esc(p.full_name)+'</strong></td><td><span class="status-pill '+(p.is_active?'status-approved':'status-pending')+'">'+(p.is_active?'Đang hoạt động':'Chờ xác nhận')+'</span></td><td>'+roleSel+'</td><td>'+unitSel+'</td><td>'+checklist+'</td><td class="numeric"><button class="button button-primary button-small" data-save-role="'+p.id+'">Lưu</button> '+lockBtn+'</td></tr>';
+    var resetPwBtn='<button type="button" class="button button-secondary button-small" data-reset-password="'+p.id+'" data-person-full-name="'+esc(p.full_name)+'">Đặt lại mật khẩu</button>';
+    return '<tr data-person-name="'+esc((p.full_name||'').normalize('NFC').toLowerCase())+'"><td><strong>'+esc(p.full_name)+'</strong></td><td><span class="status-pill '+(p.is_active?'status-approved':'status-pending')+'">'+(p.is_active?'Đang hoạt động':'Chờ xác nhận')+'</span></td><td>'+roleSel+'</td><td>'+unitSel+'</td><td>'+checklist+'</td><td class="numeric"><button class="button button-primary button-small" data-save-role="'+p.id+'">Lưu</button> '+resetPwBtn+' '+lockBtn+'</td></tr>';
   }).join('')+'</tbody></table></div>';
 }
 
@@ -1538,6 +1567,56 @@ async function toggleAccountActive(id,currentlyActive){
     var d=await r.json();
     if(!r.ok||d.success===false)throw new Error((d&&d.error)||('HTTP '+r.status));
     showToast(currentlyActive?'Đã khoá tài khoản.':'Đã mở lại tài khoản.');
+    ro();
+  }catch(e){showToast('Lỗi: '+e.message)}
+}
+
+// Sinh 1 mat khau manh, de doc/de chep tay (khong dung ky tu de nham lan
+// nhau nhu 0/O, 1/l) - dung lam goi y ban dau, admin van sua tay duoc truoc
+// khi gui di.
+function generateStrongPassword(){
+  var letters='ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz';
+  var digits='23456789';
+  var symbols='!@#$%*';
+  function pick(s){return s.charAt(Math.floor(Math.random()*s.length))}
+  var chars=[pick(letters).toUpperCase(),pick(letters).toLowerCase(),pick(digits),pick(symbols)];
+  var all=letters+digits+symbols;
+  for(var i=0;i<8;i++)chars.push(pick(all));
+  return chars.sort(function(){return Math.random()-0.5}).join('');
+}
+
+// Thong bao mat khau vua tao/dat lai - hien dang banner CO DINH tren dau
+// trang (khong tu bien mat nhu toast 3s) de admin kip chep lai/gui cho
+// nguoi dung, chi mat khi admin bam "Da ghi lai, dong".
+var ADMIN_CREDENTIAL_NOTICE=null;
+function credentialNoticeHtml(){
+  if(!ADMIN_CREDENTIAL_NOTICE)return'';
+  var n=ADMIN_CREDENTIAL_NOTICE;
+  return '<div class="panel panel-wide credential-notice"><div class="credential-notice-body">'
+    +'<strong>'+esc(n.title)+'</strong>'
+    +'<p>Tài khoản: <code>'+esc(n.email||n.name||'')+'</code></p>'
+    +'<p>Mật khẩu: <code class="credential-notice-password">'+esc(n.password)+'</code></p>'
+    +'<p class="credential-notice-hint">Hãy chép lại và gửi riêng cho người dùng ngay bây giờ - mật khẩu sẽ không hiển thị lại được nữa sau khi đóng.</p>'
+    +'</div><button type="button" class="button button-secondary button-small" id="dismissCredentialNotice">Đã ghi lại, đóng</button></div>';
+}
+function bindCredentialNoticeDismiss(){
+  var b=$('dismissCredentialNotice');
+  if(b)b.addEventListener('click',function(){ADMIN_CREDENTIAL_NOTICE=null;if(V==='organization')ro();else if(V==='administration')ra();});
+}
+
+async function resetPasswordFor(id,name){
+  if(!requireActive())return;
+  var suggested=generateStrongPassword();
+  var input=prompt('Đặt mật khẩu mới cho "'+name+'" (tối thiểu 8 ký tự). Có thể sửa lại trước khi xác nhận:',suggested);
+  if(input===null)return;
+  var newPassword=input.trim();
+  if(newPassword.length<8){showToast('Mật khẩu cần tối thiểu 8 ký tự.');return}
+  try{
+    var r=await fetch(FUNCTIONS+'admin-manage-users',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({action:'set_password',user_id:id,new_password:newPassword})});
+    var d=await r.json();
+    if(!r.ok||d.success===false)throw new Error((d&&d.error)||('HTTP '+r.status));
+    ADMIN_CREDENTIAL_NOTICE={title:'Đã đặt lại mật khẩu',name:name,password:newPassword};
+    showToast('Đã đặt lại mật khẩu cho '+name+'.');
     ro();
   }catch(e){showToast('Lỗi: '+e.message)}
 }
@@ -1655,7 +1734,7 @@ async function rr(){
   if(!SELECTED_REVIEW_ID||!queue.some(function(l){return l.id===SELECTED_REVIEW_ID})){SELECTED_REVIEW_ID=queue[0]?queue[0].id:null}
   var selected=queue.find(function(l){return l.id===SELECTED_REVIEW_ID});
   var h='<div class="toolbar"><div><h2>'+queue.length+' nhật ký chờ đánh giá</h2><p class="metric-context">Chỉ hiển thị nhật ký thuộc phạm vi được phân công.</p></div></div>';
-  h+='<div class="review-layout"><section><div class="review-queue">';
+  h+='<div class="review-layout"><section><details class="review-queue-details" '+(REVIEW_QUEUE_COLLAPSED?'':'open')+'><summary>Danh sách hàng chờ <span class="review-queue-hint">(bấm để thu gọn/mở rộng)</span></summary><div class="review-queue">';
   h+=queue.length?groupQueueByAuthor(queue).map(function(g){
     var authorName=g.author?esc(g.author.full_name||''):'Không xác định tác giả';
     var authorUnit=g.author?esc(unitShort(g.author.unit_id)):'';
@@ -1667,9 +1746,18 @@ async function rr(){
     }).join('');
     return '<div class="queue-group"><div class="queue-group-header"><strong>'+authorName+'</strong>'+(authorUnit?'<span>'+authorUnit+'</span>':'')+'</div>'+items+'</div>';
   }).join(''):'<div class="panel empty-state"><strong>Đã xử lý hết</strong><span>Không còn nhật ký chờ đánh giá.</span></div>';
-  h+='</div></section><section class="panel review-detail">'+(selected?reviewDetailHtml(selected):'<div class="empty-state"><strong>Không có nhật ký cần xử lý</strong><span>Hãy quay lại khi có nhật ký mới.</span></div>')+'</section></div>';
+  h+='</div></details></section><section class="panel review-detail">'+(selected?reviewDetailHtml(selected):'<div class="empty-state"><strong>Không có nhật ký cần xử lý</strong><span>Hãy quay lại khi có nhật ký mới.</span></div>')+'</section></div>';
   $('appView').innerHTML=h;
-  document.querySelectorAll('[data-review-id]').forEach(function(b){b.addEventListener('click',function(){SELECTED_REVIEW_ID=b.dataset.reviewId;rr()})});
+  document.querySelectorAll('[data-review-id]').forEach(function(b){b.addEventListener('click',function(){
+    SELECTED_REVIEW_ID=b.dataset.reviewId;
+    // Tren man hinh hep, chon xong tu thu gon hang cho de do phai cuon
+    // qua het danh sach moi toi form cham diem (man hinh rong van hien
+    // song song ca 2 ben nen khong can thu gon).
+    if(window.innerWidth<=820)REVIEW_QUEUE_COLLAPSED=true;
+    rr();
+  })});
+  var queueDetails=$('appView').querySelector('.review-queue-details');
+  if(queueDetails)queueDetails.addEventListener('toggle',function(){REVIEW_QUEUE_COLLAPSED=!queueDetails.open});
   if(selected)bindReviewActions(selected);
 }
 
@@ -1997,17 +2085,27 @@ function renderUnitJournalContent(){
   document.querySelectorAll('[data-delete-log]').forEach(function(b){b.addEventListener('click',function(){handleDeleteLogClick(b)})});
 }
 
+// Tach rieng "Nguoi lao dong" (support_staff) khoi "Can bo/KSV" - truoc
+// day 1 danh sach phang lam kho quet mat khi 1 don vi co toi 30-70 nguoi
+// (lai xe, bao ve, phuc vu... xen lan voi KSV/lanh dao).
+function ujPersonCardHtml(p,counts){
+  var c=counts[p.id]||{count:0,last:null};
+  return '<button type="button" class="uj-person-card" data-uj-person="'+p.id+'">'
+    +'<div class="uj-person-info"><strong>'+esc(p.full_name)+'</strong><span>'+esc(p.title||'')+' · '+esc(unitShort(p.unit_id))+'</span></div>'
+    +'<div class="uj-person-stats"><span class="score-pill '+(c.count?'score-mid':'')+'">'+c.count+' nhật ký</span><span class="uj-last-date">'+(c.last?('Gần nhất: '+fullDate(c.last)):'Chưa nộp trong kỳ')+'</span></div>'
+    +'</button>';
+}
+
 function renderUjPersonListHtml(){
   var people=ujFilteredPeople();
   if(!people.length)return '<div class="empty-state"><strong>Không có ai trong phạm vi này</strong></div>';
   var counts=ujCountsByAuthor(ujFilteredLogs());
-  return '<div class="uj-person-list">'+people.map(function(p){
-    var c=counts[p.id]||{count:0,last:null};
-    return '<button type="button" class="uj-person-card" data-uj-person="'+p.id+'">'
-      +'<div class="uj-person-info"><strong>'+esc(p.full_name)+'</strong><span>'+esc(p.title||'')+' · '+esc(unitShort(p.unit_id))+'</span></div>'
-      +'<div class="uj-person-stats"><span class="score-pill '+(c.count?'score-mid':'')+'">'+c.count+' nhật ký</span><span class="uj-last-date">'+(c.last?('Gần nhất: '+fullDate(c.last)):'Chưa nộp trong kỳ')+'</span></div>'
-      +'</button>';
-  }).join('')+'</div>';
+  var staffGroup=people.filter(function(p){return p.role!=='support_staff'});
+  var supportGroup=people.filter(function(p){return p.role==='support_staff'});
+  var h='';
+  if(staffGroup.length)h+='<div class="uj-group-heading">Cán bộ, công chức, Kiểm sát viên ('+staffGroup.length+')</div><div class="uj-person-list">'+staffGroup.map(function(p){return ujPersonCardHtml(p,counts)}).join('')+'</div>';
+  if(supportGroup.length)h+='<div class="uj-group-heading">Người lao động ('+supportGroup.length+')</div><div class="uj-person-list">'+supportGroup.map(function(p){return ujPersonCardHtml(p,counts)}).join('')+'</div>';
+  return h;
 }
 
 function renderUjPersonDetailHtml(personId){
@@ -2048,7 +2146,7 @@ function ujDateGroupHtml(g,showAuthor){
 // DANH GIA THANG - thang diem 0-100 kem xep loai A/B/C theo quy dinh nganh
 // ============================================
 var CURRENT_PERIOD=ymStr(new Date().getFullYear(),new Date().getMonth());
-var MONTHLY_ROWS=[],SELECTED_MONTHLY_ID=null,MONTHLY_UNIT_FILTER=FILTER_PREFS.monthlyUnit||'all';
+var MONTHLY_ROWS=[],SELECTED_MONTHLY_ID=null,MONTHLY_UNIT_FILTER=FILTER_PREFS.monthlyUnit||'all',MONTHLY_SEARCH='';
 
 function periodLabel(p){var parts=p.split('-');return 'Tháng '+parts[1]+'/'+parts[0]}
 function recentPeriods(){
@@ -2154,21 +2252,30 @@ async function rm(){
 
   var h='<div class="toolbar"><label class="filter-field"><span>Kỳ đánh giá</span><select id="monthlyPeriodSelect">'
     +recentPeriods().map(function(p){return '<option value="'+p+'" '+(p===CURRENT_PERIOD?'selected':'')+'>'+esc(periodLabel(p))+'</option>'}).join('')
-    +'</select></label>'+unitFilterHtml+'<div class="spacer"></div><button class="button button-secondary" id="exportMonthly">Xuất báo cáo tháng</button></div>';
+    +'</select></label>'+unitFilterHtml+'<label class="field"><span>Tìm theo tên</span><input type="text" id="monthlySearchInput" value="'+esc(MONTHLY_SEARCH)+'" placeholder="Nhập tên..."></label><div class="spacer"></div><button class="button button-secondary" id="exportMonthly">Xuất báo cáo tháng</button></div>';
   h+='<div class="metric-grid">'
     +metricCard('Hồ sơ trong phạm vi',rows.length,approved.length+' hồ sơ đã duyệt','')
     +metricCard('Xếp loại A',counts.A,counts.B+' xếp loại B','green')
     +metricCard('Chênh lệch bình quân',avgDelta.toFixed(1),'Điểm tự chấm ↔ điểm chính thức','gold')
     +metricCard('Chờ hoàn thành',rows.length-approved.length,'Tự chấm hoặc chờ duyệt','blue')
     +'</div>';
-  h+='<div class="monthly-layout"><section class="panel monthly-table-panel"><div class="panel-header"><div><h2>Danh sách đánh giá tháng</h2><p>'+esc(periodLabel(CURRENT_PERIOD))+'</p></div></div>'+monthlyTableHtml(rows)+'</section>';
+  h+='<div class="monthly-layout"><section class="panel monthly-table-panel"><div class="panel-header"><div><h2>Danh sách đánh giá tháng</h2><p>'+esc(periodLabel(CURRENT_PERIOD))+'</p></div></div><div id="monthlyTableSlot">'+monthlyTableHtml(monthlyFilteredRows(rows))+'</div></section>';
   h+='<section class="panel monthly-detail">'+(selected?monthlyDetailHtml(selected,evidence):'<div class="empty-state"><strong>Không có hồ sơ</strong><span>Chưa có dữ liệu phù hợp với phạm vi này.</span></div>')+'</section></div>';
   $('appView').innerHTML=h;
 
-  document.querySelectorAll('[data-monthly-user]').forEach(function(b){b.addEventListener('click',function(){SELECTED_MONTHLY_ID=b.dataset.monthlyUser;rm()})});
+  bindMonthlyTableRowClicks();
   var filterEl=$('monthlyUnitFilter');
   if(filterEl)filterEl.addEventListener('change',function(e){MONTHLY_UNIT_FILTER=e.target.value;saveFilterPrefs({monthlyUnit:MONTHLY_UNIT_FILTER});SELECTED_MONTHLY_ID=null;rm()});
   $('monthlyPeriodSelect').addEventListener('change',function(e){CURRENT_PERIOD=e.target.value;SELECTED_MONTHLY_ID=null;rm()});
+  var searchInput=$('monthlySearchInput');
+  searchInput.addEventListener('input',function(e){
+    MONTHLY_SEARCH=e.target.value;
+    var focusPos=searchInput.selectionStart;
+    renderMonthlyTableOnly();
+    var newInput=$('monthlySearchInput');
+    newInput.focus();
+    newInput.setSelectionRange(focusPos,focusPos);
+  });
   $('exportMonthly').addEventListener('click',openExportModal);
   if(selected){
     var saveBtn=$('saveMonthlyReview');if(saveBtn)saveBtn.addEventListener('click',function(){saveMonthlyApprove(selected)});
@@ -2187,13 +2294,46 @@ async function rm(){
   }
 }
 
+// Loc theo ten (khong doi MONTHLY_ROWS goc) - can thiet tu khi 1 don vi
+// co toi 30-70 nguoi thay vi vai nguoi nhu truoc, cuon tim thu cong rat
+// lau. Chi loc RIENG bang danh sach, khong dong lai metric-grid/chi tiet
+// ben phai (dung y nghia "tim de chon nhanh 1 dong", khong phai bo loc
+// pham vi).
+function monthlyFilteredRows(rows){
+  if(!MONTHLY_SEARCH)return rows;
+  var q=MONTHLY_SEARCH.normalize('NFC').toLowerCase();
+  return rows.filter(function(x){return (x.person.full_name||'').normalize('NFC').toLowerCase().indexOf(q)>=0});
+}
+
+function bindMonthlyTableRowClicks(){
+  document.querySelectorAll('[data-monthly-user]').forEach(function(b){b.addEventListener('click',function(){SELECTED_MONTHLY_ID=b.dataset.monthlyUser;rm()})});
+}
+
+// Ve lai RIENG bang danh sach (khong goi lai rm() - tranh fetch mang lai
+// tren moi lan go phim tim kiem, vi rm() la async fetch toan bo trang).
+function renderMonthlyTableOnly(){
+  var slot=$('monthlyTableSlot');
+  if(!slot)return;
+  slot.innerHTML=monthlyTableHtml(monthlyFilteredRows(MONTHLY_ROWS));
+  bindMonthlyTableRowClicks();
+}
+
+function monthlyRowHtml(x){
+  var p=x.person,rv=x.review;
+  return '<tr class="'+(p.id===SELECTED_MONTHLY_ID?'is-selected-row':'')+'"><td><div class="person-cell"><span class="mini-avatar">'+esc(p.initials||'')+'</span><div><strong>'+esc(p.full_name)+'</strong><span>'+esc(p.professional_title||'')+'</span></div></div></td><td>'+esc(p.title||'')+'</td><td>'+esc(unitShort(p.unit_id))+'</td><td class="numeric">'+(rv&&rv.self_score!=null?rv.self_score:'—')+'</td><td class="numeric"><strong>'+(rv&&rv.official_score!=null?rv.official_score:'—')+'</strong></td><td class="numeric"><span class="grade-badge grade-'+((rv&&rv.classification)||'pending').toLowerCase()+'">'+((rv&&rv.classification)||'Chờ')+'</span></td><td class="numeric"><button class="button button-secondary button-small" data-monthly-user="'+p.id+'">Xem căn cứ</button></td></tr>';
+}
+
+// Tach rieng "Nguoi lao dong" (support_staff) khoi "Can bo/KSV" bang 1
+// dong tieu de gom nhom (colspan) - cung ly do voi renderUjPersonListHtml.
 function monthlyTableHtml(rows){
   if(!rows.length)return '<div class="empty-state"><strong>Không có dữ liệu</strong><span>Hãy chọn phạm vi khác.</span></div>';
+  var staffRows=rows.filter(function(x){return x.person.role!=='support_staff'});
+  var supportRows=rows.filter(function(x){return x.person.role==='support_staff'});
+  var body='';
+  if(staffRows.length)body+='<tr class="table-group-row"><td colspan="7">Cán bộ, công chức, Kiểm sát viên ('+staffRows.length+')</td></tr>'+staffRows.map(monthlyRowHtml).join('');
+  if(supportRows.length)body+='<tr class="table-group-row"><td colspan="7">Người lao động ('+supportRows.length+')</td></tr>'+supportRows.map(monthlyRowHtml).join('');
   return '<div class="table-wrap"><table><thead><tr><th>Họ và tên</th><th>Chức vụ, chức danh</th><th>Đơn vị</th><th class="numeric">Tự chấm</th><th class="numeric">Chính thức</th><th class="numeric">Xếp loại</th><th></th></tr></thead><tbody>'
-    +rows.map(function(x){
-      var p=x.person,rv=x.review;
-      return '<tr class="'+(p.id===SELECTED_MONTHLY_ID?'is-selected-row':'')+'"><td><div class="person-cell"><span class="mini-avatar">'+esc(p.initials||'')+'</span><div><strong>'+esc(p.full_name)+'</strong><span>'+esc(p.professional_title||'')+'</span></div></div></td><td>'+esc(p.title||'')+'</td><td>'+esc(unitShort(p.unit_id))+'</td><td class="numeric">'+(rv&&rv.self_score!=null?rv.self_score:'—')+'</td><td class="numeric"><strong>'+(rv&&rv.official_score!=null?rv.official_score:'—')+'</strong></td><td class="numeric"><span class="grade-badge grade-'+((rv&&rv.classification)||'pending').toLowerCase()+'">'+((rv&&rv.classification)||'Chờ')+'</span></td><td class="numeric"><button class="button button-secondary button-small" data-monthly-user="'+p.id+'">Xem căn cứ</button></td></tr>';
-    }).join('')
+    +body
     +'</tbody></table></div>';
 }
 
@@ -2752,12 +2892,14 @@ async function ra(){
   ADMIN_PENDING=pendingProfiles;ADMIN_DELEGATION_PEOPLE=people;ADMIN_DELEGATIONS=delegationRows;
 
   var activeDelegationsCount=delegationRows.filter(isDelegationActiveRow).length;
-  var h=fullAccess?('<div class="metric-grid">'
+  var h=credentialNoticeHtml();
+  h+=fullAccess?('<div class="metric-grid">'
     +metricCard('Tài khoản chờ xác nhận',pendingProfiles.length,'Cần đối chiếu trước khi kích hoạt','gold')
     +metricCard('Ủy quyền đang hiệu lực',activeDelegationsCount,'Có thể thu hồi tức thời','blue')
     +'</div>'):'';
   h+='<div class="admin-grid">';
   if(fullAccess){
+    h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Tạo tài khoản mới</h2><p>Tạo trực tiếp trên giao diện, không cần vào Supabase viết SQL</p></div></div>'+createUserFormHtml()+'</section>';
     h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Tài khoản chờ xác nhận</h2><p>Đối chiếu đúng người, đúng đơn vị trước khi kích hoạt</p></div></div>'+pendingAccountTableHtml(pendingProfiles)+'</section>';
   }
   h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Ủy quyền có thời hạn</h2><p>Ủy quyền cho 1 Phó phòng/Phó Viện trưởng KV thay mặt chấm điểm toàn bộ đơn vị'+(fullAccess?'':' (đơn vị của bạn)')+', trong một khoảng thời gian</p></div></div>'
@@ -2770,9 +2912,62 @@ async function ra(){
 
   if(fullAccess){
     document.querySelectorAll('[data-approve-account]').forEach(function(b){b.addEventListener('click',function(){approvePendingAccount(b.dataset.approveAccount)})});
+    bindCreateUserForm();
   }
+  bindCredentialNoticeDismiss();
   bindDelegationForm();
   document.querySelectorAll('[data-revoke-delegation]').forEach(function(b){b.addEventListener('click',function(){revokeDelegation(b.dataset.revokeDelegation)})});
+}
+
+// ============================================
+// TAO TAI KHOAN MOI - goi Edge Function admin-manage-users (action:
+// create_user). Chi Quan tri vien/Vien truong tinh (fullAccess) thay panel
+// nay. Mat khau: admin tu go hoac bam "Tao ngau nhien" de dien san 1 chuoi
+// manh, luon hien ro (khong an) de con chep lai gui cho nguoi dung - domain
+// hien la @vks-test.local, khong gui duoc email nen KHONG dung luong quen
+// mat khau qua email.
+function createUserFormHtml(){
+  var deptUnits=UNITS.filter(function(u){return u.type!=='province'});
+  var homeUnitOptions=PROVINCE_UNIT_ID?[{id:PROVINCE_UNIT_ID,short_name:LEADERSHIP_UNIT_LABEL}].concat(deptUnits):deptUnits;
+  var roleOptions=ROLE_OPTIONS.filter(function(r){return r!=='administrator'||U.rl==='administrator'});
+  var unitOptionsHtml=homeUnitOptions.map(function(u){return '<option value="'+u.id+'">'+esc(u.short_name||u.code)+'</option>'}).join('');
+  var roleOptionsHtml=roleOptions.map(function(r){return '<option value="'+r+'">'+ROLE_LABELS[r]+'</option>'}).join('');
+  return '<div class="form-grid compact-form">'
+    +'<label class="field"><span>Họ và tên</span><input type="text" id="newUserFullName" placeholder="Nguyễn Văn A"></label>'
+    +'<label class="field"><span>Email đăng nhập</span><input type="email" id="newUserEmail" placeholder="ten.dang.nhap@vks-test.local"></label>'
+    +'<label class="field"><span>Vai trò</span><select id="newUserRole">'+roleOptionsHtml+'</select></label>'
+    +'<label class="field"><span>Đơn vị</span><select id="newUserUnit">'+unitOptionsHtml+'</select></label>'
+    +'<label class="field"><span>Chức vụ (không bắt buộc)</span><input type="text" id="newUserTitle" placeholder="VD: Kiểm sát viên trung cấp"></label>'
+    +'<label class="field field-wide"><span>Mật khẩu ban đầu</span><div class="password-field-row"><input type="text" id="newUserPassword" placeholder="Tối thiểu 8 ký tự"><button type="button" class="button button-secondary button-small" id="genUserPassword">Tạo ngẫu nhiên</button></div></label>'
+    +'</div><div class="review-actions"><button class="button button-primary" id="createUserBtn">Tạo tài khoản</button></div>';
+}
+
+function bindCreateUserForm(){
+  var genBtn=$('genUserPassword');
+  if(genBtn)genBtn.addEventListener('click',function(){$('newUserPassword').value=generateStrongPassword()});
+  var createBtn=$('createUserBtn');
+  if(createBtn)createBtn.addEventListener('click',submitCreateUser);
+}
+
+async function submitCreateUser(){
+  if(!requireActive())return;
+  var fullName=$('newUserFullName').value.trim();
+  var email=$('newUserEmail').value.trim().toLowerCase();
+  var role=$('newUserRole').value;
+  var unitId=$('newUserUnit').value;
+  var title=$('newUserTitle').value.trim();
+  var password=$('newUserPassword').value.trim();
+  if(!fullName||!email||!password){showToast('Vui lòng nhập đủ họ tên, email, mật khẩu.');return}
+  if(password.length<8){showToast('Mật khẩu cần tối thiểu 8 ký tự.');return}
+  var btn=$('createUserBtn');btn.disabled=true;
+  try{
+    var r=await fetch(FUNCTIONS+'admin-manage-users',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({action:'create_user',email:email,password:password,full_name:fullName,role:role,unit_id:unitId,title:title||null})});
+    var d=await r.json();
+    if(!r.ok||d.success===false)throw new Error((d&&d.error)||('HTTP '+r.status));
+    ADMIN_CREDENTIAL_NOTICE={title:'Đã tạo tài khoản mới',email:email,password:password};
+    showToast('Đã tạo tài khoản cho '+fullName+'.');
+    ra();
+  }catch(e){showToast('Lỗi: '+e.message);btn.disabled=false}
 }
 
 // ============================================

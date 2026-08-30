@@ -282,6 +282,7 @@ const state = {
   currentUserId: users.some(user => user.id === requestedUser) ? requestedUser : "u01",
   currentView: ["dashboard", "journal", "notes", "reviews", "unitJournal", "monthly", "organization", "administration", "settings"].includes(requestedView) ? requestedView : "dashboard",
   selectedReviewId: null,
+  reviewQueueCollapsed: false,
   editingJournalId: null,
   selectedMonthlyUserId: null,
   dashboardUnit: filterPrefs.dashboardUnit || "all",
@@ -291,6 +292,7 @@ const state = {
   dashboardSummarySort: { key: "count", direction: "desc" },
   monthlyUnit: filterPrefs.monthlyUnit || "all",
   monthlyPeriod: filterPrefs.monthlyPeriod || "2026-06",
+  monthlySearch: "",
   journalStatusFilter: "all",
   journalSearch: "",
   ujMode: "person",
@@ -1209,7 +1211,7 @@ function renderJournal() {
   document.getElementById("appView").innerHTML = `
     ${noJournalToday ? `<div class="demo-notice journal-reminder-notice"><strong>Nhắc nhở</strong><span>Hôm nay bạn chưa ghi nhật ký công tác. Hãy ghi lại kết quả trong ngày để không bỏ sót khi chấm điểm cuối tháng.</span></div>` : ""}
     <div class="journal-header"><div><h2>${user.name}</h2><p>${user.title} · ${unitById(user.unitId).short}</p></div><button class="button button-primary" id="newJournal">+ Ghi nhật ký mới</button></div>
-    <div class="metric-grid">
+    <div class="metric-grid journal-stats-row">
       ${metricCard("Nhật ký đã gửi", mine.length, "Trong dữ liệu demo", "")}
       ${metricCard("Đã xác nhận", mine.filter(item => item.status === "approved").length, "Kết quả được công nhận", "green")}
       ${metricCard("Cần xử lý", pendingCount + revisionCount, `${pendingCount} chờ đánh giá · ${revisionCount} cần bổ sung`, "gold")}
@@ -1527,15 +1529,24 @@ function renderReviews() {
   document.getElementById("appView").innerHTML = `
     <div class="toolbar"><div><h2>${queue.length} nhật ký chờ đánh giá</h2><p class="metric-context">Chỉ hiển thị cán bộ, công chức thuộc phạm vi được phân công.</p></div></div>
     <div class="review-layout">
-      <section><div class="review-queue">${queue.length ? groupQueueByAuthor(queue).map(g => {
+      <section><details class="review-queue-details" ${state.reviewQueueCollapsed ? "" : "open"}><summary>Danh sách hàng chờ <span class="review-queue-hint">(bấm để thu gọn/mở rộng)</span></summary><div class="review-queue">${queue.length ? groupQueueByAuthor(queue).map(g => {
         const authorName = g.author ? g.author.name : "Không xác định tác giả";
         const authorUnit = g.author ? unitById(g.author.unitId).short : "";
         const items = g.items.map((log, idx) => `<button class="queue-item ${log.id === state.selectedReviewId ? "is-selected" : ""}" data-review-id="${log.id}"><span class="queue-index">${idx + 1}</span><span class="queue-item-body"><p>${log.title}</p><span class="queue-meta">${log.revisionCount ? `<span class="resubmission-badge">Trình lại lần ${log.revisionCount}</span>` : ""}<span>${shortDateTime(submittedAtOf(log))}</span></span></span></button>`).join("");
         return `<div class="queue-group"><div class="queue-group-header"><strong>${authorName}</strong>${authorUnit ? `<span>${authorUnit}</span>` : ""}</div>${items}</div>`;
-      }).join("") : `<div class="panel empty-state"><strong>Đã xử lý hết</strong>Không còn nhật ký chờ đánh giá.</div>`}</div></section>
+      }).join("") : `<div class="panel empty-state"><strong>Đã xử lý hết</strong>Không còn nhật ký chờ đánh giá.</div>`}</div></details></section>
       <section class="panel review-detail">${selected ? reviewDetail(selected) : `<div class="empty-state"><strong>Không có nhật ký cần xử lý</strong>Hãy quay lại khi có nhật ký mới.</div>`}</section>
     </div>`;
-  document.querySelectorAll("[data-review-id]").forEach(button => button.addEventListener("click", () => { state.selectedReviewId = button.dataset.reviewId; renderReviews(); }));
+  document.querySelectorAll("[data-review-id]").forEach(button => button.addEventListener("click", () => {
+    state.selectedReviewId = button.dataset.reviewId;
+    // Tren man hinh hep, chon xong tu thu gon hang cho de do phai cuon qua
+    // het danh sach moi toi form cham diem (man hinh rong van hien song
+    // song ca 2 ben nen khong can thu gon).
+    if (window.innerWidth <= 820) state.reviewQueueCollapsed = true;
+    renderReviews();
+  }));
+  const queueDetails = document.querySelector(".review-queue-details");
+  if (queueDetails) queueDetails.addEventListener("toggle", () => { state.reviewQueueCollapsed = !queueDetails.open; });
   if (selected) bindReviewActions(selected);
 }
 
@@ -1892,17 +1903,27 @@ function renderUnitJournalContent() {
   document.querySelectorAll("[data-delete-log]").forEach(b => b.addEventListener("click", () => handleDeleteLogClick(b)));
 }
 
+// Tach rieng "Nguoi lao dong" (support_staff) khoi "Can bo/KSV" - truoc
+// day 1 danh sach phang lam kho quet mat khi 1 don vi co toi 30-70 nguoi
+// (lai xe, bao ve, phuc vu... xen lan voi KSV/lanh dao).
+function ujPersonCardHtml(p, counts) {
+  const c = counts[p.id] || { count: 0, last: null };
+  return `<button type="button" class="uj-person-card" data-uj-person="${p.id}">
+    <div class="uj-person-info"><strong>${p.name}</strong><span>${p.title} · ${unitById(p.unitId).short}</span></div>
+    <div class="uj-person-stats"><span class="score-pill ${c.count ? "score-mid" : ""}">${c.count} nhật ký</span><span class="uj-last-date">${c.last ? `Gần nhất: ${fullDate(c.last)}` : "Chưa nộp trong kỳ"}</span></div>
+  </button>`;
+}
+
 function renderUjPersonListHtml() {
   const people = ujFilteredPeople();
   if (!people.length) return `<div class="empty-state"><strong>Không có ai trong phạm vi này</strong></div>`;
   const counts = ujCountsByAuthor(ujFilteredLogs());
-  return `<div class="uj-person-list">${people.map(p => {
-    const c = counts[p.id] || { count: 0, last: null };
-    return `<button type="button" class="uj-person-card" data-uj-person="${p.id}">
-      <div class="uj-person-info"><strong>${p.name}</strong><span>${p.title} · ${unitById(p.unitId).short}</span></div>
-      <div class="uj-person-stats"><span class="score-pill ${c.count ? "score-mid" : ""}">${c.count} nhật ký</span><span class="uj-last-date">${c.last ? `Gần nhất: ${fullDate(c.last)}` : "Chưa nộp trong kỳ"}</span></div>
-    </button>`;
-  }).join("")}</div>`;
+  const staffGroup = people.filter(p => p.role !== "support_staff");
+  const supportGroup = people.filter(p => p.role === "support_staff");
+  let h = "";
+  if (staffGroup.length) h += `<div class="uj-group-heading">Cán bộ, công chức, Kiểm sát viên (${staffGroup.length})</div><div class="uj-person-list">${staffGroup.map(p => ujPersonCardHtml(p, counts)).join("")}</div>`;
+  if (supportGroup.length) h += `<div class="uj-group-heading">Người lao động (${supportGroup.length})</div><div class="uj-person-list">${supportGroup.map(p => ujPersonCardHtml(p, counts)).join("")}</div>`;
+  return h;
 }
 
 function renderUjPersonDetailHtml(personId) {
@@ -1982,7 +2003,7 @@ function renderMonthly() {
     <div class="demo-notice"><strong>Dữ liệu tham chiếu</strong><span>Danh mục và điểm ${periodLabel(state.monthlyPeriod).toLowerCase()} lấy từ bảng tổng hợp đã cung cấp (hoặc mô phỏng cho các kỳ khác). Demo đang nạp 32 hồ sơ đại diện trong tổng số 428 cán bộ, công chức và người lao động.</span></div>
     <div class="toolbar">
       <label class="filter-field"><span>Kỳ đánh giá</span><select id="monthlyPeriodFilter">${recentPeriods().map(period => `<option value="${period}" ${state.monthlyPeriod === period ? "selected" : ""}>${periodLabel(period)}${period === recentPeriods()[0] ? " · Đang chấm" : " · Đã chốt"}</option>`).join("")}</select></label>
-      ${unitFilter}<div class="spacer"></div><button class="button button-secondary" id="exportMonthly">Xuất báo cáo tháng</button>
+      ${unitFilter}<label class="field"><span>Tìm theo tên</span><input type="text" id="monthlySearchInput" value="${state.monthlySearch}" placeholder="Nhập tên..."></label><div class="spacer"></div><button class="button button-secondary" id="exportMonthly">Xuất báo cáo tháng</button>
     </div>
     <div class="metric-grid">
       ${metricCard("Hồ sơ trong phạm vi", rows.length, `${approved.length} hồ sơ đã duyệt`, "")}
@@ -1993,7 +2014,7 @@ function renderMonthly() {
     <div class="monthly-layout">
       <section class="panel monthly-table-panel">
         <div class="panel-header"><div><h2>Danh sách đánh giá tháng</h2><p>Giữ nguyên cấu trúc điểm tự chấm, điểm duyệt chính thức và xếp loại hiện hành</p></div></div>
-        ${monthlyTable(rows)}
+        ${monthlyTable(monthlyFilteredRows(rows))}
       </section>
       <section class="panel monthly-detail">${selected ? monthlyDetail(selected) : `<div class="empty-state"><strong>Không có hồ sơ</strong>Chưa có dữ liệu phù hợp với phạm vi này.</div>`}</section>
     </div>`;
@@ -2002,6 +2023,15 @@ function renderMonthly() {
   const filter = document.getElementById("monthlyUnitFilter");
   if (filter) filter.addEventListener("change", event => { state.monthlyUnit = event.target.value; saveFilterPrefs({ monthlyUnit: state.monthlyUnit }); state.selectedMonthlyUserId = null; renderMonthly(); });
   document.getElementById("monthlyPeriodFilter").addEventListener("change", event => { state.monthlyPeriod = event.target.value; saveFilterPrefs({ monthlyPeriod: state.monthlyPeriod }); state.selectedMonthlyUserId = null; renderMonthly(); });
+  const monthlySearchInput = document.getElementById("monthlySearchInput");
+  monthlySearchInput.addEventListener("input", event => {
+    state.monthlySearch = event.target.value;
+    const focusPos = monthlySearchInput.selectionStart;
+    renderMonthly();
+    const newInput = document.getElementById("monthlySearchInput");
+    newInput.focus();
+    newInput.setSelectionRange(focusPos, focusPos);
+  });
   document.getElementById("exportMonthly").addEventListener("click", openExportModal);
   const saveButton = document.getElementById("saveMonthlyReview");
   if (saveButton && selected) saveButton.addEventListener("click", () => saveMonthlyReview(selected));
@@ -2023,13 +2053,31 @@ function renderMonthly() {
   });
 }
 
+// Loc theo ten - can thiet tu khi 1 don vi co toi 30-70 nguoi thay vi
+// vai nguoi nhu truoc, cuon tim thu cong rat lau. Chi loc bang, khong
+// dong lai metric-grid/chi tiet ben phai.
+function monthlyFilteredRows(rows) {
+  if (!state.monthlySearch) return rows;
+  const q = state.monthlySearch.normalize("NFC").toLowerCase();
+  return rows.filter(row => userById(row.userId).name.normalize("NFC").toLowerCase().includes(q));
+}
+
+function monthlyRowHtml(row) {
+  const person = userById(row.userId);
+  const selected = row.userId === state.selectedMonthlyUserId;
+  return `<tr class="${selected ? "is-selected-row" : ""}"><td><div class="person-cell"><span class="mini-avatar">${person.initials}</span><div><strong>${person.name}</strong><span>${person.professionalTitle || ""}</span></div></div></td><td>${person.title}</td><td>${unitById(person.unitId).short}</td><td class="numeric">${row.selfScore ?? "—"}</td><td class="numeric"><strong>${row.officialScore ?? "—"}</strong></td><td class="numeric"><span class="grade-badge grade-${(row.classification || "pending").toLowerCase()}">${row.classification || "Chờ"}</span></td><td class="numeric"><button class="button button-secondary button-small" data-monthly-user="${person.id}">Xem căn cứ</button></td></tr>`;
+}
+
+// Tach rieng "Nguoi lao dong" (support_staff) khoi "Can bo/KSV" bang 1
+// dong tieu de gom nhom (colspan) - cung ly do voi renderUjPersonListHtml.
 function monthlyTable(rows) {
   if (!rows.length) return `<div class="empty-state"><strong>Không có dữ liệu</strong>Hãy chọn phạm vi khác.</div>`;
-  return `<div class="table-wrap"><table><thead><tr><th>Họ và tên</th><th>Chức vụ, chức danh</th><th>Đơn vị</th><th class="numeric">Tự chấm</th><th class="numeric">Chính thức</th><th class="numeric">Xếp loại</th><th></th></tr></thead><tbody>${rows.map(row => {
-    const person = userById(row.userId);
-    const selected = row.userId === state.selectedMonthlyUserId;
-    return `<tr class="${selected ? "is-selected-row" : ""}"><td><div class="person-cell"><span class="mini-avatar">${person.initials}</span><div><strong>${person.name}</strong><span>${person.professionalTitle || ""}</span></div></div></td><td>${person.title}</td><td>${unitById(person.unitId).short}</td><td class="numeric">${row.selfScore ?? "—"}</td><td class="numeric"><strong>${row.officialScore ?? "—"}</strong></td><td class="numeric"><span class="grade-badge grade-${(row.classification || "pending").toLowerCase()}">${row.classification || "Chờ"}</span></td><td class="numeric"><button class="button button-secondary button-small" data-monthly-user="${person.id}">Xem căn cứ</button></td></tr>`;
-  }).join("")}</tbody></table></div>`;
+  const staffRows = rows.filter(row => userById(row.userId).role !== "support_staff");
+  const supportRows = rows.filter(row => userById(row.userId).role === "support_staff");
+  let body = "";
+  if (staffRows.length) body += `<tr class="table-group-row"><td colspan="7">Cán bộ, công chức, Kiểm sát viên (${staffRows.length})</td></tr>${staffRows.map(monthlyRowHtml).join("")}`;
+  if (supportRows.length) body += `<tr class="table-group-row"><td colspan="7">Người lao động (${supportRows.length})</td></tr>${supportRows.map(monthlyRowHtml).join("")}`;
+  return `<div class="table-wrap"><table><thead><tr><th>Họ và tên</th><th>Chức vụ, chức danh</th><th>Đơn vị</th><th class="numeric">Tự chấm</th><th class="numeric">Chính thức</th><th class="numeric">Xếp loại</th><th></th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 function monthlyDetail(row) {
@@ -2798,10 +2846,12 @@ function renderTasks() {
 
 function taskAssignFormHtml(candidates) {
   const options = candidates.map(person => `<option value="${person.id}">${person.name} · ${unitById(person.unitId).short}</option>`).join("");
-  const checklist = candidates.map(person => `<label><input type="checkbox" name="supportIds" value="${person.id}"> ${person.name} · ${unitById(person.unitId).short}</label>`).join("");
+  const checklist = candidates.map(person => `<label data-name="${person.name.toLowerCase()}"><input type="checkbox" name="supportIds" value="${person.id}"> ${person.name} · ${unitById(person.unitId).short}</label>`).join("");
   return `<form class="form-grid compact-form" id="taskAssignForm">
     <label class="field field-wide"><span>Người chủ trì</span><select name="leadId" required>${options}</select></label>
-    <div class="field field-wide"><span>Người phối hợp (không bắt buộc)</span><div class="unit-checklist" id="taskSupportChecklist">${checklist}</div></div>
+    <div class="field field-wide"><span>Người phối hợp (không bắt buộc) — <span id="taskSupportCount">chưa chọn ai</span></span>
+      ${candidates.length > 6 ? `<input type="text" id="taskSupportSearch" placeholder="Tìm theo tên...">` : ""}
+      <div class="unit-checklist" id="taskSupportChecklist">${checklist}</div></div>
     <label class="field field-wide"><span>Tên công việc</span><input type="text" name="title" required maxlength="200"></label>
     <label class="field field-wide"><span>Mô tả / yêu cầu</span><textarea name="description" rows="2"></textarea></label>
     <label class="field"><span>Hạn gợi ý (không bắt buộc)</span><input type="datetime-local" name="suggestedDueDate"></label>
@@ -2809,9 +2859,33 @@ function taskAssignFormHtml(candidates) {
   </form>`;
 }
 
+// Tim theo ten + dem so nguoi da chon - can thiet tu khi don vi co toi
+// 30-70 nguoi (truoc day chi vai nguoi, khung 5 dong la du dung).
+function bindTaskSupportExtras() {
+  const search = document.getElementById("taskSupportSearch");
+  const checklist = document.getElementById("taskSupportChecklist");
+  if (!checklist) return;
+  const updateCount = () => {
+    const n = checklist.querySelectorAll('input[type="checkbox"]:checked').length;
+    const el = document.getElementById("taskSupportCount");
+    if (el) el.textContent = n ? `${n} đã chọn` : "chưa chọn ai";
+  };
+  checklist.addEventListener("change", updateCount);
+  updateCount();
+  if (search) {
+    search.addEventListener("input", () => {
+      const q = search.value.trim().normalize("NFC").toLowerCase();
+      checklist.querySelectorAll("label").forEach(label => {
+        label.style.display = (!q || (label.dataset.name || "").includes(q)) ? "" : "none";
+      });
+    });
+  }
+}
+
 function bindTaskAssignForm() {
   const form = document.getElementById("taskAssignForm");
   if (!form) return;
+  bindTaskSupportExtras();
   form.addEventListener("submit", event => {
     event.preventDefault();
     const data = new FormData(form);
@@ -3209,6 +3283,7 @@ function resetDemo() {
   state.dashboardPersonUnit = "all";
   state.monthlyUnit = "all";
   state.monthlyPeriod = "2026-06";
+  state.monthlySearch = "";
   state.journalStatusFilter = "all";
   state.journalSearch = "";
   state.notesMonth = DEMO_TODAY.slice(0, 7);
