@@ -11,7 +11,7 @@ function setVisible(el,visible){if(el)el.style.display=visible?'':'none'}
 var NativeURL=window.URL;
 var URL=window.VITE_SUPABASE_URL;
 var KEY=window.VITE_SUPABASE_ANON_KEY;
-var API=URL+'/rest/v1/';var AUTH=URL+'/auth/v1/';
+var API=URL+'/rest/v1/';var AUTH=URL+'/auth/v1/';var FUNCTIONS=URL+'/functions/v1/';
 // "Ghi nho dang nhap": phien luu o localStorage (con sau khi dong trinh
 // duyet) neu nguoi dung tich chon, hoac sessionStorage (mat khi dong tab/
 // trinh duyet, giu nguyen khi F5) neu khong tich - dung chung 1 key 'st' o
@@ -1421,7 +1421,7 @@ async function ro(){
     }).join(''):'<span class="unit-checklist-empty">Chưa có nhân sự</span>')+'</div>'):'';
     return '<div class="org-unit-wrap"><button type="button" class="org-unit '+(expanded?'is-expanded':'')+'" data-org-unit-toggle="'+unit.id+'"><div><strong>'+esc(unit.short_name||unit.code)+'</strong><span>'+(head?esc(head.full_name):'Chưa xác định người đứng đầu')+'</span></div><span class="score-pill score-mid">'+members.length+' người</span></button>'+memberRows+'</div>';
   }
-  var h='<div class="dashboard-grid">'
+  var h=credentialNoticeHtml()+'<div class="dashboard-grid">'
     +'<section class="panel panel-wide"><div class="panel-header"><div><h2>Cây tổ chức</h2><p>Hai nhóm đơn vị ngang cấp, cùng trực thuộc VKSND tỉnh</p></div></div><div class="org-tree"><div class="org-root"><strong>VKSND tỉnh</strong><span>Viện trưởng · Các Phó Viện trưởng</span></div><div class="org-branches"><div class="org-column"><h3>Phòng chuyên trách</h3>'+departments.map(orgUnitCardHtml).join('')+'</div><div class="org-column"><h3>VKSND khu vực</h3>'+regionals.map(orgUnitCardHtml).join('')+'</div></div></div></section>'
     +'<section class="panel panel-wide"><div class="panel-header"><div><h2>Gán vai trò và đơn vị</h2><p>Chỉ định đúng chức vụ và đơn vị cho từng tài khoản, nhóm theo đơn vị. Tài khoản đang chờ xác nhận sẽ được kích hoạt luôn khi gán. Viện trưởng/Phó Viện trưởng tỉnh chọn "Lãnh đạo Viện tỉnh" làm đơn vị. Với vai trò Phó Viện trưởng tỉnh, tick chọn thêm các đơn vị được phân công phụ trách.</p></div></div>'+assignRoleGroupedHtml(people,assignedByUser)+'</section>'
     +'<section class="panel panel-wide"><div class="panel-header"><div><h2>Quy tắc người chấm</h2><p>Không cho phép người dùng tự chấm nhật ký của mình</p></div></div><div class="org-role-list">'
@@ -1433,10 +1433,12 @@ async function ro(){
   $('appView').innerHTML=h;
   document.querySelectorAll('[data-save-role]').forEach(function(b){b.addEventListener('click',function(){saveAccountRole(b.dataset.saveRole)})});
   document.querySelectorAll('[data-toggle-active]').forEach(function(b){b.addEventListener('click',function(){toggleAccountActive(b.dataset.toggleActive,b.dataset.active==='true')})});
+  document.querySelectorAll('[data-reset-password]').forEach(function(b){b.addEventListener('click',function(){resetPasswordFor(b.dataset.resetPassword,b.dataset.personFullName)})});
   document.querySelectorAll('[data-org-unit-toggle]').forEach(function(b){b.addEventListener('click',function(){
     ORG_EXPANDED_UNIT_ID=ORG_EXPANDED_UNIT_ID===b.dataset.orgUnitToggle?null:b.dataset.orgUnitToggle;
     ro();
   })});
+  bindCredentialNoticeDismiss();
   bindRoleSelectToggle();
   bindAssignRoleSearch();
 }
@@ -1464,7 +1466,8 @@ function assignRoleTableHtml(people,assignedByUser){
       +'<span class="unit-checklist-empty" data-assigned-empty="'+p.id+'" style="display:'+(isDeputy?'none':'')+'">Chỉ áp dụng cho Phó Viện trưởng tỉnh</span>';
     var isSelf=p.id===U.id;
     var lockBtn=isSelf?'':'<button type="button" class="button button-small '+(p.is_active?'button-danger':'button-secondary')+'" data-toggle-active="'+p.id+'" data-active="'+p.is_active+'">'+(p.is_active?'Khoá':'Mở lại')+'</button>';
-    return '<tr data-person-name="'+esc((p.full_name||'').normalize('NFC').toLowerCase())+'"><td><strong>'+esc(p.full_name)+'</strong></td><td><span class="status-pill '+(p.is_active?'status-approved':'status-pending')+'">'+(p.is_active?'Đang hoạt động':'Chờ xác nhận')+'</span></td><td>'+roleSel+'</td><td>'+unitSel+'</td><td>'+checklist+'</td><td class="numeric"><button class="button button-primary button-small" data-save-role="'+p.id+'">Lưu</button> '+lockBtn+'</td></tr>';
+    var resetPwBtn='<button type="button" class="button button-secondary button-small" data-reset-password="'+p.id+'" data-person-full-name="'+esc(p.full_name)+'">Đặt lại mật khẩu</button>';
+    return '<tr data-person-name="'+esc((p.full_name||'').normalize('NFC').toLowerCase())+'"><td><strong>'+esc(p.full_name)+'</strong></td><td><span class="status-pill '+(p.is_active?'status-approved':'status-pending')+'">'+(p.is_active?'Đang hoạt động':'Chờ xác nhận')+'</span></td><td>'+roleSel+'</td><td>'+unitSel+'</td><td>'+checklist+'</td><td class="numeric"><button class="button button-primary button-small" data-save-role="'+p.id+'">Lưu</button> '+resetPwBtn+' '+lockBtn+'</td></tr>';
   }).join('')+'</tbody></table></div>';
 }
 
@@ -1564,6 +1567,56 @@ async function toggleAccountActive(id,currentlyActive){
     var d=await r.json();
     if(!r.ok||d.success===false)throw new Error((d&&d.error)||('HTTP '+r.status));
     showToast(currentlyActive?'Đã khoá tài khoản.':'Đã mở lại tài khoản.');
+    ro();
+  }catch(e){showToast('Lỗi: '+e.message)}
+}
+
+// Sinh 1 mat khau manh, de doc/de chep tay (khong dung ky tu de nham lan
+// nhau nhu 0/O, 1/l) - dung lam goi y ban dau, admin van sua tay duoc truoc
+// khi gui di.
+function generateStrongPassword(){
+  var letters='ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz';
+  var digits='23456789';
+  var symbols='!@#$%*';
+  function pick(s){return s.charAt(Math.floor(Math.random()*s.length))}
+  var chars=[pick(letters).toUpperCase(),pick(letters).toLowerCase(),pick(digits),pick(symbols)];
+  var all=letters+digits+symbols;
+  for(var i=0;i<8;i++)chars.push(pick(all));
+  return chars.sort(function(){return Math.random()-0.5}).join('');
+}
+
+// Thong bao mat khau vua tao/dat lai - hien dang banner CO DINH tren dau
+// trang (khong tu bien mat nhu toast 3s) de admin kip chep lai/gui cho
+// nguoi dung, chi mat khi admin bam "Da ghi lai, dong".
+var ADMIN_CREDENTIAL_NOTICE=null;
+function credentialNoticeHtml(){
+  if(!ADMIN_CREDENTIAL_NOTICE)return'';
+  var n=ADMIN_CREDENTIAL_NOTICE;
+  return '<div class="panel panel-wide credential-notice"><div class="credential-notice-body">'
+    +'<strong>'+esc(n.title)+'</strong>'
+    +'<p>Tài khoản: <code>'+esc(n.email||n.name||'')+'</code></p>'
+    +'<p>Mật khẩu: <code class="credential-notice-password">'+esc(n.password)+'</code></p>'
+    +'<p class="credential-notice-hint">Hãy chép lại và gửi riêng cho người dùng ngay bây giờ - mật khẩu sẽ không hiển thị lại được nữa sau khi đóng.</p>'
+    +'</div><button type="button" class="button button-secondary button-small" id="dismissCredentialNotice">Đã ghi lại, đóng</button></div>';
+}
+function bindCredentialNoticeDismiss(){
+  var b=$('dismissCredentialNotice');
+  if(b)b.addEventListener('click',function(){ADMIN_CREDENTIAL_NOTICE=null;if(V==='organization')ro();else if(V==='administration')ra();});
+}
+
+async function resetPasswordFor(id,name){
+  if(!requireActive())return;
+  var suggested=generateStrongPassword();
+  var input=prompt('Đặt mật khẩu mới cho "'+name+'" (tối thiểu 8 ký tự). Có thể sửa lại trước khi xác nhận:',suggested);
+  if(input===null)return;
+  var newPassword=input.trim();
+  if(newPassword.length<8){showToast('Mật khẩu cần tối thiểu 8 ký tự.');return}
+  try{
+    var r=await fetch(FUNCTIONS+'admin-manage-users',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({action:'set_password',user_id:id,new_password:newPassword})});
+    var d=await r.json();
+    if(!r.ok||d.success===false)throw new Error((d&&d.error)||('HTTP '+r.status));
+    ADMIN_CREDENTIAL_NOTICE={title:'Đã đặt lại mật khẩu',name:name,password:newPassword};
+    showToast('Đã đặt lại mật khẩu cho '+name+'.');
     ro();
   }catch(e){showToast('Lỗi: '+e.message)}
 }
@@ -2839,12 +2892,14 @@ async function ra(){
   ADMIN_PENDING=pendingProfiles;ADMIN_DELEGATION_PEOPLE=people;ADMIN_DELEGATIONS=delegationRows;
 
   var activeDelegationsCount=delegationRows.filter(isDelegationActiveRow).length;
-  var h=fullAccess?('<div class="metric-grid">'
+  var h=credentialNoticeHtml();
+  h+=fullAccess?('<div class="metric-grid">'
     +metricCard('Tài khoản chờ xác nhận',pendingProfiles.length,'Cần đối chiếu trước khi kích hoạt','gold')
     +metricCard('Ủy quyền đang hiệu lực',activeDelegationsCount,'Có thể thu hồi tức thời','blue')
     +'</div>'):'';
   h+='<div class="admin-grid">';
   if(fullAccess){
+    h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Tạo tài khoản mới</h2><p>Tạo trực tiếp trên giao diện, không cần vào Supabase viết SQL</p></div></div>'+createUserFormHtml()+'</section>';
     h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Tài khoản chờ xác nhận</h2><p>Đối chiếu đúng người, đúng đơn vị trước khi kích hoạt</p></div></div>'+pendingAccountTableHtml(pendingProfiles)+'</section>';
   }
   h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Ủy quyền có thời hạn</h2><p>Ủy quyền cho 1 Phó phòng/Phó Viện trưởng KV thay mặt chấm điểm toàn bộ đơn vị'+(fullAccess?'':' (đơn vị của bạn)')+', trong một khoảng thời gian</p></div></div>'
@@ -2857,9 +2912,62 @@ async function ra(){
 
   if(fullAccess){
     document.querySelectorAll('[data-approve-account]').forEach(function(b){b.addEventListener('click',function(){approvePendingAccount(b.dataset.approveAccount)})});
+    bindCreateUserForm();
   }
+  bindCredentialNoticeDismiss();
   bindDelegationForm();
   document.querySelectorAll('[data-revoke-delegation]').forEach(function(b){b.addEventListener('click',function(){revokeDelegation(b.dataset.revokeDelegation)})});
+}
+
+// ============================================
+// TAO TAI KHOAN MOI - goi Edge Function admin-manage-users (action:
+// create_user). Chi Quan tri vien/Vien truong tinh (fullAccess) thay panel
+// nay. Mat khau: admin tu go hoac bam "Tao ngau nhien" de dien san 1 chuoi
+// manh, luon hien ro (khong an) de con chep lai gui cho nguoi dung - domain
+// hien la @vks-test.local, khong gui duoc email nen KHONG dung luong quen
+// mat khau qua email.
+function createUserFormHtml(){
+  var deptUnits=UNITS.filter(function(u){return u.type!=='province'});
+  var homeUnitOptions=PROVINCE_UNIT_ID?[{id:PROVINCE_UNIT_ID,short_name:LEADERSHIP_UNIT_LABEL}].concat(deptUnits):deptUnits;
+  var roleOptions=ROLE_OPTIONS.filter(function(r){return r!=='administrator'||U.rl==='administrator'});
+  var unitOptionsHtml=homeUnitOptions.map(function(u){return '<option value="'+u.id+'">'+esc(u.short_name||u.code)+'</option>'}).join('');
+  var roleOptionsHtml=roleOptions.map(function(r){return '<option value="'+r+'">'+ROLE_LABELS[r]+'</option>'}).join('');
+  return '<div class="form-grid compact-form">'
+    +'<label class="field"><span>Họ và tên</span><input type="text" id="newUserFullName" placeholder="Nguyễn Văn A"></label>'
+    +'<label class="field"><span>Email đăng nhập</span><input type="email" id="newUserEmail" placeholder="ten.dang.nhap@vks-test.local"></label>'
+    +'<label class="field"><span>Vai trò</span><select id="newUserRole">'+roleOptionsHtml+'</select></label>'
+    +'<label class="field"><span>Đơn vị</span><select id="newUserUnit">'+unitOptionsHtml+'</select></label>'
+    +'<label class="field"><span>Chức vụ (không bắt buộc)</span><input type="text" id="newUserTitle" placeholder="VD: Kiểm sát viên trung cấp"></label>'
+    +'<label class="field field-wide"><span>Mật khẩu ban đầu</span><div class="password-field-row"><input type="text" id="newUserPassword" placeholder="Tối thiểu 8 ký tự"><button type="button" class="button button-secondary button-small" id="genUserPassword">Tạo ngẫu nhiên</button></div></label>'
+    +'</div><div class="review-actions"><button class="button button-primary" id="createUserBtn">Tạo tài khoản</button></div>';
+}
+
+function bindCreateUserForm(){
+  var genBtn=$('genUserPassword');
+  if(genBtn)genBtn.addEventListener('click',function(){$('newUserPassword').value=generateStrongPassword()});
+  var createBtn=$('createUserBtn');
+  if(createBtn)createBtn.addEventListener('click',submitCreateUser);
+}
+
+async function submitCreateUser(){
+  if(!requireActive())return;
+  var fullName=$('newUserFullName').value.trim();
+  var email=$('newUserEmail').value.trim().toLowerCase();
+  var role=$('newUserRole').value;
+  var unitId=$('newUserUnit').value;
+  var title=$('newUserTitle').value.trim();
+  var password=$('newUserPassword').value.trim();
+  if(!fullName||!email||!password){showToast('Vui lòng nhập đủ họ tên, email, mật khẩu.');return}
+  if(password.length<8){showToast('Mật khẩu cần tối thiểu 8 ký tự.');return}
+  var btn=$('createUserBtn');btn.disabled=true;
+  try{
+    var r=await fetch(FUNCTIONS+'admin-manage-users',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({action:'create_user',email:email,password:password,full_name:fullName,role:role,unit_id:unitId,title:title||null})});
+    var d=await r.json();
+    if(!r.ok||d.success===false)throw new Error((d&&d.error)||('HTTP '+r.status));
+    ADMIN_CREDENTIAL_NOTICE={title:'Đã tạo tài khoản mới',email:email,password:password};
+    showToast('Đã tạo tài khoản cho '+fullName+'.');
+    ra();
+  }catch(e){showToast('Lỗi: '+e.message);btn.disabled=false}
 }
 
 // ============================================
