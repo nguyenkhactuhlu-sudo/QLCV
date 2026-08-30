@@ -551,7 +551,7 @@ async function rd(){
     +(provinceScope?('<select id="comparisonMode" aria-label="Chọn cách so sánh"><option value="unit" '+(comparisonMode==='unit'?'selected':'')+'>Theo đơn vị</option><option value="person" '+(comparisonMode==='person'?'selected':'')+'>Theo cá nhân</option></select>'):'')
     +(provinceScope&&comparisonMode==='person'?('<select id="comparisonPersonUnit" aria-label="Lọc đơn vị khi so sánh cá nhân"><option value="all">Tất cả đơn vị</option>'+availableUnits.map(function(u){return '<option value="'+u.id+'" '+(DASHBOARD_PERSON_UNIT===u.id?'selected':'')+'>'+esc(u.short_name||u.code)+'</option>'}).join('')+'</select>'):'')
     +'</div></div>'+comparisonBarChartHtml(comparisonGrouping,comparisonMode==='person'?12:Infinity)+'</section>'
-    +'<section class="panel panel-wide bento-tile bento-summary"><div class="panel-header"><div><h2>'+tableTitle+'</h2><p>Khối lượng, độ phức tạp và chất lượng trong kỳ</p></div></div>'+summaryTableHtml(grouping,provinceScope,people)+'</section>'
+    +'<section class="panel panel-wide bento-tile bento-summary"><div class="panel-header"><div><h2>'+tableTitle+'</h2><p>Khối lượng, độ phức tạp và chất lượng trong kỳ</p></div></div><div id="summaryTableSlot">'+summaryTableHtml(grouping,provinceScope,people)+'</div></section>'
     +'</div>';
 
   $('appView').innerHTML=h;
@@ -560,21 +560,30 @@ async function rd(){
   var unitSel=$('dashboardUnitFilter');if(unitSel)unitSel.addEventListener('change',function(e){DASHBOARD_UNIT_FILTER=e.target.value;saveFilterPrefs({dashboardUnit:DASHBOARD_UNIT_FILTER});rd()});
   var cmpSel=$('comparisonMode');if(cmpSel)cmpSel.addEventListener('change',function(e){DASHBOARD_COMPARISON_MODE=e.target.value;saveFilterPrefs({dashboardComparisonMode:DASHBOARD_COMPARISON_MODE});rd()});
   var cmpPersonSel=$('comparisonPersonUnit');if(cmpPersonSel)cmpPersonSel.addEventListener('change',function(e){DASHBOARD_PERSON_UNIT=e.target.value;saveFilterPrefs({dashboardPersonUnit:DASHBOARD_PERSON_UNIT});rd()});
-  document.querySelectorAll('[data-summary-sort]').forEach(function(b){b.addEventListener('click',function(){
-    var key=b.dataset.summarySort;
-    DASHBOARD_SORT={key:key,direction:(DASHBOARD_SORT.key===key&&DASHBOARD_SORT.direction==='desc')?'asc':'desc'};
-    rd();
-  })});
-  document.querySelectorAll('[data-summary-unit]').forEach(function(tr){tr.addEventListener('click',function(e){
-    if(e.target.closest('[data-summary-sort]'))return;
-    UJ_UNIT_FILTER=tr.dataset.summaryUnit;UJ_SELECTED_PERSON_ID=null;UJ_MODE='person';
-    setView('unitJournal');render();
-  })});
-  document.querySelectorAll('[data-summary-person]').forEach(function(tr){tr.addEventListener('click',function(e){
-    if(e.target.closest('[data-summary-sort]'))return;
-    UJ_SELECTED_PERSON_ID=tr.dataset.summaryPerson;UJ_MODE='person';
-    setView('unitJournal');render();
-  })});
+
+  // Doi sap xep chi la doi thu tu hien 1 mang da co san trong bo nho
+  // (khong doi du lieu) - dung ve rieng lai bang, KHONG goi lai rd() (se
+  // tai lai toan bo dashboard tu mang, xoa trang man hinh khong can thiet).
+  function bindSummaryTableEvents(){
+    document.querySelectorAll('[data-summary-sort]').forEach(function(b){b.addEventListener('click',function(){
+      var key=b.dataset.summarySort;
+      DASHBOARD_SORT={key:key,direction:(DASHBOARD_SORT.key===key&&DASHBOARD_SORT.direction==='desc')?'asc':'desc'};
+      var slot=$('summaryTableSlot');
+      if(slot)slot.innerHTML=summaryTableHtml(grouping,provinceScope,people);
+      bindSummaryTableEvents();
+    })});
+    document.querySelectorAll('[data-summary-unit]').forEach(function(tr){tr.addEventListener('click',function(e){
+      if(e.target.closest('[data-summary-sort]'))return;
+      UJ_UNIT_FILTER=tr.dataset.summaryUnit;UJ_SELECTED_PERSON_ID=null;UJ_MODE='person';
+      setView('unitJournal');render();
+    })});
+    document.querySelectorAll('[data-summary-person]').forEach(function(tr){tr.addEventListener('click',function(e){
+      if(e.target.closest('[data-summary-sort]'))return;
+      UJ_SELECTED_PERSON_ID=tr.dataset.summaryPerson;UJ_MODE='person';
+      setView('unitJournal');render();
+    })});
+  }
+  bindSummaryTableEvents();
 }
 
 var JOURNAL_STATUS_FILTER='all',JOURNAL_SEARCH='';
@@ -1421,6 +1430,22 @@ async function ro(){
     }).join(''):'<span class="unit-checklist-empty">Chưa có nhân sự</span>')+'</div>'):'';
     return '<div class="org-unit-wrap"><button type="button" class="org-unit '+(expanded?'is-expanded':'')+'" data-org-unit-toggle="'+unit.id+'"><div><strong>'+esc(unit.short_name||unit.code)+'</strong><span>'+(head?esc(head.full_name):'Chưa xác định người đứng đầu')+'</span></div><span class="score-pill score-mid">'+members.length+' người</span></button>'+memberRows+'</div>';
   }
+  // "Mo rong" 1 don vi (xem danh sach nhan su) chi doi ORG_EXPANDED_UNIT_ID -
+  // KHONG can goi lai ro() (se xoa trang toan bo trang, tai lai mang tu dau,
+  // cam giac giong nhu load lai trang). Ve rieng lai khoi ".org-branches"
+  // tu du lieu "people" da co san trong bo nho (dong trong closure nay).
+  function redrawOrgBranches(){
+    var branches=$('appView').querySelector('.org-branches');
+    if(!branches)return;
+    branches.innerHTML='<div class="org-column"><h3>Phòng chuyên trách</h3>'+departments.map(orgUnitCardHtml).join('')+'</div><div class="org-column"><h3>VKSND khu vực</h3>'+regionals.map(orgUnitCardHtml).join('')+'</div>';
+    bindOrgUnitToggle();
+  }
+  function bindOrgUnitToggle(){
+    document.querySelectorAll('[data-org-unit-toggle]').forEach(function(b){b.addEventListener('click',function(){
+      ORG_EXPANDED_UNIT_ID=ORG_EXPANDED_UNIT_ID===b.dataset.orgUnitToggle?null:b.dataset.orgUnitToggle;
+      redrawOrgBranches();
+    })});
+  }
   var h=credentialNoticeHtml()+'<div class="dashboard-grid">'
     +'<section class="panel panel-wide"><div class="panel-header"><div><h2>Cây tổ chức</h2><p>Hai nhóm đơn vị ngang cấp, cùng trực thuộc VKSND tỉnh</p></div></div><div class="org-tree"><div class="org-root"><strong>VKSND tỉnh</strong><span>Viện trưởng · Các Phó Viện trưởng</span></div><div class="org-branches"><div class="org-column"><h3>Phòng chuyên trách</h3>'+departments.map(orgUnitCardHtml).join('')+'</div><div class="org-column"><h3>VKSND khu vực</h3>'+regionals.map(orgUnitCardHtml).join('')+'</div></div></div></section>'
     +'<section class="panel panel-wide"><div class="panel-header"><div><h2>Gán vai trò và đơn vị</h2><p>Chỉ định đúng chức vụ và đơn vị cho từng tài khoản, nhóm theo đơn vị. Tài khoản đang chờ xác nhận sẽ được kích hoạt luôn khi gán. Viện trưởng/Phó Viện trưởng tỉnh chọn "Lãnh đạo Viện tỉnh" làm đơn vị. Với vai trò Phó Viện trưởng tỉnh, tick chọn thêm các đơn vị được phân công phụ trách.</p></div></div>'+assignRoleGroupedHtml(people,assignedByUser)+'</section>'
@@ -1434,10 +1459,7 @@ async function ro(){
   document.querySelectorAll('[data-save-role]').forEach(function(b){b.addEventListener('click',function(){saveAccountRole(b.dataset.saveRole)})});
   document.querySelectorAll('[data-toggle-active]').forEach(function(b){b.addEventListener('click',function(){toggleAccountActive(b.dataset.toggleActive,b.dataset.active==='true')})});
   document.querySelectorAll('[data-reset-password]').forEach(function(b){b.addEventListener('click',function(){resetPasswordFor(b.dataset.resetPassword,b.dataset.personFullName)})});
-  document.querySelectorAll('[data-org-unit-toggle]').forEach(function(b){b.addEventListener('click',function(){
-    ORG_EXPANDED_UNIT_ID=ORG_EXPANDED_UNIT_ID===b.dataset.orgUnitToggle?null:b.dataset.orgUnitToggle;
-    ro();
-  })});
+  bindOrgUnitToggle();
   bindCredentialNoticeDismiss();
   bindRoleSelectToggle();
   bindAssignRoleSearch();
@@ -1601,7 +1623,10 @@ function credentialNoticeHtml(){
 }
 function bindCredentialNoticeDismiss(){
   var b=$('dismissCredentialNotice');
-  if(b)b.addEventListener('click',function(){ADMIN_CREDENTIAL_NOTICE=null;if(V==='organization')ro();else if(V==='administration')ra();});
+  // Chi go banner + xoa bien nho - KHONG goi lai ro()/ra() (khong co gi
+  // thay doi them ke tu lan render gan nhat, goi lai se xoa/tai lai toan
+  // bo trang mot cach thua thai, giong nhu load lai trang).
+  if(b)b.addEventListener('click',function(){ADMIN_CREDENTIAL_NOTICE=null;var notice=b.closest('.credential-notice');if(notice)notice.remove();});
 }
 
 async function resetPasswordFor(id,name){
@@ -1746,19 +1771,32 @@ async function rr(){
     }).join('');
     return '<div class="queue-group"><div class="queue-group-header"><strong>'+authorName+'</strong>'+(authorUnit?'<span>'+authorUnit+'</span>':'')+'</div>'+items+'</div>';
   }).join(''):'<div class="panel empty-state"><strong>Đã xử lý hết</strong><span>Không còn nhật ký chờ đánh giá.</span></div>';
-  h+='</div></details></section><section class="panel review-detail">'+(selected?reviewDetailHtml(selected):'<div class="empty-state"><strong>Không có nhật ký cần xử lý</strong><span>Hãy quay lại khi có nhật ký mới.</span></div>')+'</section></div>';
+  h+='</div></details></section><section class="panel review-detail" id="reviewDetailSlot">'+(selected?reviewDetailHtml(selected):'<div class="empty-state"><strong>Không có nhật ký cần xử lý</strong><span>Hãy quay lại khi có nhật ký mới.</span></div>')+'</section></div>';
   $('appView').innerHTML=h;
-  document.querySelectorAll('[data-review-id]').forEach(function(b){b.addEventListener('click',function(){
-    SELECTED_REVIEW_ID=b.dataset.reviewId;
-    // Tren man hinh hep, chon xong tu thu gon hang cho de do phai cuon
-    // qua het danh sach moi toi form cham diem (man hinh rong van hien
-    // song song ca 2 ben nen khong can thu gon).
-    if(window.innerWidth<=820)REVIEW_QUEUE_COLLAPSED=true;
-    rr();
-  })});
+  bindReviewQueueItemClicks();
   var queueDetails=$('appView').querySelector('.review-queue-details');
   if(queueDetails)queueDetails.addEventListener('toggle',function(){REVIEW_QUEUE_COLLAPSED=!queueDetails.open});
   if(selected)bindReviewActions(selected);
+}
+
+// Chon 1 nhat ky KHAC trong hang cho da tai san co trong bo nho
+// (REVIEW_QUEUE) - chi doi panel chi tiet ben phai + trang thai chon o
+// danh sach, KHONG goi lai rr() (se tai lai toan bo hang cho tu mang, xoa
+// trang man hinh, cam giac giong nhu load lai trang).
+function bindReviewQueueItemClicks(){
+  document.querySelectorAll('[data-review-id]').forEach(function(b){b.addEventListener('click',function(){
+    SELECTED_REVIEW_ID=b.dataset.reviewId;
+    document.querySelectorAll('[data-review-id]').forEach(function(x){x.classList.toggle('is-selected',x===b)});
+    var queueDetails=$('appView').querySelector('.review-queue-details');
+    // Tren man hinh hep, chon xong tu thu gon hang cho de do phai cuon
+    // qua het danh sach moi toi form cham diem (man hinh rong van hien
+    // song song ca 2 ben nen khong can thu gon).
+    if(window.innerWidth<=820){REVIEW_QUEUE_COLLAPSED=true;if(queueDetails)queueDetails.open=false}
+    var slot=$('reviewDetailSlot');
+    var selected=REVIEW_QUEUE.find(function(l){return l.id===SELECTED_REVIEW_ID});
+    if(slot)slot.innerHTML=selected?reviewDetailHtml(selected):'<div class="empty-state"><strong>Không có nhật ký cần xử lý</strong><span>Hãy quay lại khi có nhật ký mới.</span></div>';
+    if(selected)bindReviewActions(selected);
+  })});
 }
 
 function reviewDetailHtml(log){
@@ -2260,7 +2298,7 @@ async function rm(){
     +metricCard('Chờ hoàn thành',rows.length-approved.length,'Tự chấm hoặc chờ duyệt','blue')
     +'</div>';
   h+='<div class="monthly-layout"><section class="panel monthly-table-panel"><div class="panel-header"><div><h2>Danh sách đánh giá tháng</h2><p>'+esc(periodLabel(CURRENT_PERIOD))+'</p></div></div><div id="monthlyTableSlot">'+monthlyTableHtml(monthlyFilteredRows(rows))+'</div></section>';
-  h+='<section class="panel monthly-detail">'+(selected?monthlyDetailHtml(selected,evidence):'<div class="empty-state"><strong>Không có hồ sơ</strong><span>Chưa có dữ liệu phù hợp với phạm vi này.</span></div>')+'</section></div>';
+  h+='<section class="panel monthly-detail" id="monthlyDetailSlot">'+(selected?monthlyDetailHtml(selected,evidence):'<div class="empty-state"><strong>Không có hồ sơ</strong><span>Chưa có dữ liệu phù hợp với phạm vi này.</span></div>')+'</section></div>';
   $('appView').innerHTML=h;
 
   bindMonthlyTableRowClicks();
@@ -2277,21 +2315,23 @@ async function rm(){
     newInput.setSelectionRange(focusPos,focusPos);
   });
   $('exportMonthly').addEventListener('click',openExportModal);
-  if(selected){
-    var saveBtn=$('saveMonthlyReview');if(saveBtn)saveBtn.addEventListener('click',function(){saveMonthlyApprove(selected)});
-    var officialScoreInput=$('officialScore'),classificationSelect=$('classification');
-    if(officialScoreInput&&classificationSelect)officialScoreInput.addEventListener('input',function(){
-      var suggestion=classificationFromScore(officialScoreInput.value);
-      if(suggestion)classificationSelect.value=suggestion;
-    });
-    var selfBtn=$('saveSelfScore');if(selfBtn)selfBtn.addEventListener('click',function(){saveMonthlySelfScore()});
-    var headSelfBtn=$('saveHeadSelfEvaluation');if(headSelfBtn)headSelfBtn.addEventListener('click',saveHeadSelfEvaluation);
-    var headSelfScoreInput=$('headSelfScore'),headSelfClassificationSelect=$('headSelfClassification');
-    if(headSelfScoreInput&&headSelfClassificationSelect)headSelfScoreInput.addEventListener('input',function(){
-      var suggestion=classificationFromScore(headSelfScoreInput.value);
-      if(suggestion)headSelfClassificationSelect.value=suggestion;
-    });
-  }
+  if(selected)bindMonthlyDetailActions(selected);
+}
+
+function bindMonthlyDetailActions(selected){
+  var saveBtn=$('saveMonthlyReview');if(saveBtn)saveBtn.addEventListener('click',function(){saveMonthlyApprove(selected)});
+  var officialScoreInput=$('officialScore'),classificationSelect=$('classification');
+  if(officialScoreInput&&classificationSelect)officialScoreInput.addEventListener('input',function(){
+    var suggestion=classificationFromScore(officialScoreInput.value);
+    if(suggestion)classificationSelect.value=suggestion;
+  });
+  var selfBtn=$('saveSelfScore');if(selfBtn)selfBtn.addEventListener('click',function(){saveMonthlySelfScore()});
+  var headSelfBtn=$('saveHeadSelfEvaluation');if(headSelfBtn)headSelfBtn.addEventListener('click',saveHeadSelfEvaluation);
+  var headSelfScoreInput=$('headSelfScore'),headSelfClassificationSelect=$('headSelfClassification');
+  if(headSelfScoreInput&&headSelfClassificationSelect)headSelfScoreInput.addEventListener('input',function(){
+    var suggestion=classificationFromScore(headSelfScoreInput.value);
+    if(suggestion)headSelfClassificationSelect.value=suggestion;
+  });
 }
 
 // Loc theo ten (khong doi MONTHLY_ROWS goc) - can thiet tu khi 1 don vi
@@ -2306,7 +2346,28 @@ function monthlyFilteredRows(rows){
 }
 
 function bindMonthlyTableRowClicks(){
-  document.querySelectorAll('[data-monthly-user]').forEach(function(b){b.addEventListener('click',function(){SELECTED_MONTHLY_ID=b.dataset.monthlyUser;rm()})});
+  document.querySelectorAll('[data-monthly-user]').forEach(function(b){b.addEventListener('click',function(){
+    SELECTED_MONTHLY_ID=b.dataset.monthlyUser;
+    document.querySelectorAll('#monthlyTableSlot tr').forEach(function(tr){tr.classList.toggle('is-selected-row',tr.contains(b))});
+    redrawMonthlyDetail();
+  })});
+}
+
+// Chon 1 nguoi KHAC trong bang (da tai san co trong MONTHLY_ROWS) - chi
+// doi panel "Xem can cu" ben phai, KHONG dong lai toan bo trang/bang/bo
+// loc nhu rm() (van can goi mang RIENG cho "can cu" cua dung nguoi vua
+// chon vi day la du lieu chi tiet, chua tai san cho tat ca moi nguoi).
+async function redrawMonthlyDetail(){
+  var slot=$('monthlyDetailSlot');
+  if(!slot)return;
+  var selected=MONTHLY_ROWS.find(function(x){return x.person.id===SELECTED_MONTHLY_ID});
+  if(!selected){slot.innerHTML='<div class="empty-state"><strong>Không có hồ sơ</strong><span>Chưa có dữ liệu phù hợp với phạm vi này.</span></div>';return}
+  slot.innerHTML='<div class="empty-state"><strong>Đang tải...</strong></div>';
+  var evidence;
+  try{evidence=await monthlyEvidence(selected.person.id)}catch(e){slot.innerHTML='<div class="empty-state"><strong>Không tải được dữ liệu</strong><span>'+esc(e.message)+'</span></div>';return}
+  if(SELECTED_MONTHLY_ID!==selected.person.id)return; // da chon nguoi khac trong luc cho
+  slot.innerHTML=monthlyDetailHtml(selected,evidence);
+  bindMonthlyDetailActions(selected);
 }
 
 // Ve lai RIENG bang danh sach (khong goi lai rm() - tranh fetch mang lai

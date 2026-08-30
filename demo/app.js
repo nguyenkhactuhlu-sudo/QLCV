@@ -981,7 +981,7 @@ function renderDashboard() {
       </section>
       <section class="panel panel-wide bento-tile bento-summary">
         <div class="panel-header"><div><h2>${tableTitle}</h2><p>Khối lượng, độ phức tạp và chất lượng trong kỳ</p></div></div>
-        ${summaryTable(grouping, provinceScope)}
+        <div id="summaryTableSlot">${summaryTable(grouping, provinceScope)}</div>
       </section>
     </div>`;
 
@@ -993,24 +993,33 @@ function renderDashboard() {
   if (comparisonModeSelect) comparisonModeSelect.addEventListener("change", event => { state.dashboardComparisonMode = event.target.value; saveFilterPrefs({ dashboardComparisonMode: state.dashboardComparisonMode }); renderDashboard(); });
   const comparisonPersonUnit = document.getElementById("comparisonPersonUnit");
   if (comparisonPersonUnit) comparisonPersonUnit.addEventListener("change", event => { state.dashboardPersonUnit = event.target.value; saveFilterPrefs({ dashboardPersonUnit: state.dashboardPersonUnit }); renderDashboard(); });
-  document.querySelectorAll("[data-summary-sort]").forEach(button => button.addEventListener("click", () => {
-    const key = button.dataset.summarySort;
-    state.dashboardSummarySort = {
-      key,
-      direction: state.dashboardSummarySort.key === key && state.dashboardSummarySort.direction === "desc" ? "asc" : "desc"
-    };
-    renderDashboard();
-  }));
-  document.querySelectorAll("[data-summary-unit]").forEach(tr => tr.addEventListener("click", event => {
-    if (event.target.closest("[data-summary-sort]")) return;
-    state.ujUnitFilter = tr.dataset.summaryUnit; state.ujSelectedPersonId = null; state.ujMode = "person";
-    state.currentView = "unitJournal"; updateNav(); render();
-  }));
-  document.querySelectorAll("[data-summary-person]").forEach(tr => tr.addEventListener("click", event => {
-    if (event.target.closest("[data-summary-sort]")) return;
-    state.ujSelectedPersonId = tr.dataset.summaryPerson; state.ujMode = "person";
-    state.currentView = "unitJournal"; updateNav(); render();
-  }));
+
+  // Doi sap xep chi doi thu tu hien 1 mang da co san trong bo nho (khong
+  // doi du lieu) - ve rieng lai bang, KHONG goi lai renderDashboard() (xoa
+  // trang toan bo dashboard khong can thiet).
+  function bindSummaryTableEvents() {
+    document.querySelectorAll("[data-summary-sort]").forEach(button => button.addEventListener("click", () => {
+      const key = button.dataset.summarySort;
+      state.dashboardSummarySort = {
+        key,
+        direction: state.dashboardSummarySort.key === key && state.dashboardSummarySort.direction === "desc" ? "asc" : "desc"
+      };
+      const slot = document.getElementById("summaryTableSlot");
+      if (slot) slot.innerHTML = summaryTable(grouping, provinceScope);
+      bindSummaryTableEvents();
+    }));
+    document.querySelectorAll("[data-summary-unit]").forEach(tr => tr.addEventListener("click", event => {
+      if (event.target.closest("[data-summary-sort]")) return;
+      state.ujUnitFilter = tr.dataset.summaryUnit; state.ujSelectedPersonId = null; state.ujMode = "person";
+      state.currentView = "unitJournal"; updateNav(); render();
+    }));
+    document.querySelectorAll("[data-summary-person]").forEach(tr => tr.addEventListener("click", event => {
+      if (event.target.closest("[data-summary-sort]")) return;
+      state.ujSelectedPersonId = tr.dataset.summaryPerson; state.ujMode = "person";
+      state.currentView = "unitJournal"; updateNav(); render();
+    }));
+  }
+  bindSummaryTableEvents();
 }
 
 function metricCard(label, value, context, tone) {
@@ -1535,19 +1544,32 @@ function renderReviews() {
         const items = g.items.map((log, idx) => `<button class="queue-item ${log.id === state.selectedReviewId ? "is-selected" : ""}" data-review-id="${log.id}"><span class="queue-index">${idx + 1}</span><span class="queue-item-body"><p>${log.title}</p><span class="queue-meta">${log.revisionCount ? `<span class="resubmission-badge">Trình lại lần ${log.revisionCount}</span>` : ""}<span>${shortDateTime(submittedAtOf(log))}</span></span></span></button>`).join("");
         return `<div class="queue-group"><div class="queue-group-header"><strong>${authorName}</strong>${authorUnit ? `<span>${authorUnit}</span>` : ""}</div>${items}</div>`;
       }).join("") : `<div class="panel empty-state"><strong>Đã xử lý hết</strong>Không còn nhật ký chờ đánh giá.</div>`}</div></details></section>
-      <section class="panel review-detail">${selected ? reviewDetail(selected) : `<div class="empty-state"><strong>Không có nhật ký cần xử lý</strong>Hãy quay lại khi có nhật ký mới.</div>`}</section>
+      <section class="panel review-detail" id="reviewDetailSlot">${selected ? reviewDetail(selected) : `<div class="empty-state"><strong>Không có nhật ký cần xử lý</strong>Hãy quay lại khi có nhật ký mới.</div>`}</section>
     </div>`;
-  document.querySelectorAll("[data-review-id]").forEach(button => button.addEventListener("click", () => {
-    state.selectedReviewId = button.dataset.reviewId;
-    // Tren man hinh hep, chon xong tu thu gon hang cho de do phai cuon qua
-    // het danh sach moi toi form cham diem (man hinh rong van hien song
-    // song ca 2 ben nen khong can thu gon).
-    if (window.innerWidth <= 820) state.reviewQueueCollapsed = true;
-    renderReviews();
-  }));
+  bindReviewQueueItemClicks();
   const queueDetails = document.querySelector(".review-queue-details");
   if (queueDetails) queueDetails.addEventListener("toggle", () => { state.reviewQueueCollapsed = !queueDetails.open; });
   if (selected) bindReviewActions(selected);
+}
+
+// Chon 1 nhat ky KHAC trong hang cho da co san trong bo nho (logs) - chi
+// doi panel chi tiet ben phai + trang thai chon o danh sach, KHONG goi lai
+// renderReviews() (xoa trang toan bo man hinh, cam giac giong nhu load lai
+// trang).
+function bindReviewQueueItemClicks() {
+  document.querySelectorAll("[data-review-id]").forEach(button => button.addEventListener("click", () => {
+    state.selectedReviewId = button.dataset.reviewId;
+    document.querySelectorAll("[data-review-id]").forEach(x => x.classList.toggle("is-selected", x === button));
+    const queueDetails = document.querySelector(".review-queue-details");
+    // Tren man hinh hep, chon xong tu thu gon hang cho de do phai cuon qua
+    // het danh sach moi toi form cham diem (man hinh rong van hien song
+    // song ca 2 ben nen khong can thu gon).
+    if (window.innerWidth <= 820) { state.reviewQueueCollapsed = true; if (queueDetails) queueDetails.open = false; }
+    const slot = document.getElementById("reviewDetailSlot");
+    const selected = logs.find(log => log.id === state.selectedReviewId);
+    if (slot) slot.innerHTML = selected ? reviewDetail(selected) : `<div class="empty-state"><strong>Không có nhật ký cần xử lý</strong>Hãy quay lại khi có nhật ký mới.</div>`;
+    if (selected) bindReviewActions(selected);
+  }));
 }
 
 const scoringGuides = {
@@ -2016,10 +2038,10 @@ function renderMonthly() {
         <div class="panel-header"><div><h2>Danh sách đánh giá tháng</h2><p>Giữ nguyên cấu trúc điểm tự chấm, điểm duyệt chính thức và xếp loại hiện hành</p></div></div>
         ${monthlyTable(monthlyFilteredRows(rows))}
       </section>
-      <section class="panel monthly-detail">${selected ? monthlyDetail(selected) : `<div class="empty-state"><strong>Không có hồ sơ</strong>Chưa có dữ liệu phù hợp với phạm vi này.</div>`}</section>
+      <section class="panel monthly-detail" id="monthlyDetailSlot">${selected ? monthlyDetail(selected) : `<div class="empty-state"><strong>Không có hồ sơ</strong>Chưa có dữ liệu phù hợp với phạm vi này.</div>`}</section>
     </div>`;
 
-  document.querySelectorAll("[data-monthly-user]").forEach(button => button.addEventListener("click", () => { state.selectedMonthlyUserId = button.dataset.monthlyUser; renderMonthly(); }));
+  bindMonthlyTableRowClicks();
   const filter = document.getElementById("monthlyUnitFilter");
   if (filter) filter.addEventListener("change", event => { state.monthlyUnit = event.target.value; saveFilterPrefs({ monthlyUnit: state.monthlyUnit }); state.selectedMonthlyUserId = null; renderMonthly(); });
   document.getElementById("monthlyPeriodFilter").addEventListener("change", event => { state.monthlyPeriod = event.target.value; saveFilterPrefs({ monthlyPeriod: state.monthlyPeriod }); state.selectedMonthlyUserId = null; renderMonthly(); });
@@ -2033,8 +2055,26 @@ function renderMonthly() {
     newInput.setSelectionRange(focusPos, focusPos);
   });
   document.getElementById("exportMonthly").addEventListener("click", openExportModal);
+  if (selected) bindMonthlyDetailActions(selected);
+}
+
+// Chon 1 nguoi KHAC trong bang (da co san trong bo nho) - chi doi panel
+// "Xem can cu" ben phai, KHONG goi lai renderMonthly() (xoa trang toan bo
+// man hinh/bang/bo loc, cam giac giong nhu load lai trang).
+function bindMonthlyTableRowClicks() {
+  document.querySelectorAll("[data-monthly-user]").forEach(button => button.addEventListener("click", () => {
+    state.selectedMonthlyUserId = button.dataset.monthlyUser;
+    document.querySelectorAll(".monthly-table-panel tr").forEach(row => row.classList.toggle("is-selected-row", row.contains(button)));
+    const slot = document.getElementById("monthlyDetailSlot");
+    const selected = monthlyScope().find(row => row.userId === state.selectedMonthlyUserId);
+    if (slot) slot.innerHTML = selected ? monthlyDetail(selected) : `<div class="empty-state"><strong>Không có hồ sơ</strong>Chưa có dữ liệu phù hợp với phạm vi này.</div>`;
+    if (selected) bindMonthlyDetailActions(selected);
+  }));
+}
+
+function bindMonthlyDetailActions(selected) {
   const saveButton = document.getElementById("saveMonthlyReview");
-  if (saveButton && selected) saveButton.addEventListener("click", () => saveMonthlyReview(selected));
+  if (saveButton) saveButton.addEventListener("click", () => saveMonthlyReview(selected));
   const officialScoreInput = document.getElementById("officialScore");
   const classificationSelect = document.getElementById("classification");
   if (officialScoreInput && classificationSelect) officialScoreInput.addEventListener("input", () => {
@@ -2042,9 +2082,9 @@ function renderMonthly() {
     if (suggestion) classificationSelect.value = suggestion;
   });
   const selfButton = document.getElementById("saveSelfScore");
-  if (selfButton && selected) selfButton.addEventListener("click", () => saveSelfScore(selected));
+  if (selfButton) selfButton.addEventListener("click", () => saveSelfScore(selected));
   const headSelfButton = document.getElementById("saveHeadSelfEvaluation");
-  if (headSelfButton && selected) headSelfButton.addEventListener("click", () => saveHeadSelfEvaluation(selected));
+  if (headSelfButton) headSelfButton.addEventListener("click", () => saveHeadSelfEvaluation(selected));
   const headSelfScoreInput = document.getElementById("headSelfScore");
   const headSelfClassificationSelect = document.getElementById("headSelfClassification");
   if (headSelfScoreInput && headSelfClassificationSelect) headSelfScoreInput.addEventListener("input", () => {
@@ -2444,12 +2484,28 @@ function renderOrganization() {
     </div></section></div>`;
   document.querySelectorAll("[data-save-role]").forEach(button => button.addEventListener("click", () => saveAccountRole(button.dataset.saveRole)));
   document.querySelectorAll("[data-toggle-active]").forEach(button => button.addEventListener("click", () => toggleAccountActive(button.dataset.toggleActive)));
-  document.querySelectorAll("[data-org-unit-toggle]").forEach(button => button.addEventListener("click", () => {
-    state.orgExpandedUnitId = state.orgExpandedUnitId === button.dataset.orgUnitToggle ? null : button.dataset.orgUnitToggle;
-    renderOrganization();
-  }));
+  bindOrgUnitToggle();
   bindRoleSelectToggle();
   bindAssignRoleSearch();
+}
+
+// "Mo rong" 1 don vi (xem danh sach nhan su) chi doi state.orgExpandedUnitId -
+// KHONG can goi lai renderOrganization() (xoa trang toan bo man hinh, cam
+// giac giong nhu load lai trang). Ve rieng lai khoi ".org-branches" tu du
+// lieu da co san trong bo nho.
+function redrawOrgBranches() {
+  const branches = document.querySelector(".org-branches");
+  if (!branches) return;
+  const departments = units.filter(unit => unit.type === "department");
+  const regionals = units.filter(unit => unit.type === "regional");
+  branches.innerHTML = `<div class="org-column"><h3>Phòng chuyên trách</h3>${departments.map(orgUnitCard).join("")}</div><div class="org-column"><h3>VKSND khu vực</h3>${regionals.map(orgUnitCard).join("")}</div>`;
+  bindOrgUnitToggle();
+}
+function bindOrgUnitToggle() {
+  document.querySelectorAll("[data-org-unit-toggle]").forEach(button => button.addEventListener("click", () => {
+    state.orgExpandedUnitId = state.orgExpandedUnitId === button.dataset.orgUnitToggle ? null : button.dataset.orgUnitToggle;
+    redrawOrgBranches();
+  }));
 }
 
 const LEADERSHIP_UNIT_ID = "province";
