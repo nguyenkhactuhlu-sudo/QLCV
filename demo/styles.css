@@ -550,6 +550,8 @@ table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { padding: 12px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
 th { color: var(--muted); background: var(--surface-soft); font-size: 11px; font-weight: 700; letter-spacing: .03em; }
 tbody tr:hover { background: #fbfbfc; }
+.table-group-row td { background: var(--surface-soft); color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; padding: 8px 10px; }
+.table-group-row:hover { background: transparent; }
 .summary-row-clickable { cursor: pointer; }
 .summary-row-clickable:hover { background: var(--primary-light); }
 .numeric { text-align: right; font-variant-numeric: tabular-nums; }
@@ -624,6 +626,13 @@ tbody tr:hover { background: #fbfbfc; }
 
 .review-layout { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 20px; }
 .review-queue { display: grid; gap: 9px; }
+.review-queue-details summary { cursor: pointer; font-weight: 700; font-size: 13px; margin-bottom: 10px; list-style: revert; }
+.review-queue-hint { font-weight: 400; color: var(--muted); font-size: 11px; }
+@media (min-width: 821px) {
+  /* Man hinh rong van hien song song 2 ben nhu cu - an het phan
+     tom-tat/mui ten cua <details> de khong doi giao dien desktop. */
+  .review-queue-details summary { display: none; }
+}
 .queue-item { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 13px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); text-align: left; }
 .queue-item:hover, .queue-item.is-selected { border-color: #8cb9df; background: var(--primary-light); }
 .queue-item strong { display: block; margin-bottom: 4px; }
@@ -646,6 +655,8 @@ tbody tr:hover { background: #fbfbfc; }
 .uj-mode-toggle { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--surface-soft); }
 .uj-mode-btn { padding: 7px 14px; border: 0; border-radius: 999px; color: var(--muted); background: transparent; font-size: 12px; font-weight: 600; }
 .uj-mode-btn.is-active { color: #fff; background: var(--primary); }
+.uj-group-heading { margin: 16px 0 8px; font-size: 12px; font-weight: 700; letter-spacing: .02em; color: var(--muted); text-transform: uppercase; }
+.uj-group-heading:first-child { margin-top: 0; }
 .uj-person-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
 .uj-person-card { display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); text-align: left; }
 .uj-person-card:hover { border-color: #8cb9df; background: var(--primary-light); }
@@ -938,7 +949,8 @@ tbody tr:hover { background: #fbfbfc; }
 /* Danh sach tick chon "don vi phu trach" cho Pho Vien truong tinh - thay
    the select multiple (phai giu Ctrl/Cmd, kho dung) bang checkbox de chon
    de va ro rang hon. */
-.unit-checklist { display: flex; flex-direction: column; gap: 4px; min-width: 150px; max-height: 108px; overflow-y: auto; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+#taskSupportSearch { width: 100%; margin: 4px 0 6px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; font-size: 12px; box-sizing: border-box; }
+.unit-checklist { display: flex; flex-direction: column; gap: 4px; min-width: 150px; max-height: 170px; overflow-y: auto; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; box-shadow: inset 0 -10px 8px -8px rgba(15, 23, 42, .12); }
 .unit-checklist label { display: flex; align-items: center; gap: 7px; color: var(--text); font-size: 11px; cursor: pointer; }
 /* flex:0 0 auto khong du de chan keo gian: khi dat trong ".field" (vi du
    form uy quyen), quy tac ".field input{width:100%}" van ap dung vi no
@@ -1053,6 +1065,12 @@ tbody tr:hover { background: #fbfbfc; }
 }
 
 @media (max-width: 620px) {
+  /* Goi y truc quan "con noi dung cuon ngang" cho moi bang - truoc day
+     .table-wrap chi co overflow-x:auto (that su cuon duoc) nhung khong co
+     dau hieu gi, nguoi dung tuong bi cat mat cot chu khong biet co the
+     vuot ngang. Dung box-shadow inset thay vi gradient nen de khong phu
+     thuoc mau nen tung panel (nhieu panel dung nen gradient rieng). */
+  .table-wrap { -webkit-overflow-scrolling: touch; box-shadow: inset -14px 0 10px -10px rgba(15, 23, 42, .18); }
   .login-screen { place-items: start center; }
   .login-emblem-stage { width: 145px; }
   .login-brand-copy h1 { font-size: 22px; }
@@ -1075,6 +1093,13 @@ tbody tr:hover { background: #fbfbfc; }
   .toolbar .spacer { display: none; }
   .toolbar > .button { width: 100%; }
   .metric-grid { grid-template-columns: 1fr; }
+  /* Rieng hang so lieu ngan cua "Nhat ky cua toi" (3-4 the chi 1 con so) -
+     xep 1 hang thay vi xep chong tung the day, do man hinh khong can. */
+  .journal-stats-row { grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 6px; }
+  .journal-stats-row .metric-card { padding: 10px 8px; }
+  .journal-stats-row .metric-label { font-size: 10px; }
+  .journal-stats-row .metric-value { font-size: 18px; }
+  .journal-stats-row .metric-context { font-size: 9px; }
   .dashboard-summary-bento { grid-template-columns: 1fr; gap: 8px; }
   .dashboard-kpi-cluster { grid-column: auto; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dashboard-insight { grid-column: auto; }
