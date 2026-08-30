@@ -1037,7 +1037,7 @@ function taskAssignFormHtml(){
     +(TASK_CANDIDATES.length>6?'<input type="text" id="taskSupportSearch" placeholder="Tìm theo tên...">':'')
     +'<div class="unit-checklist" id="taskSupportChecklist">'+checklist+'</div></div>'
     +'<label class="field field-wide"><span>Tên công việc</span><input type="text" name="title" required maxlength="200"></label>'
-    +'<label class="field field-wide"><span>Mô tả / yêu cầu</span><textarea name="description" rows="2"></textarea></label>'
+    +'<label class="field field-wide"><span>Mô tả / yêu cầu</span><textarea name="description" rows="5" placeholder="Có thể ghi chi tiết yêu cầu, phạm vi công việc..."></textarea></label>'
     +'<label class="field"><span>Hạn gợi ý (không bắt buộc)</span><input type="datetime-local" name="suggestedDueDate"></label>'
     +'<div class="review-actions"><button type="submit" class="button button-primary">Giao việc</button></div>'
     +'</form>';
