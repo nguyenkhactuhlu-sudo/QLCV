@@ -97,6 +97,16 @@ serve(async (req) => {
     if (password.length < 8) {
       return json({ success: false, error: "Mật khẩu cần tối thiểu 8 ký tự" });
     }
+    if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+      return json({ success: false, error: "Mật khẩu cần có cả chữ và số" });
+    }
+    // Lo hong bao mat da vay (30/08/2026): truoc day khong kiem tra "role"
+    // dinh gan la gi - Vien truong tinh (khong phai Quan tri vien) co the
+    // tu tao 1 tai khoan Quan tri vien moi. Chi Quan tri vien moi duoc tao
+    // tai khoan Quan tri vien khac.
+    if (role === "administrator" && callerProfile.role !== "administrator") {
+      return json({ success: false, error: "Chỉ Quản trị viên mới được tạo tài khoản Quản trị viên" }, 403);
+    }
 
     const { data: created, error: createError } = await admin.auth.admin.createUser({
       email,
@@ -129,6 +139,27 @@ serve(async (req) => {
     const newPassword = String(body.new_password || "");
     if (!userId || !newPassword) return json({ success: false, error: "Thiếu thông tin" });
     if (newPassword.length < 8) return json({ success: false, error: "Mật khẩu cần tối thiểu 8 ký tự" });
+    if (!/[A-Za-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+      return json({ success: false, error: "Mật khẩu cần có cả chữ và số" });
+    }
+
+    // Lo hong bao mat da vay (30/08/2026): truoc day KHONG kiem tra dang
+    // dat lai mat khau cua AI - Vien truong tinh (khong phai Quan tri
+    // vien) co the dat lai mat khau cua bat ky tai khoan nao, ke ca
+    // Quan tri vien, roi tu dang nhap chiem quyen. Chi Quan tri vien moi
+    // duoc dung vao tai khoan Quan tri vien/Vien truong tinh khac.
+    const { data: targetProfile, error: targetError } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("id", userId)
+      .single();
+    if (targetError || !targetProfile) return json({ success: false, error: "Không tìm thấy tài khoản" });
+    if (
+      callerProfile.role !== "administrator" &&
+      ["administrator", "province_head"].includes(targetProfile.role)
+    ) {
+      return json({ success: false, error: "Không có quyền đặt lại mật khẩu của tài khoản này" }, 403);
+    }
 
     const { error } = await admin.auth.admin.updateUserById(userId, { password: newPassword });
     if (error) return json({ success: false, error: error.message });

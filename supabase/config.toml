@@ -179,10 +179,16 @@ enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
 enable_manual_linking = false
 # Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
-minimum_password_length = 6
+# Ghi chu (30/08/2026): nang tu 6 len 8 va bat buoc co chu+so - phat hien
+# qua ra soat bao mat: chuc nang "Doi mat khau" cua nguoi dung tu goi thang
+# den endpoint nay (khong qua RPC/Edge Function nao ca), nen day la lop
+# CHOT CHAN THAT SU duy nhat cho duong do - file config.toml nay CHI dung
+# cho local dev, phai tu tay doi lai dung gia tri nay tren Supabase
+# Dashboard (Authentication) cho du an that thi moi co tac dung.
+minimum_password_length = 8
 # Passwords that do not meet the following requirements will be rejected as weak. Supported values
 # are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
-password_requirements = ""
+password_requirements = "letters_digits"
 
 # Configure passkey sign-ins.
 # [auth.passkey]

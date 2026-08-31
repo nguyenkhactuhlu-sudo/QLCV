@@ -508,7 +508,9 @@ function canReviewLog(log, reviewer = currentUser()) {
   if (!author || reviewer.id === author.id) return false;
   if (reviewer.role === "unit_deputy") {
     if (author.unitId === reviewer.unitId && hasActiveDelegation(reviewer.id)) return true;
-    return log.submittedToId === reviewer.id;
+    // Phai cung don vi voi tac gia - truoc day thieu dieu kien nay, "nop
+    // cho" 1 Pho phong khac don vi van duyet duoc, ne duoc dung cap tren that.
+    return author.unitId === reviewer.unitId && log.submittedToId === reviewer.id;
   }
   return canManagePerson(author, reviewer);
 }
@@ -887,8 +889,8 @@ function renderSettings() {
     <div class="panel" style="padding:18px;margin-bottom:14px;max-width:520px">
       <h3 style="margin:0 0 12px">Đổi mật khẩu</h3>
       <form id="settingsPasswordForm" class="form-grid">
-        <label class="field"><span>Mật khẩu mới</span><input name="newPassword" type="password" minlength="8" required autocomplete="new-password"></label>
-        <label class="field"><span>Nhập lại mật khẩu mới</span><input name="confirmNewPassword" type="password" minlength="8" required autocomplete="new-password"></label>
+        <label class="field field-wide"><span>Mật khẩu mới</span><input name="newPassword" type="password" minlength="8" required autocomplete="new-password" placeholder="Tối thiểu 8 ký tự, có cả chữ và số"><small class="field-hint">Tối thiểu 8 ký tự, phải có cả chữ và số.</small></label>
+        <label class="field field-wide"><span>Nhập lại mật khẩu mới</span><input name="confirmNewPassword" type="password" minlength="8" required autocomplete="new-password"></label>
         <div class="form-actions field-wide"><button type="submit" class="button button-primary">Đổi mật khẩu</button></div>
       </form>
     </div>
@@ -906,7 +908,10 @@ function renderSettings() {
   document.getElementById("settingsPasswordForm").addEventListener("submit", event => {
     event.preventDefault();
     const form = event.target;
-    if (form.newPassword.value !== form.confirmNewPassword.value) return showToast("Mật khẩu nhập lại không khớp.");
+    const pw = form.newPassword.value;
+    if (pw.length < 8) return showToast("Mật khẩu mới cần tối thiểu 8 ký tự.");
+    if (!/[A-Za-z]/.test(pw) || !/[0-9]/.test(pw)) return showToast("Mật khẩu mới cần có cả chữ và số.");
+    if (pw !== form.confirmNewPassword.value) return showToast("Mật khẩu nhập lại không khớp.");
     form.reset();
     showToast("Đã đổi mật khẩu (mô phỏng, không lưu thật).");
   });
@@ -2556,7 +2561,12 @@ function assignRoleTable(people) {
   // muc rieng tro ve don vi cap tinh de co the chon lam "Don vi" cua ho.
   const homeUnitOptions = [{ id: LEADERSHIP_UNIT_ID, short: LEADERSHIP_UNIT_LABEL }, ...deptUnits];
   return `<div class="table-wrap"><table><thead><tr><th>Họ và tên</th><th>Trạng thái</th><th>Vai trò</th><th>Đơn vị</th><th>Đơn vị phụ trách (Phó VT tỉnh)</th><th></th></tr></thead><tbody>${sorted.map(person => {
-    const roleSel = `<select data-role-select="${person.id}">${ROLE_OPTIONS.map(role => `<option value="${role}" ${person.role === role ? "selected" : ""}>${ROLE_LABELS[role]}</option>`).join("")}</select>`;
+    // Chi Quan tri vien moi duoc CHON "Quan tri vien" cho nguoi khac - an
+    // lua chon nay voi nguoi xem khac, TRU khi chinh nguoi dang duoc gan
+    // da san co vai tro do (giu nguyen hien thi dung, tranh vo tinh ha bac
+    // ho khi luu thay doi khac).
+    const roleOptionsForRow = ROLE_OPTIONS.filter(role => role !== "administrator" || isAdministrator() || person.role === "administrator");
+    const roleSel = `<select data-role-select="${person.id}">${roleOptionsForRow.map(role => `<option value="${role}" ${person.role === role ? "selected" : ""}>${ROLE_LABELS[role]}</option>`).join("")}</select>`;
     const unitSel = `<select data-unit-select="${person.id}">${homeUnitOptions.map(unit => `<option value="${unit.id}" ${person.unitId === unit.id ? "selected" : ""}>${unit.short}</option>`).join("")}</select>`;
     const assigned = person.assignedUnits || [];
     const isDeputy = person.role === "province_deputy";

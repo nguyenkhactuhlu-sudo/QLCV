@@ -1061,6 +1061,10 @@ tbody tr:hover { background: #fbfbfc; }
 .field-warning { display: block; margin-top: 4px; color: #8a650d; font-size: 11px; }
 .field-warning[hidden] { display: none; }
 
+/* Nhac nho tieu chi (vd do dai mat khau) - trung tinh, khac mau vang cua
+   ".field-warning" (danh cho canh bao that su, khong phai chi dan truoc). */
+.field-hint { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; }
+
 .self-score-note { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-soft); font-size: 12px; }
 
 .sticky-board-panel { margin-top: 20px; }

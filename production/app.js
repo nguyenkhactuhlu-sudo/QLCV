@@ -1500,7 +1500,13 @@ function assignRoleTableHtml(people,assignedByUser){
   // "Don vi" cua ho, thay vi bat buoc gan nham vao 1 phong/khu vuc.
   var homeUnitOptions=PROVINCE_UNIT_ID?[{id:PROVINCE_UNIT_ID,short_name:LEADERSHIP_UNIT_LABEL}].concat(deptUnits):deptUnits;
   return '<div class="table-wrap"><table><thead><tr><th>Họ và tên</th><th>Trạng thái</th><th>Vai trò</th><th>Đơn vị</th><th>Đơn vị phụ trách (Phó VT tỉnh)</th><th></th></tr></thead><tbody>'+sorted.map(function(p){
-    var roleSel='<select data-role-select="'+p.id+'">'+ROLE_OPTIONS.map(function(r){return '<option value="'+r+'" '+(p.role===r?'selected':'')+'>'+ROLE_LABELS[r]+'</option>'}).join('')+'</select>';
+    // Chi Quan tri vien moi duoc CHON "Quan tri vien" cho nguoi khac - an
+    // lua chon nay voi nguoi xem khac, TRU khi chinh nguoi dang duoc gan
+    // da san co vai tro do (giu nguyen hien thi dung, tranh vo tinh ha bac
+    // ho khi luu thay doi khac). Phia server (assign_account_role, migration
+    // 00053) van chan lai du client co bi qua mat.
+    var roleOptionsForRow=ROLE_OPTIONS.filter(function(r){return r!=='administrator'||U.rl==='administrator'||p.role==='administrator'});
+    var roleSel='<select data-role-select="'+p.id+'">'+roleOptionsForRow.map(function(r){return '<option value="'+r+'" '+(p.role===r?'selected':'')+'>'+ROLE_LABELS[r]+'</option>'}).join('')+'</select>';
     var unitSel='<select data-unit-select="'+p.id+'">'+homeUnitOptions.map(function(u){return '<option value="'+u.id+'" '+(p.unit_id===u.id?'selected':'')+'>'+esc(u.short_name||u.code)+'</option>'}).join('')+'</select>';
     var assigned=assignedByUser[p.id]||[];
     var isDeputy=p.role==='province_deputy';
@@ -1652,10 +1658,11 @@ function bindCredentialNoticeDismiss(){
 async function resetPasswordFor(id,name){
   if(!requireActive())return;
   var suggested=generateStrongPassword();
-  var input=prompt('Đặt mật khẩu mới cho "'+name+'" (tối thiểu 8 ký tự). Có thể sửa lại trước khi xác nhận:',suggested);
+  var input=prompt('Đặt mật khẩu mới cho "'+name+'" (tối thiểu 8 ký tự, có cả chữ và số). Có thể sửa lại trước khi xác nhận:',suggested);
   if(input===null)return;
   var newPassword=input.trim();
   if(newPassword.length<8){showToast('Mật khẩu cần tối thiểu 8 ký tự.');return}
+  if(!/[A-Za-z]/.test(newPassword)||!/[0-9]/.test(newPassword)){showToast('Mật khẩu cần có cả chữ và số.');return}
   try{
     var r=await fetch(FUNCTIONS+'admin-manage-users',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({action:'set_password',user_id:id,new_password:newPassword})});
     var d=await r.json();
@@ -1728,7 +1735,10 @@ function canReviewLog(log,author){
   if(!author||log.author_id===U.id)return false;
   if(U.rl==='unit_deputy'){
     if(author.unit_id===U.uid&&U.hasFullDelegation)return true;
-    return log.submitted_to_id===U.id;
+    // Phai cung don vi voi tac gia (khop dung server, migration 00054) -
+    // truoc day thieu dieu kien nay, "nop cho" 1 Pho phong khac don vi
+    // van duyet duoc, ne duoc dung cap tren that.
+    return author.unit_id===U.uid&&log.submitted_to_id===U.id;
   }
   return canManagePerson(author);
 }
@@ -3035,7 +3045,7 @@ function createUserFormHtml(){
     +'<label class="field"><span>Vai trò</span><select id="newUserRole">'+roleOptionsHtml+'</select></label>'
     +'<label class="field"><span>Đơn vị</span><select id="newUserUnit">'+unitOptionsHtml+'</select></label>'
     +'<label class="field"><span>Chức vụ (không bắt buộc)</span><input type="text" id="newUserTitle" placeholder="VD: Kiểm sát viên trung cấp"></label>'
-    +'<label class="field field-wide"><span>Mật khẩu ban đầu</span><div class="password-field-row"><input type="text" id="newUserPassword" placeholder="Tối thiểu 8 ký tự"><button type="button" class="button button-secondary button-small" id="genUserPassword">Tạo ngẫu nhiên</button></div></label>'
+    +'<label class="field field-wide"><span>Mật khẩu ban đầu</span><div class="password-field-row"><input type="text" id="newUserPassword" placeholder="Tối thiểu 8 ký tự, có cả chữ và số"><button type="button" class="button button-secondary button-small" id="genUserPassword">Tạo ngẫu nhiên</button></div><small class="field-hint">Tối thiểu 8 ký tự, phải có cả chữ và số.</small></label>'
     +'</div><div class="review-actions"><button class="button button-primary" id="createUserBtn">Tạo tài khoản</button></div>';
 }
 
@@ -3056,6 +3066,7 @@ async function submitCreateUser(){
   var password=$('newUserPassword').value.trim();
   if(!fullName||!email||!password){showToast('Vui lòng nhập đủ họ tên, email, mật khẩu.');return}
   if(password.length<8){showToast('Mật khẩu cần tối thiểu 8 ký tự.');return}
+  if(!/[A-Za-z]/.test(password)||!/[0-9]/.test(password)){showToast('Mật khẩu cần có cả chữ và số.');return}
   var btn=$('createUserBtn');btn.disabled=true;
   try{
     var r=await fetch(FUNCTIONS+'admin-manage-users',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({action:'create_user',email:email,password:password,full_name:fullName,role:role,unit_id:unitId,title:title||null})});
@@ -3198,8 +3209,8 @@ function rs(){
   h+='<div class="panel" style="padding:18px;margin-bottom:14px;max-width:520px">'
     +'<h3 style="margin:0 0 12px">Đổi mật khẩu</h3>'
     +'<form id="accountPasswordForm" class="form-grid">'
-    +'<label class="field"><span>Mật khẩu mới</span><div class="password-field"><input id="newPasswordInput" name="newPassword" type="password" minlength="8" required autocomplete="new-password"><button type="button" id="toggleNewPassword" aria-label="Hiện mật khẩu">Hiện</button></div></label>'
-    +'<label class="field"><span>Nhập lại mật khẩu mới</span><div class="password-field"><input id="confirmNewPasswordInput" name="confirmNewPassword" type="password" minlength="8" required autocomplete="new-password"><button type="button" id="toggleConfirmNewPassword" aria-label="Hiện mật khẩu">Hiện</button></div></label>'
+    +'<label class="field field-wide"><span>Mật khẩu mới</span><div class="password-field"><input id="newPasswordInput" name="newPassword" type="password" minlength="8" required autocomplete="new-password" placeholder="Tối thiểu 8 ký tự, có cả chữ và số"><button type="button" id="toggleNewPassword" aria-label="Hiện mật khẩu">Hiện</button></div><small class="field-hint">Tối thiểu 8 ký tự, phải có cả chữ và số.</small></label>'
+    +'<label class="field field-wide"><span>Nhập lại mật khẩu mới</span><div class="password-field"><input id="confirmNewPasswordInput" name="confirmNewPassword" type="password" minlength="8" required autocomplete="new-password"><button type="button" id="toggleConfirmNewPassword" aria-label="Hiện mật khẩu">Hiện</button></div></label>'
     +'<div class="form-actions field-wide"><button type="submit" class="button button-primary">Đổi mật khẩu</button></div>'
     +'</form></div>';
   h+='<div class="panel" style="padding:18px;max-width:520px">'
@@ -3249,6 +3260,7 @@ async function submitAccountPassword(e){
   var f=new FormData($('accountPasswordForm'));
   var pw=f.get('newPassword')||'',confirm=f.get('confirmNewPassword')||'';
   if(pw.length<8){showToast('Mật khẩu mới cần tối thiểu 8 ký tự.');return}
+  if(!/[A-Za-z]/.test(pw)||!/[0-9]/.test(pw)){showToast('Mật khẩu mới cần có cả chữ và số.');return}
   if(pw!==confirm){showToast('Mật khẩu nhập lại chưa khớp.');return}
   try{
     var r=await fetch(AUTH+'user',{method:'PUT',headers:{'apikey':KEY,'Authorization':'Bearer '+tkn(),'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
