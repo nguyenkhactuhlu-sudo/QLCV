@@ -186,18 +186,9 @@ Ngoài ra còn `ROLE_RANK`/`isVisibleInUnitScope` — **không liên quan** đ�
 
 ## 8. Tài khoản test thật trên production
 
-Đăng nhập tại `https://qlcv-b29.pages.dev/`. Tính đến 29/08/2026, production có đúng **8 profile thật** (kiểm tra trực tiếp qua API), gồm 1 đơn vị Văn phòng đầy đủ + Viện trưởng + Quản trị viên — **đủ để test toàn bộ luồng nộp đích danh + ủy quyền toàn quyền** (1 Trưởng + 1 Phó + 4 nhân viên):
+Đăng nhập tại `https://qlcv-b29.pages.dev/`. Tính đến 29/08/2026, production có đúng **8 profile thật** (kiểm tra trực tiếp qua API), gồm 1 đơn vị Văn phòng đầy đủ + Viện trưởng + Quản trị viên — **đủ để test toàn bộ luồng nộp đích danh + ủy quyền toàn quyền** (1 Trưởng + 1 Phó + 4 nhân viên): Quản trị hệ thống, Phạm Hải Anh (`province_head`), Nguyễn Thế Anh (`unit_head` - Chánh Văn phòng), Nguyễn Văn Tuấn (`unit_deputy` - Phó CVP), Hoàng Mạnh Thắng/Phạm Thành Quý/Dương Văn Hùng/Nguyễn Tuấn Anh (`staff`).
 
-| Họ tên | Vai trò | Email | Mật khẩu |
-|---|---|---|---|
-| Quản trị hệ thống | `administrator` | `admin@vks-test.local` | `Admin@VKS2026!` |
-| Phạm Hải Anh | `province_head` | `pham.hai.anh@vks-test.local` | `ViTruong@2026!` |
-| Nguyễn Thế Anh | `unit_head` (Chánh Văn phòng) | `nguyen.the.anh@vks-test.local` | `ChanhVP@2026!` |
-| Nguyễn Văn Tuấn | `unit_deputy` (Phó CVP) | `nguyen.van.tuan@vks-test.local` | `PhoChanhVP@2026!` |
-| Hoàng Mạnh Thắng | `staff` | `hoang.manh.thang@vks-test.local` | `CanBoVP01@2026!` |
-| Phạm Thành Quý | `staff` | `pham.thanh.quy@vks-test.local` | `CanBoVP02@2026!` |
-| Dương Văn Hùng | `staff` | `duong.van.hung@vks-test.local` | `CanBoVP03@2026!` |
-| Nguyễn Tuấn Anh | `staff` | `nguyen.tuan.anh@vks-test.local` | `CanBoVP04@2026!` |
+**Email và mật khẩu của các tài khoản test này KHÔNG ghi trong file này** (repo GitHub đang để công khai - từng bị lộ nguyên bảng mật khẩu thật ở đây, đã gỡ bỏ ngày 31/08/2026) - xem file `Account.docx` lưu riêng ở máy, không đưa lên GitHub.
 
 Đơn vị Văn phòng: `unit_id = e78884b8-6fc0-4c67-8034-5ac528450eeb`.
 
