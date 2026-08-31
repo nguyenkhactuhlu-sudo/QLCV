@@ -97,6 +97,9 @@ serve(async (req) => {
     if (password.length < 8) {
       return json({ success: false, error: "Mật khẩu cần tối thiểu 8 ký tự" });
     }
+    if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+      return json({ success: false, error: "Mật khẩu cần có cả chữ và số" });
+    }
     // Lo hong bao mat da vay (30/08/2026): truoc day khong kiem tra "role"
     // dinh gan la gi - Vien truong tinh (khong phai Quan tri vien) co the
     // tu tao 1 tai khoan Quan tri vien moi. Chi Quan tri vien moi duoc tao
@@ -136,6 +139,9 @@ serve(async (req) => {
     const newPassword = String(body.new_password || "");
     if (!userId || !newPassword) return json({ success: false, error: "Thiếu thông tin" });
     if (newPassword.length < 8) return json({ success: false, error: "Mật khẩu cần tối thiểu 8 ký tự" });
+    if (!/[A-Za-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+      return json({ success: false, error: "Mật khẩu cần có cả chữ và số" });
+    }
 
     // Lo hong bao mat da vay (30/08/2026): truoc day KHONG kiem tra dang
     // dat lai mat khau cua AI - Vien truong tinh (khong phai Quan tri

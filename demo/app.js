@@ -889,8 +889,8 @@ function renderSettings() {
     <div class="panel" style="padding:18px;margin-bottom:14px;max-width:520px">
       <h3 style="margin:0 0 12px">Đổi mật khẩu</h3>
       <form id="settingsPasswordForm" class="form-grid">
-        <label class="field"><span>Mật khẩu mới</span><input name="newPassword" type="password" minlength="8" required autocomplete="new-password"></label>
-        <label class="field"><span>Nhập lại mật khẩu mới</span><input name="confirmNewPassword" type="password" minlength="8" required autocomplete="new-password"></label>
+        <label class="field field-wide"><span>Mật khẩu mới</span><input name="newPassword" type="password" minlength="8" required autocomplete="new-password" placeholder="Tối thiểu 8 ký tự, có cả chữ và số"><small class="field-hint">Tối thiểu 8 ký tự, phải có cả chữ và số.</small></label>
+        <label class="field field-wide"><span>Nhập lại mật khẩu mới</span><input name="confirmNewPassword" type="password" minlength="8" required autocomplete="new-password"></label>
         <div class="form-actions field-wide"><button type="submit" class="button button-primary">Đổi mật khẩu</button></div>
       </form>
     </div>
@@ -908,7 +908,10 @@ function renderSettings() {
   document.getElementById("settingsPasswordForm").addEventListener("submit", event => {
     event.preventDefault();
     const form = event.target;
-    if (form.newPassword.value !== form.confirmNewPassword.value) return showToast("Mật khẩu nhập lại không khớp.");
+    const pw = form.newPassword.value;
+    if (pw.length < 8) return showToast("Mật khẩu mới cần tối thiểu 8 ký tự.");
+    if (!/[A-Za-z]/.test(pw) || !/[0-9]/.test(pw)) return showToast("Mật khẩu mới cần có cả chữ và số.");
+    if (pw !== form.confirmNewPassword.value) return showToast("Mật khẩu nhập lại không khớp.");
     form.reset();
     showToast("Đã đổi mật khẩu (mô phỏng, không lưu thật).");
   });
