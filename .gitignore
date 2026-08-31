@@ -48,3 +48,8 @@ outputs/*.docx
 # Scripts
 write_docs.py
 write_docs_run.py
+write_prod_js.py
+
+# Tai lieu rieng - KHONG duoc dua len GitHub (chua thong tin tai khoan/mat khau that)
+/Account.docx
+/Tai_lieu_huong_dan_su_dung_QLCV.docx
