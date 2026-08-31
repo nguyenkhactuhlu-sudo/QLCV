@@ -1500,7 +1500,13 @@ function assignRoleTableHtml(people,assignedByUser){
   // "Don vi" cua ho, thay vi bat buoc gan nham vao 1 phong/khu vuc.
   var homeUnitOptions=PROVINCE_UNIT_ID?[{id:PROVINCE_UNIT_ID,short_name:LEADERSHIP_UNIT_LABEL}].concat(deptUnits):deptUnits;
   return '<div class="table-wrap"><table><thead><tr><th>Họ và tên</th><th>Trạng thái</th><th>Vai trò</th><th>Đơn vị</th><th>Đơn vị phụ trách (Phó VT tỉnh)</th><th></th></tr></thead><tbody>'+sorted.map(function(p){
-    var roleSel='<select data-role-select="'+p.id+'">'+ROLE_OPTIONS.map(function(r){return '<option value="'+r+'" '+(p.role===r?'selected':'')+'>'+ROLE_LABELS[r]+'</option>'}).join('')+'</select>';
+    // Chi Quan tri vien moi duoc CHON "Quan tri vien" cho nguoi khac - an
+    // lua chon nay voi nguoi xem khac, TRU khi chinh nguoi dang duoc gan
+    // da san co vai tro do (giu nguyen hien thi dung, tranh vo tinh ha bac
+    // ho khi luu thay doi khac). Phia server (assign_account_role, migration
+    // 00053) van chan lai du client co bi qua mat.
+    var roleOptionsForRow=ROLE_OPTIONS.filter(function(r){return r!=='administrator'||U.rl==='administrator'||p.role==='administrator'});
+    var roleSel='<select data-role-select="'+p.id+'">'+roleOptionsForRow.map(function(r){return '<option value="'+r+'" '+(p.role===r?'selected':'')+'>'+ROLE_LABELS[r]+'</option>'}).join('')+'</select>';
     var unitSel='<select data-unit-select="'+p.id+'">'+homeUnitOptions.map(function(u){return '<option value="'+u.id+'" '+(p.unit_id===u.id?'selected':'')+'>'+esc(u.short_name||u.code)+'</option>'}).join('')+'</select>';
     var assigned=assignedByUser[p.id]||[];
     var isDeputy=p.role==='province_deputy';
@@ -1728,7 +1734,10 @@ function canReviewLog(log,author){
   if(!author||log.author_id===U.id)return false;
   if(U.rl==='unit_deputy'){
     if(author.unit_id===U.uid&&U.hasFullDelegation)return true;
-    return log.submitted_to_id===U.id;
+    // Phai cung don vi voi tac gia (khop dung server, migration 00054) -
+    // truoc day thieu dieu kien nay, "nop cho" 1 Pho phong khac don vi
+    // van duyet duoc, ne duoc dung cap tren that.
+    return author.unit_id===U.uid&&log.submitted_to_id===U.id;
   }
   return canManagePerson(author);
 }
