@@ -314,7 +314,7 @@ function dashboardAvailableUnits(){
 async function fetchDashboardLogs(){
   var now=new Date();
   var start=ymdStr(now.getFullYear(),now.getMonth()-5,1);
-  var r=await fetch(API+'work_logs?log_date=gte.'+start+'&select=author_id,unit_id,log_date,status,complexity_score,quality_score&order=log_date.desc',{headers:authHeaders()});
+  var r=await fetch(API+'work_logs?log_date=gte.'+start+'&select=author_id,unit_id,log_date,category_id,status,complexity_score,quality_score&order=log_date.desc',{headers:authHeaders()});
   if(!r.ok)throw new Error('HTTP '+r.status);
   return await r.json();
 }
@@ -443,6 +443,28 @@ function qualityDistributionHtml(items){
   }).join('')+'</div></div>';
 }
 
+function workCategoryStatsHtml(items){
+  if(!items.length)return '<div class="empty-state"><strong>Chưa có dữ liệu</strong><span>Không có nhật ký thuộc kỳ và phạm vi đã chọn.</span></div>';
+  var total=items.length;
+  var categoryIds=[];
+  items.forEach(function(item){if(categoryIds.indexOf(item.category_id)<0)categoryIds.push(item.category_id)});
+  var rows=categoryIds.map(function(categoryId){
+    var categoryLogs=items.filter(function(item){return item.category_id===categoryId});
+    var approved=categoryLogs.filter(function(item){return item.status==='approved'});
+    return {
+      name:catName(categoryId),
+      count:categoryLogs.length,
+      approved:approved.length,
+      share:categoryLogs.length/total*100,
+      complexity:average(approved.map(function(item){return item.complexity_score}).filter(function(value){return Number.isFinite(value)})),
+      quality:weightedQualitySnake(approved)
+    };
+  }).sort(function(a,b){return (b.count-a.count)||a.name.localeCompare(b.name,'vi')});
+  return '<div class="table-wrap category-stats-table"><table><thead><tr><th>Lĩnh vực công tác</th><th>Tỷ trọng</th><th class="numeric">Nhật ký</th><th class="numeric">Đã xác nhận</th><th class="numeric">Phức tạp BQ</th><th class="numeric">Chất lượng BQ</th></tr></thead><tbody>'+rows.map(function(row){
+    return '<tr><td><strong>'+esc(row.name)+'</strong></td><td><div class="category-share"><div class="bar-track"><div class="bar-fill blue" style="width:'+row.share+'%"></div></div><span>'+row.share.toFixed(0)+'%</span></div></td><td class="numeric"><strong>'+row.count+'</strong></td><td class="numeric">'+row.approved+'</td><td class="numeric">'+(row.approved?row.complexity.toFixed(1):'—')+'</td><td class="numeric">'+(row.approved?'<span class="score-pill '+scoreClassOf(row.quality)+'">'+row.quality.toFixed(1)+'</span>':'—')+'</td></tr>';
+  }).join('')+'</tbody></table></div>';
+}
+
 function groupedUnitComparisonChartHtml(rows){
   var definitions=[{type:'department',title:'Phòng thuộc VKSND tỉnh',tone:'department'},{type:'regional',title:'VKSND khu vực',tone:'regional'}];
   var groups=definitions.map(function(def){
@@ -547,6 +569,7 @@ async function rd(){
     +'<section class="panel bento-tile bento-trend"><div class="panel-header"><div><h2>Xu hướng chất lượng và phức tạp 6 tháng</h2><p>Hai đường dùng chung thang điểm 1–10 · đường mảnh thể hiện chiều biến động</p></div><span class="chart-unit">Điểm</span></div>'+trendChartHtml(trendScope)+'</section>'
     +'<div class="bento-side-stack"><section class="panel bento-tile bento-distribution"><div class="panel-header"><div><h2>Phân bố chất lượng</h2><p>Nhật ký đã được đánh giá</p></div></div>'+qualityDistributionHtml(approved)+'</section>'
     +'<section class="panel bento-tile bento-progress"><div class="panel-header"><div><h2>Tiến độ đánh giá</h2><p>Tình trạng xử lý nhật ký</p></div><span class="chart-unit">'+scope.length+' nhật ký</span></div>'+reviewStatusChartHtml(scope)+'</section></div>'
+    +'<section class="panel panel-wide bento-tile bento-category"><div class="panel-header"><div><h2>Phân bổ theo lĩnh vực công tác</h2><p>Khối lượng, tỷ trọng và kết quả đánh giá theo nhóm lĩnh vực trong kỳ</p></div><span class="chart-unit">'+scope.length+' nhật ký</span></div>'+workCategoryStatsHtml(scope)+'</section>'
     +'<section class="panel bento-tile bento-comparison"><div class="panel-header"><div><h2>So sánh chất lượng '+(comparisonMode==='unit'?'theo đơn vị':'theo cá nhân')+'</h2><p>'+(comparisonMode==='unit'?'Hai nhóm đơn vị trên cùng thang điểm':'Xếp theo chất lượng; luôn đọc cùng điểm phức tạp và số kết quả')+'</p></div><div class="comparison-controls">'
     +(provinceScope?('<select id="comparisonMode" aria-label="Chọn cách so sánh"><option value="unit" '+(comparisonMode==='unit'?'selected':'')+'>Theo đơn vị</option><option value="person" '+(comparisonMode==='person'?'selected':'')+'>Theo cá nhân</option></select>'):'')
     +(provinceScope&&comparisonMode==='person'?('<select id="comparisonPersonUnit" aria-label="Lọc đơn vị khi so sánh cá nhân"><option value="all">Tất cả đơn vị</option>'+availableUnits.map(function(u){return '<option value="'+u.id+'" '+(DASHBOARD_PERSON_UNIT===u.id?'selected':'')+'>'+esc(u.short_name||u.code)+'</option>'}).join('')+'</select>'):'')

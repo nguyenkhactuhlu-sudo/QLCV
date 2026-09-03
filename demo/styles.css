@@ -524,9 +524,11 @@ h3 { margin-bottom: 4px; font-size: 15px; }
 .dashboard-bento .bento-trend { --tile-accent: #536fba; --tile-wash: rgba(83,111,186,.11); --tile-ring: rgba(83,111,186,.19); background-color: #f8faff; }
 .dashboard-bento .bento-distribution { --tile-accent: #1f7a55; --tile-wash: rgba(31,122,85,.11); --tile-ring: rgba(31,122,85,.19); background-color: #f7fcf9; }
 .dashboard-bento .bento-progress { --tile-accent: #d4af37; --tile-wash: rgba(212,175,55,.13); --tile-ring: rgba(212,175,55,.21); background-color: #fffdf5; }
+.dashboard-bento .bento-category { --tile-accent: #7c5bb3; --tile-wash: rgba(124,91,179,.1); --tile-ring: rgba(124,91,179,.18); background-color: #fbf9ff; }
 .dashboard-bento .bento-comparison { --tile-accent: #1d71b8; --tile-wash: rgba(29,113,184,.1); --tile-ring: rgba(29,113,184,.18); background-color: #f8fcff; }
 .dashboard-bento .bento-summary { --tile-accent: #8b617c; --tile-wash: rgba(139,97,124,.1); --tile-ring: rgba(139,97,124,.18); background-color: #fdfafd; }
 .bento-comparison { grid-column: 1 / -1; }
+.bento-category { grid-column: 1 / -1; }
 .bento-summary { grid-column: 2 / 12; width: 100%; }
 .bento-trend .trend-chart { min-height: 0; }
 .bento-comparison .unit-comparison-grid { gap: 16px; }
@@ -543,6 +545,14 @@ h3 { margin-bottom: 4px; font-size: 15px; }
 .bento-summary .table-wrap { max-height: 520px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
 .bento-summary thead th { position: sticky; z-index: 2; top: 0; }
 .bento-summary th, .bento-summary td { padding-top: 9px; padding-bottom: 9px; }
+.category-stats-table { border: 1px solid var(--line); border-radius: 10px; }
+.category-stats-table table { min-width: 760px; }
+.category-stats-table th, .category-stats-table td { padding-top: 9px; padding-bottom: 9px; }
+.category-stats-table th:first-child { width: 32%; }
+.category-stats-table th:nth-child(2) { width: 25%; }
+.category-share { min-width: 150px; display: grid; grid-template-columns: minmax(90px, 1fr) 34px; align-items: center; gap: 8px; }
+.category-share .bar-track { height: 8px; }
+.category-share > span { color: var(--muted); font-size: 10px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
 
 .matrix-wrap { position: relative; min-height: 390px; }
 .matrix-chart { width: 100%; height: auto; min-height: 360px; overflow: visible; }

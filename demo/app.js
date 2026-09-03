@@ -980,6 +980,10 @@ function renderDashboard() {
           ${reviewStatusChart(scope)}
         </section>
       </div>
+      <section class="panel panel-wide bento-tile bento-category">
+        <div class="panel-header"><div><h2>Phân bổ theo lĩnh vực công tác</h2><p>Khối lượng, tỷ trọng và kết quả đánh giá theo nhóm lĩnh vực trong kỳ</p></div><span class="chart-unit">${scope.length} nhật ký</span></div>
+        ${workCategoryStats(scope)}
+      </section>
       <section class="panel bento-tile bento-comparison">
         <div class="panel-header"><div><h2>So sánh chất lượng ${comparisonMode === "unit" ? "theo đơn vị" : "theo cá nhân"}</h2><p>${comparisonMode === "unit" ? "Hai nhóm đơn vị trên cùng thang điểm" : "Xếp theo chất lượng; luôn đọc cùng điểm phức tạp và số kết quả"}</p></div><div class="comparison-controls">${provinceScope ? `<select id="comparisonMode" aria-label="Chọn cách so sánh"><option value="unit" ${comparisonMode === "unit" ? "selected" : ""}>Theo đơn vị</option><option value="person" ${comparisonMode === "person" ? "selected" : ""}>Theo cá nhân</option></select>` : ""}${provinceScope && comparisonMode === "person" ? `<select id="comparisonPersonUnit" aria-label="Lọc đơn vị khi so sánh cá nhân"><option value="all">Tất cả đơn vị</option>${availableUnits.map(unit => `<option value="${unit.id}" ${state.dashboardPersonUnit === unit.id ? "selected" : ""}>${unit.short}</option>`).join("")}</select>` : ""}</div></div>
         ${comparisonBarChart(comparisonGrouping, comparisonMode === "person" ? 12 : Infinity)}
@@ -1182,6 +1186,25 @@ function qualityDistribution(items) {
   const rates = bands.map(band => band.count / total * 100);
   const p1 = rates[0], p2 = p1 + rates[1], p3 = p2 + rates[2];
   return `<div class="compact-pie-layout"><div class="compact-pie quality-pie" style="--p1:${p1}%;--p2:${p2}%;--p3:${p3}%"><div><strong>${total}</strong><span>kết quả</span></div></div><div class="compact-pie-legend">${bands.map((band, index) => `<div><i class="legend-swatch ${index === 0 ? "swatch-green" : index === 1 ? "swatch-blue" : index === 2 ? "swatch-gold" : "swatch-red"}"></i><span>${band.label}</span><strong>${Math.round(rates[index])}% <small>(${band.count})</small></strong></div>`).join("")}</div></div>`;
+}
+
+function workCategoryStats(items) {
+  if (!items.length) return `<div class="empty-state"><strong>Chưa có dữ liệu</strong><span>Không có nhật ký thuộc kỳ và phạm vi đã chọn.</span></div>`;
+  const total = items.length;
+  const rows = [...new Set(items.map(item => item.category))].map(category => {
+    const categoryLogs = items.filter(item => item.category === category);
+    const approved = categoryLogs.filter(item => item.status === "approved");
+    return {
+      name: category,
+      count: categoryLogs.length,
+      approved: approved.length,
+      share: categoryLogs.length / total * 100,
+      complexity: average(approved.map(item => item.complexity).filter(Number.isFinite)),
+      quality: weightedQuality(approved)
+    };
+  }).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "vi"));
+
+  return `<div class="table-wrap category-stats-table"><table><thead><tr><th>Lĩnh vực công tác</th><th>Tỷ trọng</th><th class="numeric">Nhật ký</th><th class="numeric">Đã xác nhận</th><th class="numeric">Phức tạp BQ</th><th class="numeric">Chất lượng BQ</th></tr></thead><tbody>${rows.map(row => `<tr><td><strong>${row.name}</strong></td><td><div class="category-share"><div class="bar-track"><div class="bar-fill blue" style="width:${row.share}%"></div></div><span>${row.share.toFixed(0)}%</span></div></td><td class="numeric"><strong>${row.count}</strong></td><td class="numeric">${row.approved}</td><td class="numeric">${row.approved ? row.complexity.toFixed(1) : "—"}</td><td class="numeric">${row.approved ? `<span class="score-pill ${scoreClass(row.quality)}">${row.quality.toFixed(1)}</span>` : "—"}</td></tr>`).join("")}</tbody></table></div>`;
 }
 
 function summaryTable(rows, isUnit) {
