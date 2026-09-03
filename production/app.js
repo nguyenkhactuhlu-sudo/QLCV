@@ -809,7 +809,10 @@ function applyTaskLinkToSubmitTo(){
     submitToSelect.value=task.assigner_id;
     submitToSelect.disabled=true;
   }else{
-    submitToSelect.disabled=false;
+    // Khoa lai neu chi co dung 1 lua chon hop le (vi du Pho Vien truong
+    // tinh chi co dung 1 Vien truong tinh de nop) - khong de tuong nham
+    // co the doi duoc trong khi thuc ra chi co 1 gia tri.
+    submitToSelect.disabled=submitToSelect.options.length<=1;
   }
 }
 
@@ -824,13 +827,42 @@ async function directLeadersFor(unitId,excludeId){
   }catch(e){return []}
 }
 
+// Lanh dao cap tinh (Pho Vien truong tinh + Vien truong tinh) - Truong
+// phong/Vien truong khu vuc KHONG cung unit_id voi cap tinh nen phai
+// dung danh sach nay de nop len, thay vi directLeadersFor (chi tim trong
+// cung don vi, se rong doi voi don vi khong co Pho phong).
+async function provinceLeadersFor(excludeId){
+  try{
+    var r=await fetch(API+'profiles?role=in.(province_deputy,province_head)&is_active=eq.true&select=id,full_name,role&order=role,full_name',{headers:authHeaders()});
+    var list=r.ok?await r.json():[];
+    return list.filter(function(p){return p.id!==excludeId});
+  }catch(e){return []}
+}
+
 async function refreshJournalSubmitToOptions(editingLog){
   var select=$('journalSubmitToSelect');
   if(!select)return;
-  var leaders=await directLeadersFor(U.uid,U.id);
+  var leaders,fixedSingle=false;
+  if(U.rl==='unit_head'){
+    // Truong phong/Vien truong khu vuc/Chanh Van phong: nop len dung
+    // Pho Vien truong tinh phu trach don vi minh, hoac thang len Vien
+    // truong tinh - khong nop cho Pho phong cua chinh don vi minh.
+    leaders=await provinceLeadersFor(U.id);
+  }else if(U.rl==='province_deputy'){
+    // Pho Vien truong tinh: chi co dung 1 Vien truong tinh, khong can
+    // chon - tu dong gan san, khoa lai (giong kieu gan voi viec duoc giao).
+    leaders=(await provinceLeadersFor(U.id)).filter(function(p){return p.role==='province_head'});
+    fixedSingle=leaders.length===1;
+  }else{
+    leaders=await directLeadersFor(U.uid,U.id);
+  }
   select.innerHTML=leaders.map(function(l){return '<option value="'+l.id+'">'+esc(l.full_name)+' · '+(ROLE_LABELS[l.role]||l.role)+'</option>'}).join('');
-  select.disabled=false;
+  // Bat buoc chon chi khi thuc su co lanh dao de chon (tranh khoa cung
+  // nguoi dung khi don vi chua co Pho phong/Pho vien truong).
+  select.required=leaders.length>0;
+  select.disabled=fixedSingle;
   if(editingLog&&editingLog.submitted_to_id)select.value=editingLog.submitted_to_id;
+  else if(fixedSingle)select.value=leaders[0].id;
 }
 
 // Cho phep nhap lui ngay (khong khoa qua khu), chi canh bao nhe khi chon

@@ -3199,7 +3199,10 @@ function applyTaskLinkToSubmitTo() {
     submitToSelect.value = task.assignerId;
     submitToSelect.disabled = true;
   } else {
-    submitToSelect.disabled = false;
+    // Khoa lai neu chi co dung 1 lua chon hop le (vi du Pho Vien truong
+    // tinh chi co dung 1 Vien truong tinh de nop) - khong de tuong nham
+    // co the doi duoc trong khi thuc ra chi co 1 gia tri.
+    submitToSelect.disabled = submitToSelect.options.length <= 1;
   }
 }
 
@@ -3211,14 +3214,41 @@ function directLeadersFor(unitId, excludeId = null) {
   return users.filter(user => user.unitId === unitId && (user.role === "unit_head" || user.role === "unit_deputy") && user.id !== excludeId);
 }
 
+// Lanh dao cap tinh (Pho Vien truong tinh + Vien truong tinh) - Truong
+// phong/Vien truong khu vuc KHONG cung unitId voi cap tinh nen phai dung
+// danh sach nay de nop len, thay vi directLeadersFor (chi tim trong cung
+// don vi, se rong doi voi don vi khong co Pho phong).
+function provinceLeadersFor(excludeId = null) {
+  return users
+    .filter(user => (user.role === "province_deputy" || user.role === "province_head") && user.id !== excludeId)
+    .sort((a, b) => a.role.localeCompare(b.role) || a.name.localeCompare(b.name));
+}
+
 function refreshJournalSubmitToOptions(editingLog) {
   const select = document.getElementById("journalSubmitToSelect");
   if (!select) return;
   const user = currentUser();
-  const leaders = directLeadersFor(user.unitId, user.id);
+  let leaders, fixedSingle = false;
+  if (user.role === "unit_head") {
+    // Truong phong/Vien truong khu vuc/Chanh Van phong: nop len dung Pho
+    // Vien truong tinh phu trach don vi minh, hoac thang len Vien truong
+    // tinh - khong nop cho Pho phong cua chinh don vi minh.
+    leaders = provinceLeadersFor(user.id);
+  } else if (user.role === "province_deputy") {
+    // Pho Vien truong tinh: chi co dung 1 Vien truong tinh, khong can
+    // chon - tu dong gan san, khoa lai.
+    leaders = provinceLeadersFor(user.id).filter(person => person.role === "province_head");
+    fixedSingle = leaders.length === 1;
+  } else {
+    leaders = directLeadersFor(user.unitId, user.id);
+  }
   select.innerHTML = leaders.map(leader => `<option value="${leader.id}">${leader.name} · ${ROLE_LABELS[leader.role]}</option>`).join("");
-  select.disabled = false;
+  // Bat buoc chon chi khi thuc su co lanh dao de chon (tranh khoa cung
+  // nguoi dung khi don vi chua co Pho phong/Pho vien truong).
+  select.required = leaders.length > 0;
+  select.disabled = fixedSingle;
   if (editingLog && editingLog.submittedToId) select.value = editingLog.submittedToId;
+  else if (fixedSingle) select.value = leaders[0].id;
 }
 
 // Cho phep nhap lui ngay (khong khoa qua khu), chi canh bao nhe khi chon
