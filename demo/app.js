@@ -109,39 +109,39 @@ const sampleTaskAssignments = [
 ];
 
 const sampleLogs = [
-  ["NK001","u05","p1","2026-08-22","Kiểm sát điều tra","Nghiên cứu hồ sơ vụ án và đề xuất yêu cầu điều tra bổ sung","Dự thảo yêu cầu điều tra gồm 5 nội dung trọng tâm","Chủ trì","Trên 4 giờ","HS-2026-018","approved",8,9,"u03"],
-  ["NK002","u06","p1","2026-08-22","Thực hành quyền công tố","Dự thảo cáo trạng vụ án trộm cắp tài sản","Hoàn thành dự thảo cáo trạng và bảng kê tài liệu","Chủ trì","Trên 4 giờ","HS-2026-022","approved",7,8,"u03"],
-  ["NK003","u07","p1","2026-08-22","Tham mưu, tổng hợp","Rà soát số liệu án tạm đình chỉ trong tháng","Hoàn thành bảng đối chiếu 42 hồ sơ","Phối hợp","2–4 giờ","BC-08-2026","pending",null,null,null],
-  ["NK004","u04","p1","2026-08-21","Kiểm sát xét xử","Tham gia xét xử sơ thẩm và báo cáo kết quả","Báo cáo kết quả phiên tòa, đề xuất 2 nội dung rút kinh nghiệm","Chủ trì","Trên 4 giờ","HS-2026-014","pending",null,null,null],
-  ["NK005","u05","p1","2026-08-21","Thực hành quyền công tố","Tham gia hỏi cung bị can cùng Điều tra viên","Biên bản hỏi cung và báo cáo đánh giá lời khai","Chủ trì","2–4 giờ","HS-2026-018","approved",6,9,"u03"],
-  ["NK006","u06","p1","2026-08-20","Kiểm sát điều tra","Kiểm sát việc khám nghiệm hiện trường","Hoàn thành biên bản kiểm sát và báo cáo nhanh","Phối hợp","Trên 4 giờ","HS-2026-025","approved",8,8,"u03"],
-  ["NK007","u07","p1","2026-08-20","Tham mưu, tổng hợp","Số hóa tài liệu phục vụ họp liên ngành","Hoàn thành bộ tài liệu điện tử 126 trang","Phối hợp","2–4 giờ","TL-2026-119","approved",3,9,"u04"],
-  ["NK008","u03","p1","2026-08-19","Tham mưu, tổng hợp","Chủ trì họp rà soát án phức tạp của phòng","Kết luận phân công xử lý 6 vụ án có khó khăn, vướng mắc","Chủ trì","Trên 4 giờ","BB-19-08","pending",null,null,null],
+  ["NK001","u05","p1","2026-08-22","THQCT & KS giải quyết vụ án hình sự","Nghiên cứu hồ sơ vụ án và đề xuất yêu cầu điều tra bổ sung","Dự thảo yêu cầu điều tra gồm 5 nội dung trọng tâm","Chủ trì","Trên 4 giờ","HS-2026-018","approved",8,9,"u03"],
+  ["NK002","u06","p1","2026-08-22","THQCT & KS giải quyết vụ án hình sự","Dự thảo cáo trạng vụ án trộm cắp tài sản","Hoàn thành dự thảo cáo trạng và bảng kê tài liệu","Chủ trì","Trên 4 giờ","HS-2026-022","approved",7,8,"u03"],
+  ["NK003","u07","p1","2026-08-22","Công tác tham mưu, tổng hợp","Rà soát số liệu án tạm đình chỉ trong tháng","Hoàn thành bảng đối chiếu 42 hồ sơ","Phối hợp","2–4 giờ","BC-08-2026","pending",null,null,null],
+  ["NK004","u04","p1","2026-08-21","THQCT & KS giải quyết vụ án hình sự","Tham gia xét xử sơ thẩm và báo cáo kết quả","Báo cáo kết quả phiên tòa, đề xuất 2 nội dung rút kinh nghiệm","Chủ trì","Trên 4 giờ","HS-2026-014","pending",null,null,null],
+  ["NK005","u05","p1","2026-08-21","THQCT & KS giải quyết vụ án hình sự","Tham gia hỏi cung bị can cùng Điều tra viên","Biên bản hỏi cung và báo cáo đánh giá lời khai","Chủ trì","2–4 giờ","HS-2026-018","approved",6,9,"u03"],
+  ["NK006","u06","p1","2026-08-20","THQCT & KS giải quyết vụ án hình sự","Kiểm sát việc khám nghiệm hiện trường","Hoàn thành biên bản kiểm sát và báo cáo nhanh","Phối hợp","Trên 4 giờ","HS-2026-025","approved",8,8,"u03"],
+  ["NK007","u07","p1","2026-08-20","Công tác tham mưu, tổng hợp","Số hóa tài liệu phục vụ họp liên ngành","Hoàn thành bộ tài liệu điện tử 126 trang","Phối hợp","2–4 giờ","TL-2026-119","approved",3,9,"u04"],
+  ["NK008","u03","p1","2026-08-19","Công tác tham mưu, tổng hợp","Chủ trì họp rà soát án phức tạp của phòng","Kết luận phân công xử lý 6 vụ án có khó khăn, vướng mắc","Chủ trì","Trên 4 giờ","BB-19-08","pending",null,null,null],
 
-  ["NK009","u10","kv1","2026-08-22","Kiểm sát xét xử","Chuẩn bị đề cương xét hỏi phiên tòa hình sự","Đề cương xét hỏi và dự kiến tình huống tranh tụng","Chủ trì","2–4 giờ","HS-KV1-031","approved",7,8,"u08"],
+  ["NK009","u10","kv1","2026-08-22","THQCT & KS giải quyết vụ án hình sự","Chuẩn bị đề cương xét hỏi phiên tòa hình sự","Đề cương xét hỏi và dự kiến tình huống tranh tụng","Chủ trì","2–4 giờ","HS-KV1-031","approved",7,8,"u08"],
   ["NK010","u11","kv1","2026-08-22","Khiếu nại, tố cáo","Phân loại và tham mưu xử lý đơn khiếu nại","Phiếu phân loại và dự thảo văn bản trả lời","Chủ trì","2–4 giờ","Đ-2026-044","approved",5,9,"u08"],
-  ["NK011","u09","kv1","2026-08-21","Kiểm sát điều tra","Kiểm tra tiến độ giải quyết nguồn tin về tội phạm","Báo cáo 8 nguồn tin, đề xuất đôn đốc 2 trường hợp","Chủ trì","Trên 4 giờ","BC-KV1-08","pending",null,null,null],
-  ["NK012","u10","kv1","2026-08-20","Thực hành quyền công tố","Phê chuẩn quyết định khởi tố bị can","Báo cáo đề xuất phê chuẩn và dự thảo quyết định","Chủ trì","2–4 giờ","HS-KV1-028","approved",6,8,"u08"],
+  ["NK011","u09","kv1","2026-08-21","THQCT & KS giải quyết vụ án hình sự","Kiểm tra tiến độ giải quyết nguồn tin về tội phạm","Báo cáo 8 nguồn tin, đề xuất đôn đốc 2 trường hợp","Chủ trì","Trên 4 giờ","BC-KV1-08","pending",null,null,null],
+  ["NK012","u10","kv1","2026-08-20","THQCT & KS giải quyết vụ án hình sự","Phê chuẩn quyết định khởi tố bị can","Báo cáo đề xuất phê chuẩn và dự thảo quyết định","Chủ trì","2–4 giờ","HS-KV1-028","approved",6,8,"u08"],
   ["NK013","u11","kv1","2026-08-19","Kiểm sát thi hành án","Kiểm sát trực tiếp hồ sơ thi hành án treo","Biên bản kiểm sát và 3 kiến nghị khắc phục","Phối hợp","Trên 4 giờ","THA-2026-07","revision",7,4,"u08"],
 
   ["NK014","u13","p7","2026-08-22","Kiểm sát thi hành án","Rà soát quyết định cưỡng chế thi hành án","Bảng tổng hợp 17 quyết định và 2 hồ sơ cần kiểm tra","Chủ trì","Trên 4 giờ","THADS-08","approved",7,9,"u12"],
   ["NK015","u12","p7","2026-08-21","Kiểm sát thi hành án","Làm việc liên ngành về vụ việc thi hành án phức tạp","Biên bản thống nhất phương án xử lý và mốc thực hiện","Chủ trì","Trên 4 giờ","BBLN-08","pending",null,null,null],
-  ["NK016","u13","p7","2026-08-20","Tham mưu, tổng hợp","Tổng hợp vi phạm trong thi hành án dân sự","Dự thảo kiến nghị tổng hợp quý III","Chủ trì","Nhiều ngày","KT-2026-Q3","approved",8,8,"u12"],
+  ["NK016","u13","p7","2026-08-20","Công tác tham mưu, tổng hợp","Tổng hợp vi phạm trong thi hành án dân sự","Dự thảo kiến nghị tổng hợp quý III","Chủ trì","Nhiều ngày","KT-2026-Q3","approved",8,8,"u12"],
 
-  ["NK017","u15","vp","2026-08-22","Tham mưu, tổng hợp","Tổng hợp báo cáo công tác tuần của các đơn vị","Hoàn thành báo cáo tuần và phụ lục 7 đơn vị","Chủ trì","Trên 4 giờ","BC-T32","approved",6,9,"u14"],
-  ["NK018","u15","vp","2026-08-21","Công nghệ thông tin","Cập nhật danh mục tài khoản hệ thống nghiệp vụ","Đối chiếu và cập nhật 24 tài khoản thay đổi đơn vị","Phối hợp","2–4 giờ","CNTT-0821","approved",4,8,"u14"],
-  ["NK019","u14","vp","2026-08-20","Tham mưu, tổng hợp","Xây dựng chương trình họp giao ban lãnh đạo","Chương trình, tài liệu và dự thảo kết luận giao ban","Chủ trì","Trên 4 giờ","GB-08-2026","approved",7,9,"u01"],
+  ["NK017","u15","vp","2026-08-22","Công tác tham mưu, tổng hợp","Tổng hợp báo cáo công tác tuần của các đơn vị","Hoàn thành báo cáo tuần và phụ lục 7 đơn vị","Chủ trì","Trên 4 giờ","BC-T32","approved",6,9,"u14"],
+  ["NK018","u15","vp","2026-08-21","Công tác công nghệ thông tin & chuyển đổi số","Cập nhật danh mục tài khoản hệ thống nghiệp vụ","Đối chiếu và cập nhật 24 tài khoản thay đổi đơn vị","Phối hợp","2–4 giờ","CNTT-0821","approved",4,8,"u14"],
+  ["NK019","u14","vp","2026-08-20","Công tác tham mưu, tổng hợp","Xây dựng chương trình họp giao ban lãnh đạo","Chương trình, tài liệu và dự thảo kết luận giao ban","Chủ trì","Trên 4 giờ","GB-08-2026","approved",7,9,"u01"],
 
-  ["NK020","u17","kv2","2026-08-22","Kiểm sát xét xử","Tham gia phiên tòa dân sự sơ thẩm","Báo cáo kết quả và dự thảo phát biểu của Kiểm sát viên","Chủ trì","Trên 4 giờ","DS-KV2-016","approved",7,7,"u16"],
+  ["NK020","u17","kv2","2026-08-22","Kiểm sát việc giải quyết án dân sự, hành chính, KDTM, v.v.","Tham gia phiên tòa dân sự sơ thẩm","Báo cáo kết quả và dự thảo phát biểu của Kiểm sát viên","Chủ trì","Trên 4 giờ","DS-KV2-016","approved",7,7,"u16"],
   ["NK021","u17","kv2","2026-08-20","Khiếu nại, tố cáo","Xác minh nội dung đơn kiến nghị","Biên bản xác minh và dự thảo báo cáo đề xuất","Chủ trì","Nhiều ngày","Đ-KV2-021","revision",6,4,"u16"],
-  ["NK022","u16","kv2","2026-08-19","Tham mưu, tổng hợp","Rà soát chỉ tiêu nghiệp vụ 8 tháng","Báo cáo kết quả, xác định 3 chỉ tiêu cần tập trung","Chủ trì","Trên 4 giờ","BC-KV2-08","approved",6,8,"u01"],
+  ["NK022","u16","kv2","2026-08-19","Công tác tham mưu, tổng hợp","Rà soát chỉ tiêu nghiệp vụ 8 tháng","Báo cáo kết quả, xác định 3 chỉ tiêu cần tập trung","Chủ trì","Trên 4 giờ","BC-KV2-08","approved",6,8,"u01"],
 
-  ["NK023","u19","kv3","2026-08-22","Kiểm sát điều tra","Nghiên cứu đề nghị gia hạn tạm giam","Báo cáo đề xuất và dự thảo quyết định phê chuẩn","Chủ trì","2–4 giờ","HS-KV3-012","approved",6,8,"u18"],
-  ["NK024","u19","kv3","2026-08-21","Thực hành quyền công tố","Xây dựng luận tội vụ án cố ý gây thương tích","Hoàn thành dự thảo luận tội và đề cương tranh luận","Chủ trì","Trên 4 giờ","HS-KV3-009","approved",8,9,"u18"],
-  ["NK025","u18","kv3","2026-08-20","Tham mưu, tổng hợp","Tổ chức họp tháo gỡ vụ án có quan điểm khác nhau","Kết luận cuộc họp và báo cáo xin ý kiến lãnh đạo tỉnh","Chủ trì","Trên 4 giờ","BC-KV3-15","approved",8,8,"u01"],
+  ["NK023","u19","kv3","2026-08-22","THQCT & KS giải quyết vụ án hình sự","Nghiên cứu đề nghị gia hạn tạm giam","Báo cáo đề xuất và dự thảo quyết định phê chuẩn","Chủ trì","2–4 giờ","HS-KV3-012","approved",6,8,"u18"],
+  ["NK024","u19","kv3","2026-08-21","THQCT & KS giải quyết vụ án hình sự","Xây dựng luận tội vụ án cố ý gây thương tích","Hoàn thành dự thảo luận tội và đề cương tranh luận","Chủ trì","Trên 4 giờ","HS-KV3-009","approved",8,9,"u18"],
+  ["NK025","u18","kv3","2026-08-20","Công tác tham mưu, tổng hợp","Tổ chức họp tháo gỡ vụ án có quan điểm khác nhau","Kết luận cuộc họp và báo cáo xin ý kiến lãnh đạo tỉnh","Chủ trì","Trên 4 giờ","BC-KV3-15","approved",8,8,"u01"],
 
-  ["NK026","u02","province","2026-08-22","Tham mưu, tổng hợp","Kiểm tra tiến độ thực hiện chỉ tiêu các đơn vị phụ trách","Kết luận chỉ đạo đối với 3 đơn vị và 5 nhiệm vụ trọng tâm","Chủ trì","Trên 4 giờ","KL-22-08","pending",null,null,null],
-  ["NK027","u02","province","2026-08-21","Tham mưu, tổng hợp","Chủ trì giao ban lãnh đạo Viện","Kết luận giao ban và phân công nhiệm vụ tuần tiếp theo","Chủ trì","Trên 4 giờ","KLGB-08","approved",8,9,"u01"]
+  ["NK026","u02","province","2026-08-22","Công tác tham mưu, tổng hợp","Kiểm tra tiến độ thực hiện chỉ tiêu các đơn vị phụ trách","Kết luận chỉ đạo đối với 3 đơn vị và 5 nhiệm vụ trọng tâm","Chủ trì","Trên 4 giờ","KL-22-08","pending",null,null,null],
+  ["NK027","u02","province","2026-08-21","Công tác tham mưu, tổng hợp","Chủ trì giao ban lãnh đạo Viện","Kết luận giao ban và phân công nhiệm vụ tuần tiếp theo","Chủ trì","Trên 4 giờ","KLGB-08","approved",8,9,"u01"]
 ].map(([id,authorId,unitId,date,category,title,result,workRole,duration,evidence,status,complexity,quality,reviewerId]) => ({
   id, authorId, unitId, date, category, title, result, workRole, duration, evidence,
   status, complexity, quality, reviewerId,
@@ -150,13 +150,13 @@ const sampleLogs = [
 }));
 
 const demoWorkTemplates = [
-  ["Kiểm sát điều tra", "Nghiên cứu hồ sơ và đề xuất yêu cầu xác minh", "Hoàn thành phiếu nghiên cứu, xác định các nội dung cần tiếp tục làm rõ"],
-  ["Thực hành quyền công tố", "Xây dựng dự thảo văn bản tố tụng", "Hoàn thành dự thảo và bảng kiểm căn cứ pháp lý kèm theo"],
-  ["Kiểm sát xét xử", "Chuẩn bị nội dung tham gia phiên tòa", "Hoàn thành đề cương xét hỏi, dự kiến tình huống tranh tụng"],
+  ["THQCT & KS giải quyết vụ án hình sự", "Nghiên cứu hồ sơ và xây dựng văn bản tố tụng", "Hoàn thành phiếu nghiên cứu, dự thảo văn bản và đề xuất hướng giải quyết vụ án"],
+  ["Kiểm sát việc giải quyết án dân sự, hành chính, KDTM, v.v.", "Nghiên cứu hồ sơ vụ án và chuẩn bị nội dung tham gia phiên tòa", "Hoàn thành phiếu nghiên cứu và dự thảo phát biểu của Kiểm sát viên"],
   ["Kiểm sát thi hành án", "Rà soát hồ sơ thi hành án", "Lập bảng đối chiếu hồ sơ và kiến nghị xử lý các nội dung còn thiếu"],
   ["Khiếu nại, tố cáo", "Phân loại và tham mưu xử lý đơn", "Hoàn thành phiếu phân loại cùng dự thảo văn bản trả lời"],
-  ["Tham mưu, tổng hợp", "Tổng hợp số liệu phục vụ báo cáo định kỳ", "Hoàn thành báo cáo và phụ lục đối chiếu số liệu các đơn vị"],
-  ["Công nghệ thông tin", "Cập nhật dữ liệu trên hệ thống nghiệp vụ", "Đối chiếu, chuẩn hóa dữ liệu và ghi nhận kết quả cập nhật"],
+  ["Công tác quản lý án hình sự", "Rà soát tiến độ và dữ liệu quản lý án hình sự", "Hoàn thành báo cáo thống kê, đối chiếu hồ sơ và đề xuất xử lý"],
+  ["Công tác tham mưu, tổng hợp", "Tổng hợp số liệu phục vụ báo cáo định kỳ", "Hoàn thành báo cáo và phụ lục đối chiếu số liệu các đơn vị"],
+  ["Công tác công nghệ thông tin & chuyển đổi số", "Cập nhật dữ liệu trên hệ thống nghiệp vụ", "Đối chiếu, chuẩn hóa dữ liệu và ghi nhận kết quả cập nhật"],
   ["Kiểm sát tạm giữ, tạm giam", "Kiểm tra hồ sơ quản lý người bị tạm giữ", "Hoàn thành biên bản kiểm sát và tổng hợp nội dung cần khắc phục"],
   ["Công tác xây dựng ngành", "Rà soát tiến độ thực hiện nhiệm vụ trọng tâm", "Hoàn thành bảng theo dõi, xác định nhiệm vụ cần đôn đốc"],
   ["Phối hợp liên ngành", "Chuẩn bị nội dung cuộc họp liên ngành", "Hoàn thành tài liệu họp, dự thảo kết luận và phân công thực hiện"]

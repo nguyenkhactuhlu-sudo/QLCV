@@ -21,15 +21,21 @@ INSERT INTO units (id, code, name, short_name, type, parent_id) VALUES
 -- WORK CATEGORIES (danh muc cong viec)
 -- ============================================
 INSERT INTO work_categories (code, name, sort_order) VALUES
-  ('THUC_HANH_QUYEN_CONG_TO', 'Thuc hanh quyen cong to', 1),
-  ('KIEM_SAT_DIEU_TRA', 'Kiem sat dieu tra', 2),
-  ('KIEM_SAT_XET_XU', 'Kiem sat xet xu', 3),
-  ('KIEM_SAT_THI_HANH_AN', 'Kiem sat thi hanh an', 4),
-  ('GIAI_QUYET_DON_THU', 'Giai quyet don thu', 5),
-  ('KIEM_SAT_TAM_GIU_TAM_GIAM', 'Kiem sat tam giu tam giam', 6),
-  ('CONG_TAC_DANG_DOAN_THE', 'Cong tac dang doan the', 7),
-  ('QUAN_LY_CHI_DAO_DIEU_HANH', 'Quan ly chi dao dieu hanh', 8),
-  ('CONG_TAC_KHAC', 'Cong tac khac', 9);
+  ('THQCT_KS_GIAI_QUYET_VU_AN_HINH_SU', 'THQCT & KS giải quyết vụ án hình sự', 1),
+  ('KIEM_SAT_GIAI_QUYET_AN_DAN_SU_HANH_CHINH_KDTM', 'Kiểm sát việc giải quyết án dân sự, hành chính, KDTM, v.v.', 2),
+  ('KIEM_SAT_THI_HANH_AN', 'Kiểm sát thi hành án', 3),
+  ('GIAI_QUYET_DON_THU', 'Giải quyết đơn thư', 4),
+  ('KIEM_SAT_TAM_GIU_TAM_GIAM', 'Kiểm sát tạm giữ, tạm giam', 5),
+  ('CONG_TAC_QUAN_LY_AN_HINH_SU', 'Công tác quản lý án hình sự', 6),
+  ('CONG_TAC_THAM_MUU_TONG_HOP', 'Công tác tham mưu, tổng hợp', 7),
+  ('CONG_TAC_CNTT_CHUYEN_DOI_SO', 'Công tác công nghệ thông tin & chuyển đổi số', 8),
+  ('CONG_TAC_DANG_DOAN_THE', 'Công tác đảng đoàn thể', 9),
+  ('QUAN_LY_CHI_DAO_DIEU_HANH', 'Quản lý, chỉ đạo điều hành', 10),
+  ('CONG_TAC_KHAC', 'Công tác khác', 11)
+ON CONFLICT (code) DO UPDATE SET
+  name = EXCLUDED.name,
+  sort_order = EXCLUDED.sort_order,
+  is_active = true;
 
 -- ============================================
 -- TEST ACCOUNTS (chi dung cho development)
