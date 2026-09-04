@@ -984,6 +984,7 @@ tbody tr:hover { background: #fbfbfc; }
 .compact-form { padding: 0; }
 
 .admin-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.admin-grid.is-single { grid-template-columns: minmax(0, 1fr); }
 .delegation-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; }
 .delegation-card strong, .delegation-card span { display: block; }
 .delegation-card > div > span { color: var(--muted); font-size: 11px; }

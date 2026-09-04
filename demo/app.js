@@ -421,6 +421,12 @@ function unitById(id) { return units.find(unit => unit.id === id); }
 function userById(id) { return users.find(user => user.id === id); }
 function isLeader(user = currentUser()) { return ["province_head", "province_deputy", "unit_head", "unit_deputy"].includes(user.role); }
 function isAdministrator(user = currentUser()) { return user.role === "administrator"; }
+function canAssignTasks(user = currentUser()) { return isLeader(user); }
+function canReceiveTasks(user = currentUser()) { return user.role !== "administrator" && user.role !== "province_head"; }
+function taskViewLabel(user = currentUser()) {
+  if (user.role === "province_head") return "Giao việc";
+  return isLeader(user) ? "Giao việc và công việc được giao" : "Công việc được giao";
+}
 function formatDate(date) { return new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(`${date}T00:00:00`)); }
 function shortDate(date) { return new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit" }).format(new Date(`${date}T00:00:00`)); }
 // Dinh dang co dinh "dd/mm/yyyy, hh:mm", tu ghep chuoi (khong dung
@@ -709,6 +715,8 @@ function updateNav() {
   setVisible(document.querySelector(".journal-nav"), !adminOnly);
   setVisible(document.querySelector(".monthly-nav"), !adminOnly);
   setVisible(document.querySelector(".tasks-nav"), !adminOnly);
+  const taskNavLabel = document.querySelector(".task-nav-label");
+  if (taskNavLabel) taskNavLabel.textContent = taskViewLabel();
   if (adminOnly && (state.currentView === "journal" || state.currentView === "monthly" || state.currentView === "tasks")) state.currentView = "dashboard";
 }
 
@@ -2905,19 +2913,21 @@ function taskGroupsAssignedByMe() {
 }
 
 function renderTasks() {
-  updateChrome("Giao việc", "PHÂN CÔNG VÀ THEO DÕI TIẾN ĐỘ");
   const user = currentUser();
-  const candidates = assignableUsers(user);
-  const groupsByMe = taskGroupsAssignedByMe();
-  const assignedToMe = tasksAssignedToMe();
-  document.getElementById("appView").innerHTML = `<div class="admin-grid">
-    <section class="panel"><div class="panel-header"><div><h2>Việc tôi đã giao</h2><p>${groupsByMe.length} việc</p></div></div>
+  const canAssign = canAssignTasks(user);
+  const canReceive = canReceiveTasks(user);
+  updateChrome(taskViewLabel(user), canAssign ? (canReceive ? "PHÂN CÔNG VÀ THEO DÕI TIẾN ĐỘ" : "PHÂN CÔNG CÔNG VIỆC") : "CÔNG VIỆC ĐƯỢC GIAO");
+  const candidates = canAssign ? assignableUsers(user) : [];
+  const groupsByMe = canAssign ? taskGroupsAssignedByMe() : [];
+  const assignedToMe = canReceive ? tasksAssignedToMe() : [];
+  document.getElementById("appView").innerHTML = `<div class="admin-grid ${canAssign && canReceive ? "" : "is-single"}">
+    ${canAssign ? `<section class="panel"><div class="panel-header"><div><h2>Việc tôi đã giao</h2><p>${groupsByMe.length} việc</p></div></div>
       ${candidates.length ? taskAssignFormHtml(candidates) : `<p class="metric-context">Bạn chưa có cán bộ/đơn vị nào thuộc phạm vi được phép giao việc.</p>`}
       <div class="task-list">${groupsByMe.length ? groupsByMe.map(taskGroupCardHtml).join("") : `<div class="empty-state compact-empty"><strong>Chưa giao việc nào</strong></div>`}</div>
-    </section>
-    <section class="panel"><div class="panel-header"><div><h2>Việc được giao cho tôi</h2><p>${assignedToMe.length} việc</p></div></div>
+    </section>` : ""}
+    ${canReceive ? `<section class="panel"><div class="panel-header"><div><h2>Công việc được giao</h2><p>${assignedToMe.length} việc</p></div></div>
       <div class="task-list">${assignedToMe.length ? assignedToMe.map(task => taskCardHtml(task, "assignee")).join("") : `<div class="empty-state compact-empty"><strong>Chưa có việc được giao</strong></div>`}</div>
-    </section>
+    </section>` : ""}
   </div>`;
   if (candidates.length) bindTaskAssignForm();
   document.querySelectorAll("[data-set-due-form]").forEach(form => form.addEventListener("submit", submitTaskDueDate));
@@ -2968,6 +2978,7 @@ function bindTaskAssignForm() {
   bindTaskSupportExtras();
   form.addEventListener("submit", event => {
     event.preventDefault();
+    if (!canAssignTasks()) { showToast("Tài khoản này chỉ được nhận công việc."); return; }
     const data = new FormData(form);
     const lead = userById(data.get("leadId"));
     if (!lead) { showToast("Vui lòng chọn người chủ trì."); return; }

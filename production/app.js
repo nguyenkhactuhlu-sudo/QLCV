@@ -192,6 +192,12 @@ function requireActive(){
 
 function isLeader(){return U&&['province_head','province_deputy','unit_head','unit_deputy'].indexOf(U.rl)>=0}
 function isAdminOrProvinceHead(){return U&&(U.rl==='administrator'||U.rl==='province_head')}
+function canAssignTasks(){return isLeader()}
+function canReceiveTasks(){return U&&U.rl!=='administrator'&&U.rl!=='province_head'}
+function taskViewLabel(){
+  if(U&&U.rl==='province_head')return 'Giao việc';
+  return isLeader()?'Giao việc và công việc được giao':'Công việc được giao';
+}
 
 function populateCategorySelect(){
   var sel=$('categorySelect');if(!sel)return;
@@ -225,6 +231,8 @@ function ub(){
   setVisible(document.querySelector('.journal-nav'),!isAdminOnly);
   setVisible(document.querySelector('.monthly-nav'),!isAdminOnly);
   setVisible(document.querySelector('.tasks-nav'),!isAdminOnly);
+  var taskNavLabel=document.querySelector('.task-nav-label');
+  if(taskNavLabel)taskNavLabel.textContent=taskViewLabel();
 
   if(!isLeader()&&V==='reviews')V='dashboard';
   if(!isLeader()&&V==='unitJournal')V='dashboard';
@@ -1039,40 +1047,46 @@ function taskGroupsAssignedByMe(){
 }
 
 async function rt(){
-  $('pageEyebrow').textContent='GIAO VIỆC';$('pageTitle').textContent='Phân công và theo dõi tiến độ';
+  var canAssign=canAssignTasks(),canReceive=canReceiveTasks();
+  $('pageEyebrow').textContent=canAssign?(canReceive?'PHÂN CÔNG VÀ THEO DÕI TIẾN ĐỘ':'PHÂN CÔNG CÔNG VIỆC'):'CÔNG VIỆC ĐƯỢC GIAO';
+  $('pageTitle').textContent=taskViewLabel();
   if(U.rl==='administrator'){V='dashboard';render();return}
   $('appView').innerHTML='<div class="empty-state"><strong>Đang tải...</strong></div>';
+  TASK_CANDIDATES=[];TASKS_BY_ME=[];TASKS_TO_ME=[];TASK_GROUP_MEMBERS=[];
   try{
-    var pr=await fetch(API+'profiles?is_active=eq.true&select=id,full_name,role,unit_id&order=full_name',{headers:authHeaders()});
-    var people=pr.ok?await pr.json():[];
-    // Pham vi duoc phep giao viec = dung pham vi quan ly nguoi (khong con
-    // gioi han theo danh sach uy quyen cu) - moi Pho phong deu giao viec
-    // duoc cho bat ky ai trong don vi, dung thuc te "1 nguoi duoc nhieu
-    // lanh dao cung giao viec".
-    TASK_CANDIDATES=people.filter(function(p){return canManagePerson(p)});
-    var byMeR=await fetch(API+'task_assignments?assigner_id=eq.'+U.id+'&order=created_at.desc&select=*,assignee:assignee_id(full_name)',{headers:authHeaders()});
-    TASKS_BY_ME=byMeR.ok?await byMeR.json():[];
-    var toMeR=await fetch(API+'task_assignments?assignee_id=eq.'+U.id+'&order=created_at.desc&select=*,assigner:assigner_id(full_name)',{headers:authHeaders()});
-    TASKS_TO_ME=toMeR.ok?await toMeR.json():[];
-    // "Cung thuc hien" - ten nhung nguoi khac trong CUNG 1 lan giao (cung
-    // task_group_id) - can fetch rieng vi TASKS_TO_ME chi loc theo
-    // assignee_id=chinh minh (RLS cho xem them nho migration 00044).
-    TASK_GROUP_MEMBERS=[];
-    var groupIds=Array.from(new Set(TASKS_TO_ME.map(function(t){return t.task_group_id}))).filter(Boolean);
-    if(groupIds.length){
-      var gmR=await fetch(API+'task_assignments?task_group_id=in.('+groupIds.join(',')+')&select=id,task_group_id,assignee_id,work_role,assignee:assignee_id(full_name)',{headers:authHeaders()});
-      TASK_GROUP_MEMBERS=gmR.ok?await gmR.json():[];
+    if(canAssign){
+      var pr=await fetch(API+'profiles?is_active=eq.true&select=id,full_name,role,unit_id&order=full_name',{headers:authHeaders()});
+      var people=pr.ok?await pr.json():[];
+      // Pham vi duoc phep giao viec = dung pham vi quan ly nguoi (khong con
+      // gioi han theo danh sach uy quyen cu) - moi Pho phong deu giao viec
+      // duoc cho bat ky ai trong don vi, dung thuc te "1 nguoi duoc nhieu
+      // lanh dao cung giao viec".
+      TASK_CANDIDATES=people.filter(function(p){return canManagePerson(p)});
+      var byMeR=await fetch(API+'task_assignments?assigner_id=eq.'+U.id+'&order=created_at.desc&select=*,assignee:assignee_id(full_name)',{headers:authHeaders()});
+      TASKS_BY_ME=byMeR.ok?await byMeR.json():[];
+    }
+    if(canReceive){
+      var toMeR=await fetch(API+'task_assignments?assignee_id=eq.'+U.id+'&order=created_at.desc&select=*,assigner:assigner_id(full_name)',{headers:authHeaders()});
+      TASKS_TO_ME=toMeR.ok?await toMeR.json():[];
+      // "Cung thuc hien" - ten nhung nguoi khac trong CUNG 1 lan giao (cung
+      // task_group_id) - can fetch rieng vi TASKS_TO_ME chi loc theo
+      // assignee_id=chinh minh (RLS cho xem them nho migration 00044).
+      var groupIds=Array.from(new Set(TASKS_TO_ME.map(function(t){return t.task_group_id}))).filter(Boolean);
+      if(groupIds.length){
+        var gmR=await fetch(API+'task_assignments?task_group_id=in.('+groupIds.join(',')+')&select=id,task_group_id,assignee_id,work_role,assignee:assignee_id(full_name)',{headers:authHeaders()});
+        TASK_GROUP_MEMBERS=gmR.ok?await gmR.json():[];
+      }
     }
   }catch(e){
     $('appView').innerHTML='<div class="empty-state"><strong>Không tải được dữ liệu</strong><span>'+esc(e.message)+'</span></div>';
     return;
   }
   var groupsByMe=taskGroupsAssignedByMe();
-  var h='<div class="admin-grid">';
-  h+='<section class="panel"><div class="panel-header"><div><h2>Việc tôi đã giao</h2><p>'+groupsByMe.length+' việc</p></div></div>'
+  var h='<div class="admin-grid '+(canAssign&&canReceive?'':'is-single')+'">';
+  if(canAssign)h+='<section class="panel"><div class="panel-header"><div><h2>Việc tôi đã giao</h2><p>'+groupsByMe.length+' việc</p></div></div>'
     +(TASK_CANDIDATES.length?taskAssignFormHtml():'<p class="metric-context">Bạn chưa có cán bộ/đơn vị nào thuộc phạm vi được phép giao việc.</p>')
     +'<div class="task-list">'+(groupsByMe.length?groupsByMe.map(taskGroupCardHtml).join(''):'<div class="empty-state compact-empty"><strong>Chưa giao việc nào</strong></div>')+'</div></section>';
-  h+='<section class="panel"><div class="panel-header"><div><h2>Việc được giao cho tôi</h2><p>'+TASKS_TO_ME.length+' việc</p></div></div>'
+  if(canReceive)h+='<section class="panel"><div class="panel-header"><div><h2>Công việc được giao</h2><p>'+TASKS_TO_ME.length+' việc</p></div></div>'
     +'<div class="task-list">'+(TASKS_TO_ME.length?TASKS_TO_ME.map(function(t){return taskCardHtml(t,'assignee')}).join(''):'<div class="empty-state compact-empty"><strong>Chưa có việc được giao</strong></div>')+'</div></section>';
   h+='</div>';
   $('appView').innerHTML=h;
@@ -1125,6 +1139,7 @@ function bindTaskAssignExtras(){
 async function submitTaskAssignment(e){
   e.preventDefault();
   if(!requireActive())return;
+  if(!canAssignTasks()){showToast('Tài khoản này chỉ được nhận công việc.');return}
   var form=e.currentTarget;
   var f=new FormData(form);
   var leadId=f.get('leadId');
