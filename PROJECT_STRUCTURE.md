@@ -65,7 +65,7 @@ QLCV/
 │   ├── app.js                 # Toàn bộ logic production: gọi Supabase REST/RPC, không có dữ liệu mẫu
 │   ├── config.js              # DUY NHẤT nơi cấu hình Supabase URL + anon key
 │   └── assets/                # Bản sao/liên kết tới demo/assets khi build deploy
-├── supabase-auth.js            # Xử lý form đăng nhập/đăng ký/quên mật khẩu, dùng chung production
+├── supabase-auth.js            # Xử lý đăng nhập và khôi phục phiên, dùng chung production
 ├── supabase/
 │   ├── config.toml
 │   ├── migrations/            # 00001 → 00046 (+ 1 file gộp tiện dụng), xem mục 7

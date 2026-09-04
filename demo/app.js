@@ -2,7 +2,6 @@ const STORAGE_KEY = "vks-worklog-demo-v3";
 const MONTHLY_STORAGE_KEY = "vks-monthly-demo-v1";
 const PERSONNEL_STORAGE_KEY = "vks-personnel-demo-v1";
 const AUDIT_STORAGE_KEY = "vks-audit-demo-v1";
-const REGISTERED_ACCOUNT_STORAGE_KEY = "vks-registered-accounts-demo-v1";
 const NOTIFICATION_READ_STORAGE_KEY = "vks-notification-read-demo-v1";
 const PERSONAL_NOTES_STORAGE_KEY = "vks-personal-notes-demo-v1";
 const STICKY_NOTES_STORAGE_KEY = "vks-sticky-notes-demo-v1";
@@ -325,16 +324,12 @@ const samplePersonalNotes = [
 
 let logs = loadLogs();
 let monthlyReviews = loadJson(MONTHLY_STORAGE_KEY, sampleMonthly.concat(generateMonthlyHistory()));
-let registeredAccounts = loadJson(REGISTERED_ACCOUNT_STORAGE_KEY, []);
 let notificationReadState = loadJson(NOTIFICATION_READ_STORAGE_KEY, {});
 let personalNotes = loadJson(PERSONAL_NOTES_STORAGE_KEY, samplePersonalNotes);
 let stickyNotes = loadJson(STICKY_NOTES_STORAGE_KEY, []);
 let systemNotifications = loadJson(SYSTEM_NOTIFICATIONS_STORAGE_KEY, []);
 let delegations = loadJson(DELEGATIONS_STORAGE_KEY, sampleDelegations);
 let taskAssignments = loadJson(TASK_ASSIGNMENTS_STORAGE_KEY, sampleTaskAssignments);
-registeredAccounts.forEach(account => {
-  if (!users.some(user => user.id === account.id)) users.push(account);
-});
 let auditEvents = loadJson(AUDIT_STORAGE_KEY, [
   { at: "2026-08-20T08:15:00", actor: "Quản trị hệ thống", action: "Cập nhật danh mục nhân sự tháng 8", detail: "Đồng bộ đơn vị, chức vụ và trạng thái hiệu lực" },
   { at: "2026-08-18T14:30:00", actor: "Phạm Hải Anh", action: "Phân công lãnh đạo phụ trách", detail: "Phạm vi Phòng 1, Phòng 7 và Khu vực 1" }
@@ -796,16 +791,6 @@ function notificationsForCurrentUser() {
       time: shortDate(log.date),
       view: "reviews",
       logId: log.id
-    });
-  });
-  if (user.role === "province_head" || isAdministrator(user)) registeredAccounts.filter(account => account.accountStatus === "pending").forEach(account => {
-    notifications.push({
-      id: `account-${account.id}-${account.registeredAt}`,
-      tone: "account",
-      title: "Tài khoản chờ xác nhận",
-      message: `${account.name} · ${unitById(account.unitId)?.short || "Chưa xác định đơn vị"}`,
-      time: "Mới đăng ký",
-      view: "administration"
     });
   });
   return notifications.slice(0, 20);
@@ -1861,7 +1846,7 @@ function ujScopeUnitIds() { return visibleUnitIds().filter(id => id !== "provinc
 function ujScopePeople() {
   const user = currentUser();
   const scopeUnits = ujScopeUnitIds();
-  return users.filter(p => scopeUnits.includes(p.unitId) && p.accountStatus !== "pending" && isVisibleInUnitScope(p, user));
+  return users.filter(p => scopeUnits.includes(p.unitId) && isVisibleInUnitScope(p, user));
 }
 
 function ujScopeLogs() {
@@ -2529,7 +2514,7 @@ function renderOrganization() {
   updateChrome("Cơ cấu và phân quyền", "MÔ HÌNH TỔ CHỨC");
   const departments = units.filter(unit => unit.type === "department");
   const regionals = units.filter(unit => unit.type === "regional");
-  const assignablePeople = users.filter(person => person.accountStatus !== "pending");
+  const assignablePeople = users;
   document.getElementById("appView").innerHTML = `<div class="dashboard-grid">
     <section class="panel panel-wide"><div class="panel-header"><div><h2>Cây tổ chức trong demo</h2><p>Hai nhóm đơn vị ngang cấp, cùng trực thuộc VKSND tỉnh</p></div></div><div class="org-tree"><div class="org-root"><strong>VKSND tỉnh</strong><span>Viện trưởng · Các Phó Viện trưởng</span></div><div class="org-branches"><div class="org-column"><h3>Phòng chuyên trách</h3>${departments.map(orgUnitCard).join("")}</div><div class="org-column"><h3>VKSND khu vực</h3>${regionals.map(orgUnitCard).join("")}</div></div></div></section>
     <section class="panel panel-wide"><div class="panel-header"><div><h2>Gán vai trò và đơn vị</h2><p>Chỉ định chức vụ và đơn vị cho từng tài khoản, nhóm theo đơn vị. Viện trưởng/Phó Viện trưởng tỉnh chọn "Lãnh đạo Viện tỉnh" làm đơn vị. Với vai trò Phó Viện trưởng tỉnh, tick chọn thêm các đơn vị được phân công phụ trách.</p></div></div>${assignRoleGroupedTable(assignablePeople)}</section>
@@ -2688,7 +2673,7 @@ function toggleAccountActive(id) {
   renderOrganization();
 }
 
-// Quan tri toan phan (dieu chuyen nhan su, ma dang ky, duyet tai khoan,
+// Quan tri toan phan (dieu chuyen nhan su, quan ly tai khoan,
 // nhat ky thay doi) chi danh cho Quan tri vien/Vien truong tinh. Rieng
 // "Uy quyen co thoi han" con mo them cho Truong phong/Chanh van phong
 // (unit_head) de HO TU uy quyen cho pho cua chinh minh - dung RPC
@@ -2705,12 +2690,11 @@ function renderAdministration() {
   const activeUsers = users.filter(person => person.role !== "administrator");
   const heads = activeUsers.filter(person => person.role === "unit_head");
   const activeDelegationsCount = delegations.filter(isDelegationActive).length;
-  const pendingAccounts = registeredAccounts.filter(account => account.accountStatus === "pending");
   const movableUsers = activeUsers.filter(person => !["province_head", "province_deputy", "unit_head"].includes(person.role));
   updateChrome(fullAccess ? "Quản trị nhân sự và phân quyền" : "Ủy quyền có thời hạn", fullAccess ? "CẤU HÌNH CÓ THỜI GIAN HIỆU LỰC" : "PHÓ PHÒNG ĐƯỢC CHẤM THAY");
   let html = fullAccess ? `<div class="demo-notice"><strong>Mô phỏng quản trị</strong><span>Mọi thay đổi chỉ lưu trong trình duyệt này. Nhật ký cũ giữ nguyên đơn vị tại thời điểm phát sinh; quyền mới áp dụng từ thời điểm có hiệu lực.</span></div>
     <div class="metric-grid">
-      ${metricCard("Nhân sự và tài khoản", activeUsers.length, `${pendingAccounts.length} tài khoản chờ xác nhận`, "")}
+      ${metricCard("Nhân sự và tài khoản", activeUsers.length, "Tài khoản được cấp trực tiếp", "")}
       ${metricCard("Đơn vị trực thuộc", units.length - 1, "Phòng chuyên trách và VKSND khu vực", "blue")}
       ${metricCard("Người đứng đầu", heads.length, "Đang có hiệu lực", "green")}
       ${metricCard("Ủy quyền đang hiệu lực", activeDelegationsCount, "Có thể thu hồi tức thời", "gold")}
@@ -2727,34 +2711,12 @@ function renderAdministration() {
         ${delegationGrantFormHtml()}
         ${delegationsTableHtml()}
       </section>`;
-  if (fullAccess) html += `<section class="panel panel-wide"><div class="panel-header"><div><h2>Tài khoản chờ xác nhận</h2><p>Đối chiếu đúng người, đúng đơn vị trước khi kích hoạt</p></div></div>${pendingAccountTable(pendingAccounts)}</section>
-      <section class="panel panel-wide"><div class="panel-header"><div><h2>Nhật ký thay đổi</h2><p>Không xóa lịch sử thay đổi nhân sự và phân quyền</p></div></div><div class="audit-list">${auditEvents.slice().reverse().map(event => `<div class="audit-row"><span class="audit-time">${new Date(event.at).toLocaleString("vi-VN")}</span><div><strong>${event.action}</strong><p>${event.detail}</p></div><span>${event.actor}</span></div>`).join("")}</div></section>`;
+  if (fullAccess) html += `<section class="panel panel-wide"><div class="panel-header"><div><h2>Nhật ký thay đổi</h2><p>Không xóa lịch sử thay đổi nhân sự và phân quyền</p></div></div><div class="audit-list">${auditEvents.slice().reverse().map(event => `<div class="audit-row"><span class="audit-time">${new Date(event.at).toLocaleString("vi-VN")}</span><div><strong>${event.action}</strong><p>${event.detail}</p></div><span>${event.actor}</span></div>`).join("")}</div></section>`;
   html += `</div>`;
   document.getElementById("appView").innerHTML = html;
   if (fullAccess) document.getElementById("applyTransfer").addEventListener("click", applyPersonnelTransfer);
   bindDelegationForm();
   document.querySelectorAll("[data-revoke-delegation]").forEach(button => button.addEventListener("click", () => revokeDelegation(button.dataset.revokeDelegation)));
-  if (fullAccess) {
-    document.querySelectorAll("[data-approve-account]").forEach(button => button.addEventListener("click", () => approveRegisteredAccount(button.dataset.approveAccount)));
-  }
-}
-
-function pendingAccountTable(accounts) {
-  if (!accounts.length) return `<div class="empty-state compact-empty"><strong>Không có tài khoản chờ xử lý</strong>Tài khoản đăng ký hợp lệ sẽ xuất hiện tại đây.</div>`;
-  return `<div class="table-wrap"><table><thead><tr><th>Người đăng ký</th><th>Email</th><th>Đơn vị từ mã</th><th>Mã sử dụng</th><th></th></tr></thead><tbody>${accounts.map(account => `<tr><td><strong>${account.name}</strong></td><td>${account.email}</td><td>${unitById(account.unitId).short}</td><td><code>${account.registrationCode}</code></td><td class="numeric"><button class="button button-primary button-small" data-approve-account="${account.id}">Xác nhận tài khoản</button></td></tr>`).join("")}</tbody></table></div>`;
-}
-
-function approveRegisteredAccount(accountId) {
-  const account = registeredAccounts.find(item => item.id === accountId);
-  if (!account) return;
-  account.accountStatus = "active";
-  const runtimeAccount = userById(accountId);
-  if (runtimeAccount) runtimeAccount.accountStatus = "active";
-  localStorage.setItem(REGISTERED_ACCOUNT_STORAGE_KEY, JSON.stringify(registeredAccounts));
-  auditEvents.push({ at: new Date().toISOString(), actor: currentUser().name, action: "Xác nhận tài khoản", detail: `${account.name} · ${unitById(account.unitId).short}` });
-  localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(auditEvents));
-  showToast("Đã xác nhận tài khoản với quyền cán bộ mặc định.");
-  renderAdministration();
 }
 
 function applyPersonnelTransfer() {
@@ -3098,7 +3060,7 @@ function submitTaskDueDate(event) {
 
 function orgUnitCard(unit) {
   const head = users.find(user => user.unitId === unit.id && user.role === "unit_head");
-  const members = users.filter(user => user.unitId === unit.id && user.accountStatus !== "pending")
+  const members = users.filter(user => user.unitId === unit.id)
     .slice().sort((a, b) => (ROLE_RANK[b.role] ?? 0) - (ROLE_RANK[a.role] ?? 0) || a.name.localeCompare(b.name));
   const expanded = state.orgExpandedUnitId === unit.id;
   const memberRows = expanded
@@ -3400,8 +3362,6 @@ function resetDemo() {
   delegations = structuredClone(sampleDelegations);
   taskAssignments = structuredClone(sampleTaskAssignments);
   monthlyReviews = structuredClone(sampleMonthly.concat(generateMonthlyHistory()));
-  users.splice(0, users.length, ...users.filter(user => !user.id.startsWith("reg-")));
-  registeredAccounts = [];
   defaultPersonnelState.forEach(item => {
     const user = userById(item.id);
     if (user) Object.assign(user, structuredClone(item));
@@ -3417,7 +3377,6 @@ function resetDemo() {
   saveDelegations();
   saveTaskAssignments();
   localStorage.setItem(MONTHLY_STORAGE_KEY, JSON.stringify(monthlyReviews));
-  localStorage.setItem(REGISTERED_ACCOUNT_STORAGE_KEY, JSON.stringify(registeredAccounts));
   savePersonnelState();
   localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(auditEvents));
   notificationReadState = {};

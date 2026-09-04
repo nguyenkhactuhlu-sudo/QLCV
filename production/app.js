@@ -124,9 +124,9 @@ async function initU(t,uid,em){
   }catch(e){}
 
   if(profile&&profile.is_active===false){
-    U={id:uid,n:profile.full_name||em,tl:'',rl:'staff',uid:profile.unit_id,in:'…',token:t,pending:true};
+    U={id:uid,n:profile.full_name||em,tl:'',rl:'staff',uid:profile.unit_id,in:'…',token:t,inactive:true};
     $('loginScreen').hidden=true;$('appShell').hidden=false;document.body.classList.remove('login-active');
-    showPendingScreen();
+    showInactiveScreen();
     return;
   }
 
@@ -165,7 +165,7 @@ var NOTIFICATION_POLL_INTERVAL=null;
 function startNotificationPolling(){
   stopNotificationPolling();
   NOTIFICATION_POLL_INTERVAL=setInterval(function(){
-    if(!U||U.pending)return;
+    if(!U||U.inactive)return;
     renderNotificationsUI();
     refreshPendingBadge();
     refreshTaskOverdueBadge();
@@ -175,18 +175,18 @@ function stopNotificationPolling(){
   if(NOTIFICATION_POLL_INTERVAL){clearInterval(NOTIFICATION_POLL_INTERVAL);NOTIFICATION_POLL_INTERVAL=null}
 }
 
-function showPendingScreen(){
+function showInactiveScreen(){
   setVisible($('sidebar'),false);
   var nc=$('notificationCenter');if(nc)nc.hidden=true;
   var mm=$('mobileMenu');if(mm)mm.hidden=true;
-  $('pageEyebrow').textContent='TÀI KHOẢN MỚI';$('pageTitle').textContent='Đang chờ xác nhận';
-  $('appView').innerHTML='<div class="empty-state" style="margin-top:40px"><strong>Tài khoản của bạn đang chờ quản trị viên xác nhận</strong><span>Bạn đã đăng ký thành công bằng mã đơn vị. Quản trị viên sẽ đối chiếu thông tin và kích hoạt tài khoản trong thời gian sớm nhất. Vui lòng quay lại sau.</span></div>';
+  $('pageEyebrow').textContent='TÀI KHOẢN';$('pageTitle').textContent='Tài khoản đã bị khóa';
+  $('appView').innerHTML='<div class="empty-state" style="margin-top:40px"><strong>Tài khoản của bạn hiện không hoạt động</strong><span>Vui lòng liên hệ Quản trị viên hệ thống để được kiểm tra và mở lại tài khoản.</span></div>';
 }
 
-// Chan cung o phia trinh duyet cho tai khoan dang cho xac nhan - lop phong
+// Chan cung o phia trinh duyet cho tai khoan da bi khoa - lop phong
 // thu 2, ngoai viec RLS o database da chan ghi du lieu that.
 function requireActive(){
-  if(U&&U.pending){showToast('Tài khoản đang chờ quản trị viên xác nhận, chưa thể thao tác.');return false}
+  if(U&&U.inactive){showToast('Tài khoản đang bị khóa, chưa thể thao tác.');return false}
   return true;
 }
 
@@ -202,7 +202,7 @@ function populateCategorySelect(){
 
 function ub(){
   if(!U)return;
-  // Neu truoc do tung o man hinh "cho xac nhan" (showPendingScreen da an
+  // Neu truoc do tung o man hinh "tai khoan bi khoa" (showInactiveScreen da an
   // sidebar/chuong thong bao/nut menu), phai hien lai day du khi tai khoan
   // da duoc kich hoat va dang nhap binh thuong.
   setVisible($('sidebar'),true);
@@ -234,7 +234,7 @@ function ub(){
 }
 
 function render(){
-  if(U&&U.pending){showPendingScreen();return}
+  if(U&&U.inactive){showInactiveScreen();return}
   if(V==='dashboard')rd();
   else if(V==='journal')rj();
   else if(V==='notes')rn();
@@ -1523,7 +1523,7 @@ async function ro(){
   }
   var h=credentialNoticeHtml()+'<div class="dashboard-grid">'
     +'<section class="panel panel-wide"><div class="panel-header"><div><h2>Cây tổ chức</h2><p>Hai nhóm đơn vị ngang cấp, cùng trực thuộc VKSND tỉnh</p></div></div><div class="org-tree"><div class="org-root"><strong>VKSND tỉnh</strong><span>Viện trưởng · Các Phó Viện trưởng</span></div><div class="org-branches"><div class="org-column"><h3>Phòng chuyên trách</h3>'+departments.map(orgUnitCardHtml).join('')+'</div><div class="org-column"><h3>VKSND khu vực</h3>'+regionals.map(orgUnitCardHtml).join('')+'</div></div></div></section>'
-    +'<section class="panel panel-wide"><div class="panel-header"><div><h2>Gán vai trò và đơn vị</h2><p>Chỉ định đúng chức vụ và đơn vị cho từng tài khoản, nhóm theo đơn vị. Tài khoản đang chờ xác nhận sẽ được kích hoạt luôn khi gán. Viện trưởng/Phó Viện trưởng tỉnh chọn "Lãnh đạo Viện tỉnh" làm đơn vị. Với vai trò Phó Viện trưởng tỉnh, tick chọn thêm các đơn vị được phân công phụ trách.</p></div></div>'+assignRoleGroupedHtml(people,assignedByUser)+'</section>'
+    +'<section class="panel panel-wide"><div class="panel-header"><div><h2>Gán vai trò và đơn vị</h2><p>Chỉ định đúng chức vụ và đơn vị cho từng tài khoản, nhóm theo đơn vị. Tài khoản bị khóa không tự mở lại khi gán; sử dụng nút "Mở lại" khi cần kích hoạt. Viện trưởng/Phó Viện trưởng tỉnh chọn "Lãnh đạo Viện tỉnh" làm đơn vị. Với vai trò Phó Viện trưởng tỉnh, tick chọn thêm các đơn vị được phân công phụ trách.</p></div></div>'+assignRoleGroupedHtml(people,assignedByUser)+'</section>'
     +'<section class="panel panel-wide"><div class="panel-header"><div><h2>Quy tắc người chấm</h2><p>Không cho phép người dùng tự chấm nhật ký của mình</p></div></div><div class="org-role-list">'
     +'<div class="org-role-row"><strong>Cán bộ, công chức</strong><p>Người đứng đầu đơn vị trực tiếp đánh giá; cấp phó chỉ chấm khi có ủy quyền.</p></div>'
     +'<div class="org-role-row"><strong>Phó lãnh đạo đơn vị</strong><p>Viện trưởng khu vực hoặc Trưởng phòng đánh giá.</p></div>'
@@ -1570,7 +1570,7 @@ function assignRoleTableHtml(people,assignedByUser){
     var isSelf=p.id===U.id;
     var lockBtn=isSelf?'':'<button type="button" class="button button-small '+(p.is_active?'button-danger':'button-secondary')+'" data-toggle-active="'+p.id+'" data-active="'+p.is_active+'">'+(p.is_active?'Khoá':'Mở lại')+'</button>';
     var resetPwBtn='<button type="button" class="button button-secondary button-small" data-reset-password="'+p.id+'" data-person-full-name="'+esc(p.full_name)+'">Đặt lại mật khẩu</button>';
-    return '<tr data-person-name="'+esc((p.full_name||'').normalize('NFC').toLowerCase())+'"><td><strong>'+esc(p.full_name)+'</strong></td><td><span class="status-pill '+(p.is_active?'status-approved':'status-pending')+'">'+(p.is_active?'Đang hoạt động':'Chờ xác nhận')+'</span></td><td>'+roleSel+'</td><td>'+unitSel+'</td><td>'+checklist+'</td><td class="numeric"><button class="button button-primary button-small" data-save-role="'+p.id+'">Lưu</button> '+resetPwBtn+' '+lockBtn+'</td></tr>';
+    return '<tr data-person-name="'+esc((p.full_name||'').normalize('NFC').toLowerCase())+'"><td><strong>'+esc(p.full_name)+'</strong></td><td><span class="status-pill '+(p.is_active?'status-approved':'status-revision')+'">'+(p.is_active?'Đang hoạt động':'Bị khóa')+'</span></td><td>'+roleSel+'</td><td>'+unitSel+'</td><td>'+checklist+'</td><td class="numeric"><button class="button button-primary button-small" data-save-role="'+p.id+'">Lưu</button> '+resetPwBtn+' '+lockBtn+'</td></tr>';
   }).join('')+'</tbody></table></div>';
 }
 
@@ -2950,14 +2950,6 @@ async function fetchNotifications(){
       });
     }catch(e){}
   }
-  if(U.rl==='administrator'){
-    try{
-      var pa=await fetch(API+'profiles?is_active=eq.false&select=id,full_name,unit_id,created_at',{headers:authHeaders()});
-      (pa.ok?await pa.json():[]).forEach(function(a){
-        list.push({id:'account-'+a.id+'-'+a.created_at,tone:'account',title:'Tài khoản chờ xác nhận',message:(a.full_name||'')+' · '+unitShort(a.unit_id),time:'Mới đăng ký',view:'administration'});
-      });
-    }catch(e){}
-  }
   return list.slice(0,20);
 }
 
@@ -3013,14 +3005,12 @@ async function openNotificationItem(button){
 }
 
 // ============================================
-// QUAN TRI - duyet tai khoan cho xac nhan + uy quyen thay mat 100% toan
-// don vi. KHONG con co che tu dang ky/ma dang ky theo don vi nua - tai
-// khoan gio chi duoc admin cap truc tiep qua SQL Editor (dung mau
-// _seed_test_account), xem PROJECT_STRUCTURE.md muc 8.
+// QUAN TRI - tao/cap tai khoan truc tiep + uy quyen thay mat 100% toan
+// don vi. KHONG con co che tu dang ky/ma dang ky theo don vi nua.
 // ============================================
-var ADMIN_PENDING=[],ADMIN_DELEGATION_PEOPLE=[],ADMIN_DELEGATIONS=[];
+var ADMIN_DELEGATION_PEOPLE=[],ADMIN_DELEGATIONS=[];
 
-// Quan tri toan phan (duyet tai khoan, audit log) chi danh cho Quan tri
+// Quan tri toan phan (tao tai khoan, audit log) chi danh cho Quan tri
 // vien/Vien truong tinh. Rieng "Uy quyen co thoi han" con
 // mo them cho Truong phong/Chanh van phong (unit_head) de HO TU uy
 // quyen cho pho cua chinh minh - dung RPC grant_delegation/
@@ -3032,11 +3022,9 @@ async function ra(){
   $('pageTitle').textContent=fullAccess?'Quản trị tài khoản':'Ủy quyền có thời hạn';
   if(!(fullAccess||U.rl==='unit_head')){V='dashboard';render();return}
   $('appView').innerHTML='<div class="empty-state"><strong>Đang tải...</strong></div>';
-  var pendingProfiles=[],auditLogs=[],people=[],delegationRows=[];
+  var auditLogs=[],people=[],delegationRows=[];
   try{
     if(fullAccess){
-      var pr=await fetch(API+'profiles?is_active=eq.false&select=id,full_name,role,unit_id,created_at&order=created_at.desc',{headers:authHeaders()});
-      pendingProfiles=pr.ok?await pr.json():[];
       if(U.rl==='administrator'){
         var alr=await fetch(API+'audit_logs?select=id,action,entity_type,entity_id,created_at,actor:actor_id(full_name)&order=created_at.desc&limit=50',{headers:authHeaders()});
         auditLogs=alr.ok?await alr.json():[];
@@ -3051,18 +3039,16 @@ async function ra(){
     var dr=await fetch(delUrl,{headers:authHeaders()});
     delegationRows=dr.ok?await dr.json():[];
   }catch(e){}
-  ADMIN_PENDING=pendingProfiles;ADMIN_DELEGATION_PEOPLE=people;ADMIN_DELEGATIONS=delegationRows;
+  ADMIN_DELEGATION_PEOPLE=people;ADMIN_DELEGATIONS=delegationRows;
 
   var activeDelegationsCount=delegationRows.filter(isDelegationActiveRow).length;
   var h=credentialNoticeHtml();
   h+=fullAccess?('<div class="metric-grid">'
-    +metricCard('Tài khoản chờ xác nhận',pendingProfiles.length,'Cần đối chiếu trước khi kích hoạt','gold')
     +metricCard('Ủy quyền đang hiệu lực',activeDelegationsCount,'Có thể thu hồi tức thời','blue')
     +'</div>'):'';
   h+='<div class="admin-grid">';
   if(fullAccess){
     h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Tạo tài khoản mới</h2><p>Tạo trực tiếp trên giao diện, không cần vào Supabase viết SQL</p></div></div>'+createUserFormHtml()+'</section>';
-    h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Tài khoản chờ xác nhận</h2><p>Đối chiếu đúng người, đúng đơn vị trước khi kích hoạt</p></div></div>'+pendingAccountTableHtml(pendingProfiles)+'</section>';
   }
   h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Ủy quyền có thời hạn</h2><p>Ủy quyền cho 1 Phó phòng/Phó Viện trưởng KV thay mặt chấm điểm toàn bộ đơn vị'+(fullAccess?'':' (đơn vị của bạn)')+', trong một khoảng thời gian</p></div></div>'
     +delegationGrantFormHtml(people,delegationRows)+delegationsTableHtml(delegationRows,people)+'</section>';
@@ -3072,10 +3058,7 @@ async function ra(){
   h+='</div>';
   $('appView').innerHTML=h;
 
-  if(fullAccess){
-    document.querySelectorAll('[data-approve-account]').forEach(function(b){b.addEventListener('click',function(){approvePendingAccount(b.dataset.approveAccount)})});
-    bindCreateUserForm();
-  }
+  if(fullAccess)bindCreateUserForm();
   bindCredentialNoticeDismiss();
   bindDelegationForm();
   document.querySelectorAll('[data-revoke-delegation]').forEach(function(b){b.addEventListener('click',function(){revokeDelegation(b.dataset.revokeDelegation)})});
@@ -3210,13 +3193,6 @@ async function revokeDelegation(id){
   }catch(e){showToast('Lỗi: '+e.message)}
 }
 
-function pendingAccountTableHtml(accounts){
-  if(!accounts.length)return '<div class="empty-state compact-empty"><strong>Không có tài khoản chờ xử lý</strong><span>Tài khoản đăng ký hợp lệ sẽ xuất hiện tại đây.</span></div>';
-  return '<div class="table-wrap"><table><thead><tr><th>Người đăng ký</th><th>Đơn vị</th><th>Ngày đăng ký</th><th></th></tr></thead><tbody>'+accounts.map(function(a){
-    return '<tr><td><strong>'+esc(a.full_name)+'</strong></td><td>'+esc(unitShort(a.unit_id))+'</td><td>'+new Date(a.created_at).toLocaleDateString('vi-VN')+'</td><td class="numeric"><button class="button button-primary button-small" data-approve-account="'+a.id+'">Xác nhận tài khoản</button></td></tr>';
-  }).join('')+'</tbody></table></div>';
-}
-
 var AUDIT_ACTION_LABELS={INSERT:'Tạo mới',UPDATE:'Cập nhật',DELETE:'Xoá'};
 var AUDIT_ENTITY_LABELS={work_logs:'Nhật ký công việc',profiles:'Hồ sơ tài khoản',delegations:'Ủy quyền',monthly_reviews:'Đánh giá tháng'};
 
@@ -3226,18 +3202,6 @@ function auditLogTableHtml(logs){
     var actor=(l.actor&&l.actor.full_name)?l.actor.full_name:'Hệ thống';
     return '<tr><td>'+new Date(l.created_at).toLocaleString('vi-VN')+'</td><td><strong>'+esc(actor)+'</strong></td><td>'+(AUDIT_ACTION_LABELS[l.action]||esc(l.action))+'</td><td>'+(AUDIT_ENTITY_LABELS[l.entity_type]||esc(l.entity_type))+'</td></tr>';
   }).join('')+'</tbody></table></div>';
-}
-
-async function approvePendingAccount(id){
-  if(!requireActive())return;
-  try{
-    var r=await fetch(API+'rpc/approve_pending_account',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_user_id:id})});
-    var d=await r.json();
-    if(!r.ok||d.success===false)throw new Error((d&&d.error)||('HTTP '+r.status));
-    showToast('Đã xác nhận tài khoản.');
-    ra();
-    refreshPendingBadge();
-  }catch(e){showToast('Lỗi: '+e.message)}
 }
 
 // Dung chung cho moi o mat khau co nut an/hien (dang nhap, doi mat khau...).
