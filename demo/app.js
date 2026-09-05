@@ -108,39 +108,39 @@ const sampleTaskAssignments = [
 ];
 
 const sampleLogs = [
-  ["NK001","u05","p1","2026-08-22","THQCT & KS giải quyết vụ án hình sự","Nghiên cứu hồ sơ vụ án và đề xuất yêu cầu điều tra bổ sung","Dự thảo yêu cầu điều tra gồm 5 nội dung trọng tâm","Chủ trì","Trên 4 giờ","HS-2026-018","approved",8,9,"u03"],
-  ["NK002","u06","p1","2026-08-22","THQCT & KS giải quyết vụ án hình sự","Dự thảo cáo trạng vụ án trộm cắp tài sản","Hoàn thành dự thảo cáo trạng và bảng kê tài liệu","Chủ trì","Trên 4 giờ","HS-2026-022","approved",7,8,"u03"],
+  ["NK001","u05","p1","2026-08-22","THQCT & KS giải quyết vụ án hình sự","Nghiên cứu hồ sơ vụ án và đề xuất yêu cầu điều tra bổ sung","Dự thảo yêu cầu điều tra gồm 5 nội dung trọng tâm","Chủ trì","4 giờ - 1 ngày","HS-2026-018","approved",8,9,"u03"],
+  ["NK002","u06","p1","2026-08-22","THQCT & KS giải quyết vụ án hình sự","Dự thảo cáo trạng vụ án trộm cắp tài sản","Hoàn thành dự thảo cáo trạng và bảng kê tài liệu","Chủ trì","4 giờ - 1 ngày","HS-2026-022","approved",7,8,"u03"],
   ["NK003","u07","p1","2026-08-22","Công tác tham mưu, tổng hợp","Rà soát số liệu án tạm đình chỉ trong tháng","Hoàn thành bảng đối chiếu 42 hồ sơ","Phối hợp","2–4 giờ","BC-08-2026","pending",null,null,null],
-  ["NK004","u04","p1","2026-08-21","THQCT & KS giải quyết vụ án hình sự","Tham gia xét xử sơ thẩm và báo cáo kết quả","Báo cáo kết quả phiên tòa, đề xuất 2 nội dung rút kinh nghiệm","Chủ trì","Trên 4 giờ","HS-2026-014","pending",null,null,null],
+  ["NK004","u04","p1","2026-08-21","THQCT & KS giải quyết vụ án hình sự","Tham gia xét xử sơ thẩm và báo cáo kết quả","Báo cáo kết quả phiên tòa, đề xuất 2 nội dung rút kinh nghiệm","Chủ trì","4 giờ - 1 ngày","HS-2026-014","pending",null,null,null],
   ["NK005","u05","p1","2026-08-21","THQCT & KS giải quyết vụ án hình sự","Tham gia hỏi cung bị can cùng Điều tra viên","Biên bản hỏi cung và báo cáo đánh giá lời khai","Chủ trì","2–4 giờ","HS-2026-018","approved",6,9,"u03"],
-  ["NK006","u06","p1","2026-08-20","THQCT & KS giải quyết vụ án hình sự","Kiểm sát việc khám nghiệm hiện trường","Hoàn thành biên bản kiểm sát và báo cáo nhanh","Phối hợp","Trên 4 giờ","HS-2026-025","approved",8,8,"u03"],
+  ["NK006","u06","p1","2026-08-20","THQCT & KS giải quyết vụ án hình sự","Kiểm sát việc khám nghiệm hiện trường","Hoàn thành biên bản kiểm sát và báo cáo nhanh","Phối hợp","4 giờ - 1 ngày","HS-2026-025","approved",8,8,"u03"],
   ["NK007","u07","p1","2026-08-20","Công tác tham mưu, tổng hợp","Số hóa tài liệu phục vụ họp liên ngành","Hoàn thành bộ tài liệu điện tử 126 trang","Phối hợp","2–4 giờ","TL-2026-119","approved",3,9,"u04"],
-  ["NK008","u03","p1","2026-08-19","Công tác tham mưu, tổng hợp","Chủ trì họp rà soát án phức tạp của phòng","Kết luận phân công xử lý 6 vụ án có khó khăn, vướng mắc","Chủ trì","Trên 4 giờ","BB-19-08","pending",null,null,null],
+  ["NK008","u03","p1","2026-08-19","Công tác tham mưu, tổng hợp","Chủ trì họp rà soát án phức tạp của phòng","Kết luận phân công xử lý 6 vụ án có khó khăn, vướng mắc","Chủ trì","4 giờ - 1 ngày","BB-19-08","pending",null,null,null],
 
   ["NK009","u10","kv1","2026-08-22","THQCT & KS giải quyết vụ án hình sự","Chuẩn bị đề cương xét hỏi phiên tòa hình sự","Đề cương xét hỏi và dự kiến tình huống tranh tụng","Chủ trì","2–4 giờ","HS-KV1-031","approved",7,8,"u08"],
   ["NK010","u11","kv1","2026-08-22","Khiếu nại, tố cáo","Phân loại và tham mưu xử lý đơn khiếu nại","Phiếu phân loại và dự thảo văn bản trả lời","Chủ trì","2–4 giờ","Đ-2026-044","approved",5,9,"u08"],
-  ["NK011","u09","kv1","2026-08-21","THQCT & KS giải quyết vụ án hình sự","Kiểm tra tiến độ giải quyết nguồn tin về tội phạm","Báo cáo 8 nguồn tin, đề xuất đôn đốc 2 trường hợp","Chủ trì","Trên 4 giờ","BC-KV1-08","pending",null,null,null],
+  ["NK011","u09","kv1","2026-08-21","THQCT & KS giải quyết vụ án hình sự","Kiểm tra tiến độ giải quyết nguồn tin về tội phạm","Báo cáo 8 nguồn tin, đề xuất đôn đốc 2 trường hợp","Chủ trì","4 giờ - 1 ngày","BC-KV1-08","pending",null,null,null],
   ["NK012","u10","kv1","2026-08-20","THQCT & KS giải quyết vụ án hình sự","Phê chuẩn quyết định khởi tố bị can","Báo cáo đề xuất phê chuẩn và dự thảo quyết định","Chủ trì","2–4 giờ","HS-KV1-028","approved",6,8,"u08"],
-  ["NK013","u11","kv1","2026-08-19","Kiểm sát thi hành án","Kiểm sát trực tiếp hồ sơ thi hành án treo","Biên bản kiểm sát và 3 kiến nghị khắc phục","Phối hợp","Trên 4 giờ","THA-2026-07","revision",7,4,"u08"],
+  ["NK013","u11","kv1","2026-08-19","Kiểm sát thi hành án","Kiểm sát trực tiếp hồ sơ thi hành án treo","Biên bản kiểm sát và 3 kiến nghị khắc phục","Phối hợp","4 giờ - 1 ngày","THA-2026-07","revision",7,4,"u08"],
 
-  ["NK014","u13","p7","2026-08-22","Kiểm sát thi hành án","Rà soát quyết định cưỡng chế thi hành án","Bảng tổng hợp 17 quyết định và 2 hồ sơ cần kiểm tra","Chủ trì","Trên 4 giờ","THADS-08","approved",7,9,"u12"],
-  ["NK015","u12","p7","2026-08-21","Kiểm sát thi hành án","Làm việc liên ngành về vụ việc thi hành án phức tạp","Biên bản thống nhất phương án xử lý và mốc thực hiện","Chủ trì","Trên 4 giờ","BBLN-08","pending",null,null,null],
+  ["NK014","u13","p7","2026-08-22","Kiểm sát thi hành án","Rà soát quyết định cưỡng chế thi hành án","Bảng tổng hợp 17 quyết định và 2 hồ sơ cần kiểm tra","Chủ trì","4 giờ - 1 ngày","THADS-08","approved",7,9,"u12"],
+  ["NK015","u12","p7","2026-08-21","Kiểm sát thi hành án","Làm việc liên ngành về vụ việc thi hành án phức tạp","Biên bản thống nhất phương án xử lý và mốc thực hiện","Chủ trì","4 giờ - 1 ngày","BBLN-08","pending",null,null,null],
   ["NK016","u13","p7","2026-08-20","Công tác tham mưu, tổng hợp","Tổng hợp vi phạm trong thi hành án dân sự","Dự thảo kiến nghị tổng hợp quý III","Chủ trì","Nhiều ngày","KT-2026-Q3","approved",8,8,"u12"],
 
-  ["NK017","u15","vp","2026-08-22","Công tác tham mưu, tổng hợp","Tổng hợp báo cáo công tác tuần của các đơn vị","Hoàn thành báo cáo tuần và phụ lục 7 đơn vị","Chủ trì","Trên 4 giờ","BC-T32","approved",6,9,"u14"],
+  ["NK017","u15","vp","2026-08-22","Công tác tham mưu, tổng hợp","Tổng hợp báo cáo công tác tuần của các đơn vị","Hoàn thành báo cáo tuần và phụ lục 7 đơn vị","Chủ trì","4 giờ - 1 ngày","BC-T32","approved",6,9,"u14"],
   ["NK018","u15","vp","2026-08-21","Công tác công nghệ thông tin & chuyển đổi số","Cập nhật danh mục tài khoản hệ thống nghiệp vụ","Đối chiếu và cập nhật 24 tài khoản thay đổi đơn vị","Phối hợp","2–4 giờ","CNTT-0821","approved",4,8,"u14"],
-  ["NK019","u14","vp","2026-08-20","Công tác tham mưu, tổng hợp","Xây dựng chương trình họp giao ban lãnh đạo","Chương trình, tài liệu và dự thảo kết luận giao ban","Chủ trì","Trên 4 giờ","GB-08-2026","approved",7,9,"u01"],
+  ["NK019","u14","vp","2026-08-20","Công tác tham mưu, tổng hợp","Xây dựng chương trình họp giao ban lãnh đạo","Chương trình, tài liệu và dự thảo kết luận giao ban","Chủ trì","4 giờ - 1 ngày","GB-08-2026","approved",7,9,"u01"],
 
-  ["NK020","u17","kv2","2026-08-22","Kiểm sát việc giải quyết án dân sự, hành chính, KDTM, v.v.","Tham gia phiên tòa dân sự sơ thẩm","Báo cáo kết quả và dự thảo phát biểu của Kiểm sát viên","Chủ trì","Trên 4 giờ","DS-KV2-016","approved",7,7,"u16"],
+  ["NK020","u17","kv2","2026-08-22","Kiểm sát việc giải quyết án dân sự, hành chính, KDTM, v.v.","Tham gia phiên tòa dân sự sơ thẩm","Báo cáo kết quả và dự thảo phát biểu của Kiểm sát viên","Chủ trì","4 giờ - 1 ngày","DS-KV2-016","approved",7,7,"u16"],
   ["NK021","u17","kv2","2026-08-20","Khiếu nại, tố cáo","Xác minh nội dung đơn kiến nghị","Biên bản xác minh và dự thảo báo cáo đề xuất","Chủ trì","Nhiều ngày","Đ-KV2-021","revision",6,4,"u16"],
-  ["NK022","u16","kv2","2026-08-19","Công tác tham mưu, tổng hợp","Rà soát chỉ tiêu nghiệp vụ 8 tháng","Báo cáo kết quả, xác định 3 chỉ tiêu cần tập trung","Chủ trì","Trên 4 giờ","BC-KV2-08","approved",6,8,"u01"],
+  ["NK022","u16","kv2","2026-08-19","Công tác tham mưu, tổng hợp","Rà soát chỉ tiêu nghiệp vụ 8 tháng","Báo cáo kết quả, xác định 3 chỉ tiêu cần tập trung","Chủ trì","4 giờ - 1 ngày","BC-KV2-08","approved",6,8,"u01"],
 
   ["NK023","u19","kv3","2026-08-22","THQCT & KS giải quyết vụ án hình sự","Nghiên cứu đề nghị gia hạn tạm giam","Báo cáo đề xuất và dự thảo quyết định phê chuẩn","Chủ trì","2–4 giờ","HS-KV3-012","approved",6,8,"u18"],
-  ["NK024","u19","kv3","2026-08-21","THQCT & KS giải quyết vụ án hình sự","Xây dựng luận tội vụ án cố ý gây thương tích","Hoàn thành dự thảo luận tội và đề cương tranh luận","Chủ trì","Trên 4 giờ","HS-KV3-009","approved",8,9,"u18"],
-  ["NK025","u18","kv3","2026-08-20","Công tác tham mưu, tổng hợp","Tổ chức họp tháo gỡ vụ án có quan điểm khác nhau","Kết luận cuộc họp và báo cáo xin ý kiến lãnh đạo tỉnh","Chủ trì","Trên 4 giờ","BC-KV3-15","approved",8,8,"u01"],
+  ["NK024","u19","kv3","2026-08-21","THQCT & KS giải quyết vụ án hình sự","Xây dựng luận tội vụ án cố ý gây thương tích","Hoàn thành dự thảo luận tội và đề cương tranh luận","Chủ trì","4 giờ - 1 ngày","HS-KV3-009","approved",8,9,"u18"],
+  ["NK025","u18","kv3","2026-08-20","Công tác tham mưu, tổng hợp","Tổ chức họp tháo gỡ vụ án có quan điểm khác nhau","Kết luận cuộc họp và báo cáo xin ý kiến lãnh đạo tỉnh","Chủ trì","4 giờ - 1 ngày","BC-KV3-15","approved",8,8,"u01"],
 
-  ["NK026","u02","province","2026-08-22","Công tác tham mưu, tổng hợp","Kiểm tra tiến độ thực hiện chỉ tiêu các đơn vị phụ trách","Kết luận chỉ đạo đối với 3 đơn vị và 5 nhiệm vụ trọng tâm","Chủ trì","Trên 4 giờ","KL-22-08","pending",null,null,null],
-  ["NK027","u02","province","2026-08-21","Công tác tham mưu, tổng hợp","Chủ trì giao ban lãnh đạo Viện","Kết luận giao ban và phân công nhiệm vụ tuần tiếp theo","Chủ trì","Trên 4 giờ","KLGB-08","approved",8,9,"u01"]
+  ["NK026","u02","province","2026-08-22","Công tác tham mưu, tổng hợp","Kiểm tra tiến độ thực hiện chỉ tiêu các đơn vị phụ trách","Kết luận chỉ đạo đối với 3 đơn vị và 5 nhiệm vụ trọng tâm","Chủ trì","4 giờ - 1 ngày","KL-22-08","pending",null,null,null],
+  ["NK027","u02","province","2026-08-21","Công tác tham mưu, tổng hợp","Chủ trì giao ban lãnh đạo Viện","Kết luận giao ban và phân công nhiệm vụ tuần tiếp theo","Chủ trì","4 giờ - 1 ngày","KLGB-08","approved",8,9,"u01"]
 ].map(([id,authorId,unitId,date,category,title,result,workRole,duration,evidence,status,complexity,quality,reviewerId]) => ({
   id, authorId, unitId, date, category, title, result, workRole, duration, evidence,
   status, complexity, quality, reviewerId,
@@ -163,7 +163,7 @@ const demoWorkTemplates = [
 
 function generateDemoLogs(total = 1200) {
   const authors = users.filter(user => !["province_head", "administrator"].includes(user.role));
-  const durations = ["Dưới 2 giờ", "2–4 giờ", "Trên 4 giờ", "Nhiều ngày"];
+  const durations = ["Dưới 2 giờ", "2–4 giờ", "4 giờ - 1 ngày", "Nhiều ngày"];
   const roles = ["Chủ trì", "Phối hợp", "Tham gia"];
   const start = Date.UTC(2026, 2, 1);
   const spanDays = 175;
@@ -473,7 +473,10 @@ function isVisibleInUnitScope(person, viewer = currentUser()) {
 
 function dashboardLogs(includeAllPeriods = false) {
   const user = currentUser();
-  let scoped = logs.filter(log => visibleUnitIds(user).includes(log.unitId));
+  // Loai dong nhan ban cua "cong viec nhieu ngay" (khong tinh nang len
+  // nhieu lan) va nhat ky nghi phep (khong phai "cong viec") khoi moi
+  // thong ke Tong quan.
+  let scoped = logs.filter(log => visibleUnitIds(user).includes(log.unitId) && !log.isClone && !isLeaveCategoryName(log.category));
   if (user.role === "staff" || user.role === "support_staff") scoped = scoped.filter(log => log.authorId === user.id);
   if (state.dashboardUnit !== "all") scoped = scoped.filter(log => log.unitId === state.dashboardUnit);
   if (!includeAllPeriods && state.dashboardPeriod === "2026-08") scoped = scoped.filter(log => log.date.startsWith("2026-08"));
@@ -568,8 +571,15 @@ function initialize() {
     if (event.target.id === "journalModal") closeJournalModal();
   });
   document.getElementById("journalForm").addEventListener("submit", submitJournal);
-  document.getElementById("journalForm").elements.workDate.addEventListener("change", checkJournalDateWarning);
+  document.getElementById("journalForm").elements.workDate.addEventListener("change", () => { checkJournalDateWarning(); updateJournalRangePreview(); });
+  document.getElementById("journalForm").elements.duration.addEventListener("change", toggleJournalRangeField);
+  document.getElementById("journalForm").elements.rangeStartDate.addEventListener("change", updateJournalRangePreview);
   document.getElementById("journalTaskSelect").addEventListener("change", applyTaskLinkToSubmitTo);
+  document.querySelectorAll("[data-close-leave-modal]").forEach(button => button.addEventListener("click", closeLeaveModal));
+  document.getElementById("leaveModal").addEventListener("click", event => { if (event.target.id === "leaveModal") closeLeaveModal(); });
+  document.getElementById("leaveForm").addEventListener("submit", submitLeave);
+  document.getElementById("leaveForm").elements.leaveStartDate.addEventListener("change", updateLeaveRangePreview);
+  document.getElementById("leaveForm").elements.leaveEndDate.addEventListener("change", updateLeaveRangePreview);
   document.getElementById("toggleCopyJournal").addEventListener("click", () => {
     const panel = document.getElementById("copyJournalPanel");
     panel.hidden = !panel.hidden;
@@ -1240,7 +1250,7 @@ function renderJournal() {
   const noJournalToday = user.role !== "administrator" && !mine.some(log => log.date === DEMO_TODAY);
   document.getElementById("appView").innerHTML = `
     ${noJournalToday ? `<div class="demo-notice journal-reminder-notice"><strong>Nhắc nhở</strong><span>Hôm nay bạn chưa ghi nhật ký công tác. Hãy ghi lại kết quả trong ngày để không bỏ sót khi chấm điểm cuối tháng.</span></div>` : ""}
-    <div class="journal-header"><div><h2>${user.name}</h2><p>${user.title} · ${unitById(user.unitId).short}</p></div><button class="button button-primary" id="newJournal">+ Ghi nhật ký mới</button></div>
+    <div class="journal-header"><div><h2>${user.name}</h2><p>${user.title} · ${unitById(user.unitId).short}</p></div><div class="journal-header-actions"><button class="button button-secondary" id="newLeave">+ Ghi nghỉ phép</button><button class="button button-primary" id="newJournal">+ Ghi nhật ký mới</button></div></div>
     <div class="metric-grid journal-stats-row">
       ${metricCard("Nhật ký đã gửi", mine.length, "Trong dữ liệu demo", "")}
       ${metricCard("Đã xác nhận", mine.filter(item => item.status === "approved").length, "Kết quả được công nhận", "green")}
@@ -1258,6 +1268,7 @@ function renderJournal() {
     </div>
     <div class="journal-list">${filtered.length ? filtered.map(l => journalCard(l)).join("") : `<div class="empty-state"><strong>Không có nhật ký phù hợp</strong>Thử đổi bộ lọc hoặc ghi nhật ký mới.</div>`}</div>`;
   document.getElementById("newJournal").addEventListener("click", () => openJournalModal());
+  document.getElementById("newLeave").addEventListener("click", () => openLeaveModal());
   document.querySelectorAll("[data-edit-journal]").forEach(button => button.addEventListener("click", () => openJournalModal(button.dataset.editJournal)));
   document.querySelectorAll("[data-delete-log]").forEach(button => button.addEventListener("click", () => handleDeleteLogClick(button)));
   document.getElementById("journalStatusFilter").addEventListener("change", event => { state.journalStatusFilter = event.target.value; renderJournal(); });
@@ -1277,7 +1288,7 @@ function journalCard(log, opts = {}) {
   // "Cap tren" cua nguoi DA CHAM (khong phai tac gia) - cau hoi thu bac
   // chung, dung canManagePerson (khong phu thuoc submitted_to_id cua
   // rieng nhat ky nay, khac canReviewLog).
-  const canOverride = log.status === "approved" && log.reviewerId && canManagePerson(userById(log.reviewerId), currentUser());
+  const canOverride = log.status === "approved" && log.reviewerId && !isLeaveCategoryName(log.category) && canManagePerson(userById(log.reviewerId), currentUser());
   const overridden = (log.scoringHistory || []).length >= 2;
   const submittedToTag = log.submittedToId ? `<span class="meta-tag">Nộp cho: ${userById(log.submittedToId)?.name || "—"}</span>` : "";
   // Tu xoa: chi chinh tac gia, chi khi con "cho duyet"/"can bo sung" (da
@@ -1296,7 +1307,8 @@ function journalCard(log, opts = {}) {
   const overrideReviewer = overridden ? userById(log.reviewerId) : null;
   const overriddenFeedback = overridden ? `<div class="override-feedback"><strong>Điểm đã được lãnh đạo cấp trên điều chỉnh${overrideReviewer ? " · " + overrideReviewer.name : ""}</strong><span>${log.comment || "Không có giải thích thêm."}</span></div>` : "";
   const authorTag = opts.authorName ? (opts.authorId ? `<button type="button" class="meta-tag journal-author-tag" data-uj-jump-person="${opts.authorId}">${opts.authorName}</button>` : `<span class="meta-tag journal-author-tag">${opts.authorName}</span>`) : "";
-  return `<article class="journal-card ${log.status === "revision" ? "is-revision" : ""}"><div class="journal-date"><strong>${shortDate(log.date)}</strong>${log.date.slice(0,4)}</div><div class="journal-body"><h3>${log.title}</h3><p>${log.result}</p>${revisionFeedback}${overriddenFeedback}<div class="journal-meta">${authorTag}<span class="meta-tag">${log.category}</span><span class="meta-tag">${log.workRole}</span><span class="meta-tag">${log.duration}</span>${submittedToTag}${resubmission}${overriddenTag}<span class="status-pill ${statusClass(log.status)}">${statusLabel(log.status)}</span></div></div><div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>${log.complexity ?? "—"}</strong></div><div class="score-box"><span>Chất lượng</span><strong>${log.quality ?? "—"}</strong></div></div>${canEdit ? `<button type="button" class="button button-primary button-small" data-edit-journal="${log.id}">Sửa và trình lại</button>` : ""}${canOverride ? `<button type="button" class="button button-secondary button-small" data-override-score="${log.id}">Điều chỉnh điểm</button>` : ""}${canDelete ? `<button type="button" class="button button-danger button-small" data-delete-log="${log.id}" data-delete-self="${canDeleteSelf ? "1" : "0"}">Xoá</button>` : ""}</div></article>`;
+  const cloneTag = log.isClone ? `<span class="meta-tag">Tự động ghi nhận (công việc nhiều ngày)</span>` : "";
+  return `<article class="journal-card ${log.status === "revision" ? "is-revision" : ""}"><div class="journal-date"><strong>${shortDate(log.date)}</strong>${log.date.slice(0,4)}</div><div class="journal-body"><h3>${log.title}</h3><p>${log.result}</p>${revisionFeedback}${overriddenFeedback}<div class="journal-meta">${authorTag}<span class="meta-tag">${log.category}</span><span class="meta-tag">${log.workRole}</span><span class="meta-tag">${log.duration}</span>${submittedToTag}${cloneTag}${resubmission}${overriddenTag}<span class="status-pill ${statusClass(log.status)}">${statusLabel(log.status)}</span></div></div><div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>${log.complexity ?? "—"}</strong></div><div class="score-box"><span>Chất lượng</span><strong>${log.quality ?? "—"}</strong></div></div>${canEdit ? `<button type="button" class="button button-primary button-small" data-edit-journal="${log.id}">Sửa và trình lại</button>` : ""}${canOverride ? `<button type="button" class="button button-secondary button-small" data-override-score="${log.id}">Điều chỉnh điểm</button>` : ""}${canDelete ? `<button type="button" class="button button-danger button-small" data-delete-log="${log.id}" data-delete-self="${canDeleteSelf ? "1" : "0"}">Xoá</button>` : ""}</div></article>`;
 }
 
 // Gom danh sach cho duyet theo tung tac gia (KSV), xep theo lan nop gan
@@ -1634,7 +1646,33 @@ function updateScoringGuide(type, value) {
   guideElement.dataset.band = Number(value) <= 4 ? "low" : Number(value) <= 8 ? "standard" : "high";
 }
 
+const LEAVE_CATEGORY_NAME = "Nghỉ phép";
+function isLeaveCategoryName(name) { return name === LEAVE_CATEGORY_NAME; }
+
+// Nhat ky nghi phep: khong cham diem, chi hien khoang ngay + 1 nut xac
+// nhan da biet.
+function leaveReviewDetail(log) {
+  const author = userById(log.authorId);
+  const rangeText = log.rangeStartDate ? `${shortDate(log.rangeStartDate)} – ${shortDate(log.date)}` : shortDate(log.date);
+  return `<div class="panel-header"><div><span class="eyebrow">NGHỈ PHÉP</span><h2>${author.name}</h2><p>${author.title} · ${unitById(log.unitId).short}</p></div></div>
+    <div class="detail-section"><h3>Khoảng thời gian nghỉ phép</h3><p><strong>${rangeText}</strong></p>${log.result ? `<p>${log.result}</p>` : ""}</div>
+    <div class="detail-section"><p class="metric-context">Nhật ký nghỉ phép không cần chấm điểm — bấm xác nhận để ghi nhận đã biết thông tin nghỉ phép này.</p><div class="review-actions"><button class="button button-primary" id="acknowledgeLeave">Xác nhận đã biết</button></div></div>`;
+}
+function bindLeaveReviewActions(log) {
+  document.getElementById("acknowledgeLeave").addEventListener("click", () => applyLeaveAcknowledge(log));
+}
+function applyLeaveAcknowledge(log) {
+  const reviewer = currentUser();
+  Object.assign(log, { status: "approved", reviewerId: reviewer.id, reviewedAt: new Date().toISOString() });
+  createLogClones(log);
+  saveLogs();
+  showToast("Đã xác nhận nghỉ phép.");
+  state.selectedReviewId = null;
+  renderReviews();
+}
+
 function reviewDetail(log) {
+  if (isLeaveCategoryName(log.category)) return leaveReviewDetail(log);
   const author = userById(log.authorId);
   const hasSelfScore = log.selfComplexity != null && log.selfQuality != null;
   const complexity = log.complexity || log.selfComplexity || 6;
@@ -1652,6 +1690,7 @@ function reviewDetail(log) {
 }
 
 function bindReviewActions(log) {
+  if (isLeaveCategoryName(log.category)) { bindLeaveReviewActions(log); return; }
   const complexity = document.getElementById("complexityRange");
   const quality = document.getElementById("qualityRange");
   complexity.addEventListener("input", () => updateScoringGuide("complexity", complexity.value));
@@ -1665,6 +1704,28 @@ function bindReviewActions(log) {
   });
   document.getElementById("approveLog").addEventListener("click", () => applyReview(log, "approved"));
   document.getElementById("requestRevision").addEventListener("click", () => applyReview(log, "revision"));
+}
+
+// Sinh cac nhat ky "nhan ban" cho tung ngay con lai trong khoang
+// log.rangeStartDate..log.date (bo thu Bay/Chu nhat, bo dung ngay cua
+// log goc vi da co san) - dung chung cho "cong viec nhieu ngay" (goi tu
+// applyReview khi duyet) va "nghi phep" (goi tu applyLeaveAcknowledge).
+// Giong het logic create_work_log_clones() phia production/Postgres.
+function createLogClones(primaryLog) {
+  if (!primaryLog.rangeStartDate) return;
+  const days = weekdayDatesBetween(primaryLog.rangeStartDate, primaryLog.date).filter(d => d !== primaryLog.date);
+  days.forEach(day => {
+    logs.push({
+      id: `NK${String(logs.length + 1).padStart(3, "0")}-${day}`,
+      authorId: primaryLog.authorId, unitId: primaryLog.unitId, date: day, category: primaryLog.category,
+      title: primaryLog.title, result: primaryLog.result, workRole: primaryLog.workRole, duration: primaryLog.duration,
+      evidence: primaryLog.evidence, selfComplexity: null, selfQuality: null,
+      submittedToId: primaryLog.submittedToId, rangeStartDate: null,
+      status: "approved", complexity: primaryLog.complexity, quality: primaryLog.quality,
+      reviewerId: primaryLog.reviewerId, comment: "", createdAt: new Date().toISOString(), reviewedAt: primaryLog.reviewedAt,
+      taskAssignmentId: null, isClone: true, cloneGroupId: primaryLog.id
+    });
+  });
 }
 
 function applyReview(log, status) {
@@ -1681,6 +1742,7 @@ function applyReview(log, status) {
   Object.assign(log, { complexity, quality, comment, status, reviewerId: reviewer.id, reviewedAt });
   if (status === "approved") {
     log.scoringHistory = [...(log.scoringHistory || []), { reviewerId: reviewer.id, complexity, quality, comment, at: reviewedAt }];
+    if (log.rangeStartDate) createLogClones(log);
   }
   // Nhat ky gan voi 1 viec duoc giao: duyet xong -> viec hoan thanh; tra
   // lai bo sung -> viec quay ve "cho thuc hien" (chua thuc su bao cao xong).
@@ -2024,16 +2086,18 @@ function canApproveMonthly(person, reviewer = currentUser()) {
 }
 
 function journalEvidence(userId) {
-  const items = logs.filter(log => log.authorId === userId);
+  // Nhat ky nghi phep khong tinh vao khoi luong/binh quan.
+  const items = logs.filter(log => log.authorId === userId && !isLeaveCategoryName(log.category));
   const reviewed = items.filter(log => ["approved", "revision"].includes(log.status));
   const approved = items.filter(log => log.status === "approved");
+  // Ca do phuc tap lan chat luong deu tinh BINH QUAN (khong cong don).
   return {
     total: items.length,
     approved: approved.length,
     pending: items.filter(log => log.status === "pending").length,
     revision: items.filter(log => log.status === "revision").length,
-    complexity: approved.reduce((sum, log) => sum + (log.complexity || 0), 0),
-    quality: weightedQuality(approved),
+    complexity: approved.length ? approved.reduce((sum, log) => sum + (log.complexity || 0), 0) / approved.length : 0,
+    quality: approved.length ? approved.reduce((sum, log) => sum + (log.quality || 0), 0) / approved.length : 0,
     reviewRate: items.length ? reviewed.length / items.length * 100 : 0
   };
 }
@@ -2158,7 +2222,7 @@ function monthlyDetail(row) {
   const isSelf = currentUser().id === person.id;
   return `<div class="panel-header"><div><span class="eyebrow">HỒ SƠ ĐÁNH GIÁ THÁNG</span><h2>${person.name}</h2><p>${person.title} · ${person.professionalTitle || ""} · ${unitById(person.unitId).short}</p></div><span class="grade-seal grade-${(row.classification || "pending").toLowerCase()}">${row.classification || "…"}</span></div>
     <div class="evidence-grid">
-      <div><span>Nhật ký</span><strong>${evidence.total}</strong></div><div><span>Được công nhận</span><strong>${evidence.approved}</strong></div><div><span>Tổng phức tạp</span><strong>${evidence.complexity}</strong></div><div><span>Chất lượng trọng số</span><strong>${evidence.quality ? evidence.quality.toFixed(1) : "—"}</strong></div>
+      <div><span>Nhật ký</span><strong>${evidence.total}</strong></div><div><span>Được công nhận</span><strong>${evidence.approved}</strong></div><div><span>Độ phức tạp bình quân</span><strong>${evidence.complexity ? evidence.complexity.toFixed(1) : "—"}</strong></div><div><span>Chất lượng bình quân</span><strong>${evidence.quality ? evidence.quality.toFixed(1) : "—"}</strong></div>
     </div>
     <div class="detail-section"><h3>Căn cứ hỗ trợ quyết định</h3><p class="metric-context">Dữ liệu nhật ký chỉ là căn cứ tham khảo; người có thẩm quyền vẫn quyết định điểm chính thức và xếp loại theo quy định.</p><div class="progress-line"><span>Tỷ lệ nhật ký đã xử lý</span><strong>${evidence.reviewRate.toFixed(0)}%</strong><div class="bar-track"><div class="bar-fill green" style="width:${evidence.reviewRate}%"></div></div></div></div>
     <div class="detail-section"><div class="detail-grid"><div class="detail-item"><span>Điểm tự chấm</span><strong>${row.selfScore ?? "Chưa có"}</strong></div><div class="detail-item"><span>Điểm được duyệt</span><strong>${row.officialScore ?? "Chưa duyệt"}</strong></div></div></div>
@@ -3101,6 +3165,7 @@ function openJournalModal(logId = null, presetTaskId = null) {
     form.elements.evidence.value = log.evidence || "";
     form.elements.selfComplexity.value = log.selfComplexity || "";
     form.elements.selfQuality.value = log.selfQuality || "";
+    form.elements.rangeStartDate.value = log.rangeStartDate || "";
   } else {
     form.elements.workDate.value = DEMO_TODAY;
     // Khoi phuc nhap dang go do (neu co) - chi khi tao MOI thuc su (khong
@@ -3117,6 +3182,7 @@ function openJournalModal(logId = null, presetTaskId = null) {
         if (draft.selfComplexity) form.elements.selfComplexity.value = draft.selfComplexity;
         if (draft.selfQuality) form.elements.selfQuality.value = draft.selfQuality;
         if (draft.workDate) form.elements.workDate.value = draft.workDate;
+        if (draft.rangeStartDate) form.elements.rangeStartDate.value = draft.rangeStartDate;
         showToast("Đã khôi phục nội dung nháp trước đó.");
       }
     }
@@ -3127,6 +3193,7 @@ function openJournalModal(logId = null, presetTaskId = null) {
   renderCopyJournalList("");
   refreshJournalSubmitToOptions(canEdit ? log : null);
   refreshJournalTaskOptions(canEdit ? log : null, presetTaskId);
+  toggleJournalRangeField();
   checkJournalDateWarning();
   document.getElementById("journalModal").hidden = false;
   (canEdit ? form.elements.title : form.elements.category).focus();
@@ -3148,7 +3215,8 @@ function saveJournalDraft() {
   const draft = {
     workDate: f.elements.workDate.value, category: f.elements.category.value, title: f.elements.title.value,
     result: f.elements.result.value, workRole: f.elements.workRole.value, duration: f.elements.duration.value,
-    evidence: f.elements.evidence.value, selfComplexity: f.elements.selfComplexity.value, selfQuality: f.elements.selfQuality.value
+    evidence: f.elements.evidence.value, selfComplexity: f.elements.selfComplexity.value, selfQuality: f.elements.selfQuality.value,
+    rangeStartDate: f.elements.rangeStartDate.value
   };
   if (!draft.title && !draft.result) { clearJournalDraft(); return; }
   localStorage.setItem(JOURNAL_DRAFT_KEY, JSON.stringify(draft));
@@ -3220,8 +3288,11 @@ function provinceLeadersFor(excludeId = null) {
     .sort((a, b) => a.role.localeCompare(b.role) || a.name.localeCompare(b.name));
 }
 
-function refreshJournalSubmitToOptions(editingLog) {
-  const select = document.getElementById("journalSubmitToSelect");
+// Dung chung cho ca form "Ghi nhat ky" (#journalSubmitToSelect) va form
+// "Ghi nghi phep" (#leaveSubmitToSelect) - cung 1 quy tac chon lanh dao
+// de nop, chi khac o phan tu <select> dich va gia tri co san (neu dang sua).
+function refreshSubmitToOptions(selectId, presetId) {
+  const select = document.getElementById(selectId);
   if (!select) return;
   const user = currentUser();
   let leaders, fixedSingle = false;
@@ -3243,8 +3314,59 @@ function refreshJournalSubmitToOptions(editingLog) {
   // nguoi dung khi don vi chua co Pho phong/Pho vien truong).
   select.required = leaders.length > 0;
   select.disabled = fixedSingle;
-  if (editingLog && editingLog.submittedToId) select.value = editingLog.submittedToId;
+  if (presetId) select.value = presetId;
   else if (fixedSingle) select.value = leaders[0].id;
+}
+function refreshJournalSubmitToOptions(editingLog) {
+  refreshSubmitToOptions("journalSubmitToSelect", editingLog && editingLog.submittedToId);
+}
+
+// Danh sach ngay (chuoi "YYYY-MM-DD") tu startStr den endStr, BAO GOM ca 2
+// dau, DA BO thu Bay/Chu nhat - dung chung cho xem truoc o form ghi nhat
+// ky VA luc thuc su nhan ban (applyReview/acknowledgeLeave) - phai giu
+// dung 1 cach tinh de khop nhau. Giong het logic phia production (curl
+// dung create_work_log_clones() trong SQL).
+function weekdayDatesBetween(startStr, endStr) {
+  const out = [];
+  if (!startStr || !endStr) return out;
+  const cur = new Date(`${startStr}T00:00:00`), end = new Date(`${endStr}T00:00:00`);
+  if (cur > end) return out;
+  while (cur <= end) {
+    const day = cur.getDay(); // 0=CN, 6=T7
+    // KHONG dung toISOString() - no quy doi ve gio UTC nen co the bi lui
+    // 1 ngay o mui gio +7 (VN). Tu ghep chuoi tu gio dia phuong.
+    if (day !== 0 && day !== 6) {
+      const y = cur.getFullYear(), m = String(cur.getMonth() + 1).padStart(2, "0"), d = String(cur.getDate()).padStart(2, "0");
+      out.push(`${y}-${m}-${d}`);
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+  return out;
+}
+
+function toggleJournalRangeField() {
+  const field = document.getElementById("journalRangeStartField");
+  const select = document.getElementById("journalForm").elements.duration;
+  if (!field || !select) return;
+  const isMultiDay = select.value === "Nhiều ngày";
+  field.hidden = !isMultiDay;
+  if (!isMultiDay) {
+    document.getElementById("journalForm").elements.rangeStartDate.value = "";
+    document.getElementById("journalRangePreview").textContent = "";
+  } else {
+    updateJournalRangePreview();
+  }
+}
+
+function updateJournalRangePreview() {
+  const preview = document.getElementById("journalRangePreview");
+  if (!preview) return;
+  const form = document.getElementById("journalForm");
+  const startStr = form.elements.rangeStartDate.value, endStr = form.elements.workDate.value;
+  if (!startStr || !endStr) { preview.textContent = "Chọn đủ \"Bắt đầu từ ngày\" và \"Ngày thực hiện\" để xem trước."; return; }
+  const days = weekdayDatesBetween(startStr, endStr);
+  if (!days.length) { preview.textContent = "Khoảng ngày không hợp lệ (ngày bắt đầu phải trước hoặc bằng ngày thực hiện)."; return; }
+  preview.textContent = `Sẽ ghi nhận cho ${days.length} ngày (đã bỏ thứ Bảy/Chủ nhật): ${days.map(shortDate).join(", ")}`;
 }
 
 // Cho phep nhap lui ngay (khong khoa qua khu), chi canh bao nhe khi chon
@@ -3303,6 +3425,12 @@ function submitJournal(event) {
   // Doc truc tiep tu DOM (khong qua FormData) vi o nay co the bi disable
   // khi khoa theo viec duoc giao - truong "disabled" bi FormData bo qua.
   const submittedToId = event.currentTarget.elements.submittedToId.value || null;
+  const isMultiDay = data.get("duration") === "Nhiều ngày";
+  const rangeStartDate = isMultiDay ? (data.get("rangeStartDate") || null) : null;
+  if (isMultiDay) {
+    if (!rangeStartDate) { showToast('Vui lòng chọn "Bắt đầu từ ngày" cho công việc nhiều ngày.'); return; }
+    if (rangeStartDate > data.get("workDate")) { showToast('"Bắt đầu từ ngày" phải trước hoặc bằng "Ngày thực hiện".'); return; }
+  }
   const editingLog = state.editingJournalId ? logs.find(log => log.id === state.editingJournalId) : null;
   if (editingLog) {
     if (editingLog.authorId !== user.id || editingLog.status !== "revision") {
@@ -3328,6 +3456,7 @@ function submitJournal(event) {
       workRole: data.get("workRole"), duration: data.get("duration"), evidence: data.get("evidence"),
       selfComplexity: Number(data.get("selfComplexity")), selfQuality: Number(data.get("selfQuality")),
       submittedToId: submittedToId || editingLog.submittedToId,
+      rangeStartDate,
       status: "pending", complexity: null, quality: null, reviewerId: null, comment: "", reviewedAt: null,
       updatedAt: now, resubmittedAt: now, revisionCount: reviewHistory.length, reviewHistory
     });
@@ -3354,14 +3483,70 @@ function submitJournal(event) {
     title: data.get("title"), result: data.get("result"), workRole: data.get("workRole"), duration: data.get("duration"), evidence: data.get("evidence"),
     selfComplexity: Number(data.get("selfComplexity")), selfQuality: Number(data.get("selfQuality")),
     submittedToId: linkedTask ? linkedTask.assignerId : submittedToId,
+    rangeStartDate,
     status: "pending", complexity: null, quality: null, reviewerId: null, comment: "", createdAt: new Date().toISOString(), reviewedAt: null,
-    taskAssignmentId
+    taskAssignmentId, isClone: false, cloneGroupId: null
   });
   if (linkedTask) { linkedTask.linkedLogId = nextId; linkedTask.status = "reported"; saveTaskAssignments(); }
   saveLogs();
   closeJournalModal();
   clearJournalDraft();
   showToast("Đã gửi nhật ký đến người đứng đầu đơn vị.");
+  renderJournal();
+}
+
+// ============================================
+// NGHI PHEP - ghi 1 lan cho ca khoang ngay, khong cham diem. Tao dung 1
+// dong "goc" (category = "Nghỉ phép"), lanh dao bam "Xac nhan da biet"
+// (applyLeaveAcknowledge) roi createLogClones() tu sinh cac dong con lai -
+// giong het co che "cong viec nhieu ngay" o tren, chi khac khong co diem.
+// ============================================
+function updateLeaveRangePreview() {
+  const preview = document.getElementById("leaveRangePreview");
+  if (!preview) return;
+  const form = document.getElementById("leaveForm");
+  const startStr = form.elements.leaveStartDate.value, endStr = form.elements.leaveEndDate.value;
+  if (!startStr || !endStr) { preview.textContent = 'Chọn đủ "Từ ngày" và "Đến ngày" để xem trước.'; return; }
+  if (startStr > endStr) { preview.textContent = '"Từ ngày" phải trước hoặc bằng "Đến ngày".'; return; }
+  const days = weekdayDatesBetween(startStr, endStr);
+  if (!days.length) { preview.textContent = "Khoảng ngày không hợp lệ."; return; }
+  preview.textContent = `Sẽ ghi nhận nghỉ phép cho ${days.length} ngày (đã bỏ thứ Bảy/Chủ nhật): ${days.map(shortDate).join(", ")}`;
+}
+
+function openLeaveModal() {
+  const form = document.getElementById("leaveForm");
+  form.reset();
+  document.getElementById("leaveRangePreview").textContent = "";
+  refreshSubmitToOptions("leaveSubmitToSelect", null);
+  document.getElementById("leaveModal").hidden = false;
+  form.elements.leaveStartDate.focus();
+}
+function closeLeaveModal() {
+  document.getElementById("leaveModal").hidden = true;
+}
+
+function submitLeave(event) {
+  event.preventDefault();
+  const data = new FormData(event.currentTarget);
+  const user = currentUser();
+  const submittedToId = event.currentTarget.elements.submittedToId.value || null;
+  const startStr = data.get("leaveStartDate"), endStr = data.get("leaveEndDate");
+  if (startStr > endStr) { showToast('"Từ ngày" phải trước hoặc bằng "Đến ngày".'); return; }
+  const diffDays = Math.round((new Date(`${endStr}T00:00:00`) - new Date(`${startStr}T00:00:00`)) / 86400000);
+  if (diffDays > 60) { showToast("Khoảng nghỉ phép quá dài (tối đa 60 ngày cho 1 lần ghi)."); return; }
+  const reason = (data.get("leaveReason") || "").trim();
+  const nextId = `NK${String(logs.length + 1).padStart(3, "0")}`;
+  logs.push({
+    id: nextId, authorId: user.id, unitId: user.unitId, date: endStr, category: LEAVE_CATEGORY_NAME,
+    title: "Nghỉ phép", result: reason || "Nghỉ phép, không có kết quả công việc trong khoảng thời gian này.",
+    workRole: "Chủ trì", duration: "Nhiều ngày", evidence: "",
+    selfComplexity: null, selfQuality: null, submittedToId, rangeStartDate: startStr,
+    status: "pending", complexity: null, quality: null, reviewerId: null, comment: "", createdAt: new Date().toISOString(), reviewedAt: null,
+    taskAssignmentId: null, isClone: false, cloneGroupId: null
+  });
+  saveLogs();
+  closeLeaveModal();
+  showToast("Đã gửi nghỉ phép, chờ lãnh đạo xác nhận.");
   renderJournal();
 }
 

@@ -220,9 +220,14 @@
           <select name="duration" required>
             <option>Dưới 2 giờ</option>
             <option>2–4 giờ</option>
-            <option>Trên 4 giờ</option>
+            <option>4 giờ - 1 ngày</option>
             <option>Nhiều ngày</option>
           </select>
+        </label>
+        <label class="field" id="journalRangeStartField" hidden>
+          <span>Bắt đầu từ ngày</span>
+          <input type="date" name="rangeStartDate">
+          <small class="field-hint" id="journalRangePreview"></small>
         </label>
         <label class="field field-wide">
           <span>Mã hồ sơ/tài liệu minh chứng <em>(không bắt buộc)</em></span>
@@ -231,6 +236,41 @@
         <div class="form-actions field-wide">
           <button type="button" class="button button-secondary" data-close-modal>Hủy</button>
           <button type="submit" class="button button-primary" id="journalSubmitButton">Gửi nhật ký</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="leaveModal" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="leaveModalTitle">
+      <div class="modal-header">
+        <div>
+          <span class="eyebrow">NGHỈ PHÉP</span>
+          <h2 id="leaveModalTitle">Ghi nghỉ phép</h2>
+        </div>
+        <button class="icon-button" data-close-leave-modal aria-label="Đóng">×</button>
+      </div>
+      <form id="leaveForm" class="form-grid">
+        <label class="field field-wide">
+          <span>Nộp cho lãnh đạo</span>
+          <select name="submittedToId" id="leaveSubmitToSelect" required></select>
+        </label>
+        <label class="field">
+          <span>Từ ngày</span>
+          <input type="date" name="leaveStartDate" required>
+        </label>
+        <label class="field">
+          <span>Đến ngày</span>
+          <input type="date" name="leaveEndDate" required>
+        </label>
+        <label class="field field-wide">
+          <span>Lý do <em>(không bắt buộc)</em></span>
+          <input type="text" name="leaveReason" placeholder="Ví dụ: Nghỉ phép năm, nghỉ ốm...">
+        </label>
+        <small class="field-hint field-wide" id="leaveRangePreview"></small>
+        <div class="form-actions field-wide">
+          <button type="button" class="button button-secondary" data-close-leave-modal>Hủy</button>
+          <button type="submit" class="button button-primary" id="leaveSubmitButton">Gửi nghỉ phép</button>
         </div>
       </form>
     </section>
