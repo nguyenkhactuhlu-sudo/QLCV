@@ -3233,11 +3233,13 @@ async function ra(){
       }
     }
     // unit_head: chi thay va chon duoc pho CUA DUNG DON VI MINH (khop dung
-    // pham vi RPC grant_delegation da kiem tra o migration 00030).
-    var peopleUrl=API+'profiles?role=in.(unit_deputy,staff,support_staff)&select=id,full_name,role,unit_id&order=full_name'+(fullAccess?'':'&unit_id=eq.'+U.uid);
+    // pham vi RPC grant_delegation - migration 00061). province_deputy them
+    // vao de province_head chon duoc DUNG cap pho truc tiep cua minh (khong
+    // con duoc chon unit_deputy nao nua, xem migration 00061).
+    var peopleUrl=API+'profiles?role=in.(unit_deputy,province_deputy,staff,support_staff)&select=id,full_name,role,unit_id&order=full_name'+(fullAccess?'':'&unit_id=eq.'+U.uid);
     var ppr=await fetch(peopleUrl,{headers:authHeaders()});
     people=ppr.ok?await ppr.json():[];
-    var delUrl=API+'delegations?select=id,delegate_id,unit_id,starts_at,ends_at,status&order=created_at.desc'+(fullAccess?'':'&unit_id=eq.'+U.uid);
+    var delUrl=API+'delegations?select=id,delegator_id,delegate_id,unit_id,starts_at,ends_at,status&order=created_at.desc'+(fullAccess?'':'&unit_id=eq.'+U.uid);
     var dr=await fetch(delUrl,{headers:authHeaders()});
     delegationRows=dr.ok?await dr.json():[];
   }catch(e){}
@@ -3252,7 +3254,7 @@ async function ra(){
   if(fullAccess){
     h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Tạo tài khoản mới</h2><p>Tạo trực tiếp trên giao diện, không cần vào Supabase viết SQL</p></div></div>'+createUserFormHtml()+'</section>';
   }
-  h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Ủy quyền có thời hạn</h2><p>Ủy quyền cho 1 Phó phòng/Phó Viện trưởng KV thay mặt chấm điểm toàn bộ đơn vị'+(fullAccess?'':' (đơn vị của bạn)')+', trong một khoảng thời gian</p></div></div>'
+  h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Ủy quyền có thời hạn</h2><p>'+(U.rl==='province_head'?'Ủy quyền cho Phó Viện trưởng tỉnh thay mặt chấm điểm toàn tỉnh':'Ủy quyền cho 1 Phó phòng/Phó Viện trưởng KV thay mặt chấm điểm toàn bộ đơn vị'+(fullAccess?'':' (đơn vị của bạn)'))+', trong một khoảng thời gian</p></div></div>'
     +delegationGrantFormHtml(people,delegationRows)+delegationsTableHtml(delegationRows,people)+'</section>';
   if(fullAccess&&U.rl==='administrator'){
     h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Nhật ký kiểm toán</h2><p>50 thay đổi gần nhất đối với điểm số, trạng thái, quyền hạn và nhân sự</p></div></div>'+auditLogTableHtml(auditLogs)+'</section>';
@@ -3328,35 +3330,49 @@ function isDelegationActiveRow(d){
   return d.status==='active' && new Date(d.starts_at)<=now && now<=new Date(d.ends_at);
 }
 
-// Quan tri vien/Vien truong tinh thay duoc TAT CA Pho phong/don vi; rieng
-// Truong phong/Chanh van phong (unit_head, U.rl==='unit_head') chi thay
-// va chon duoc pho CUA DUNG DON VI MINH - va bi chan cap moi neu dang co
-// 1 uy quyen active (dung tinh than "thay mat trong 1 giai doan nhat dinh").
+// Vien truong tinh (province_head) CHI duoc uy quyen cho DUNG cap pho
+// truc tiep cua minh - Pho Vien truong tinh (province_deputy), khong con
+// duoc chon Pho phong/Pho VT khu vuc nao ca (sua loi that o migration
+// 00061 - truoc day province_head lai chi chon duoc unit_deputy, gan sai
+// cap). Truong phong/Chanh van phong (unit_head) van chi thay va chon
+// duoc pho CUA DUNG DON VI MINH nhu cu. Quan tri vien khong uy quyen duoc
+// (RPC luon tu choi), nen an han ca form thay vi hien 1 form luon that bai.
 function delegationGrantFormHtml(people,delegations){
-  var scoped=U.rl==='unit_head';
-  var deputies=people.filter(function(p){return p.role==='unit_deputy' && (!scoped||p.unit_id===U.uid)});
-  if(scoped && delegations.some(function(d){return d.unit_id===U.uid && isDelegationActiveRow(d)})){
+  var deputies,deputyLabel,scopeNote;
+  if(U.rl==='province_head'){
+    deputies=people.filter(function(p){return p.role==='province_deputy'});
+    deputyLabel='Phó Viện trưởng tỉnh được ủy quyền';
+    scopeNote='Trong thời gian này, Phó Viện trưởng tỉnh được chọn sẽ thay mặt chấm điểm và duyệt nhật ký cho <strong>toàn tỉnh</strong>, như Viện trưởng.';
+  }else if(U.rl==='unit_head'){
+    deputies=people.filter(function(p){return p.role==='unit_deputy' && p.unit_id===U.uid});
+    deputyLabel='Phó phòng/Phó Viện trưởng KV được ủy quyền';
+    scopeNote='Trong thời gian này, Phó phòng được chọn sẽ thay mặt chấm điểm và duyệt nhật ký cho <strong>toàn bộ đơn vị</strong>, như Trưởng phòng.';
+  }else{
+    return '<div class="empty-state compact-empty"><strong>Vai trò này không cấp ủy quyền được</strong><span>Chỉ Viện trưởng tỉnh (cho Phó Viện trưởng tỉnh) hoặc Trưởng phòng/Viện trưởng khu vực (cho Phó của đúng đơn vị mình) mới cấp được ủy quyền.</span></div>';
+  }
+  if(delegations.some(function(d){return d.delegator_id===U.id && isDelegationActiveRow(d)})){
     return '<div class="empty-state compact-empty"><strong>Bạn đang có 1 ủy quyền còn hiệu lực</strong><span>Thu hồi ủy quyền hiện tại ở bảng bên dưới trước khi cấp ủy quyền mới.</span></div>';
   }
   var options=deputies.map(function(d){return '<option value="'+d.id+'">'+esc(d.full_name)+' · '+esc(unitShort(d.unit_id))+'</option>'}).join('');
   var todayStr=new Date().toISOString().slice(0,10);
   return '<div class="form-grid compact-form">'
-    +'<label class="field field-wide"><span>Phó phòng/Phó Viện trưởng KV được ủy quyền</span><select id="delegationDeputy">'+options+'</select></label>'
+    +'<label class="field field-wide"><span>'+deputyLabel+'</span><select id="delegationDeputy">'+options+'</select></label>'
     +'<label class="field"><span>Từ ngày</span><input type="date" id="delegationStart" value="'+todayStr+'"></label>'
     +'<label class="field"><span>Đến ngày</span><input type="date" id="delegationEnd"></label>'
-    +'<p class="metric-context field-wide">Trong thời gian này, Phó phòng được chọn sẽ thay mặt chấm điểm và duyệt nhật ký cho <strong>toàn bộ đơn vị</strong>, như Trưởng phòng.</p>'
+    +'<p class="metric-context field-wide">'+scopeNote+'</p>'
     +'</div><div class="review-actions"><button class="button button-primary" id="grantDelegation">Cấp ủy quyền</button></div>';
 }
 
 function delegationsTableHtml(delegations,people){
   if(!delegations.length)return '<div class="empty-state compact-empty"><strong>Chưa có ủy quyền nào</strong></div>';
   function personById(id){return people.find(function(p){return p.id===id})}
-  return '<div class="table-wrap"><table><thead><tr><th>Phó phòng/Phó VT KV</th><th>Đơn vị</th><th>Phạm vi</th><th>Thời hạn</th><th>Trạng thái</th><th></th></tr></thead><tbody>'+delegations.map(function(d){
+  return '<div class="table-wrap"><table><thead><tr><th>Người được ủy quyền</th><th>Đơn vị</th><th>Phạm vi</th><th>Thời hạn</th><th>Trạng thái</th><th></th></tr></thead><tbody>'+delegations.map(function(d){
     var deputy=personById(d.delegate_id);
     var active=isDelegationActiveRow(d);
     var statusLabel=d.status==='revoked'?'Đã thu hồi':active?'Đang hiệu lực':'Hết hạn';
     var statusTone=d.status==='revoked'?'status-revision':active?'status-approved':'status-pending';
-    return '<tr><td><strong>'+(deputy?esc(deputy.full_name):'—')+'</strong></td><td>'+esc(unitShort(d.unit_id))+'</td><td>Toàn bộ đơn vị</td><td>'+new Date(d.starts_at).toLocaleDateString('vi-VN')+'–'+new Date(d.ends_at).toLocaleDateString('vi-VN')+'</td><td><span class="status-pill '+statusTone+'">'+statusLabel+'</span></td><td class="numeric">'+(d.status==='active'?'<button class="button button-danger button-small" data-revoke-delegation="'+d.id+'">Thu hồi</button>':'')+'</td></tr>';
+    var scope=d.unit_id===PROVINCE_UNIT_ID?'Toàn tỉnh':'Toàn bộ đơn vị';
+    return '<tr><td><strong>'+(deputy?esc(deputy.full_name):'—')+'</strong></td><td>'+esc(unitShort(d.unit_id))+'</td><td>'+scope+'</td><td>'+new Date(d.starts_at).toLocaleDateString('vi-VN')+'–'+new Date(d.ends_at).toLocaleDateString('vi-VN')+'</td><td><span class="status-pill '+statusTone+'">'+statusLabel+'</span></td><td class="numeric">'+(d.status==='active'?'<button class="button button-danger button-small" data-revoke-delegation="'+d.id+'">Thu hồi</button>':'')+'</td></tr>';
   }).join('')+'</tbody></table></div>';
 }
 

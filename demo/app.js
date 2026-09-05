@@ -496,6 +496,11 @@ function canManagePerson(person, viewer = currentUser()) {
     return person.role === "province_deputy" || person.role === "unit_head" || person.unitId === "province";
   }
   if (viewer.role === "province_deputy") {
+    // Dang duoc Vien truong tinh uy quyen thay mat toan tinh - toan
+    // quyen NHU Vien truong tinh (giong het nhanh province_head o tren).
+    if (hasActiveDelegation(viewer.id)) {
+      return person.role === "province_deputy" || person.role === "unit_head" || person.unitId === "province";
+    }
     return person.role === "unit_head" && (viewer.assignedUnits || []).includes(person.unitId);
   }
   if (viewer.role === "unit_head") return person.unitId === viewer.unitId && person.role !== "unit_head";
@@ -2081,7 +2086,10 @@ function monthlyScope() {
 function canApproveMonthly(person, reviewer = currentUser()) {
   if (!person || person.id === reviewer.id) return false;
   if (reviewer.role === "province_head") return person.role === "province_deputy" || person.role === "unit_head";
-  if (reviewer.role === "province_deputy") return person.role === "unit_head" && (reviewer.assignedUnits || []).includes(person.unitId);
+  if (reviewer.role === "province_deputy") {
+    if (hasActiveDelegation(reviewer.id)) return person.role === "province_deputy" || person.role === "unit_head";
+    return person.role === "unit_head" && (reviewer.assignedUnits || []).includes(person.unitId);
+  }
   if (reviewer.role === "unit_head") return person.unitId === reviewer.unitId && person.role !== "unit_head";
   if (reviewer.role === "unit_deputy") return hasActiveDelegation(reviewer.id) && person.unitId === reviewer.unitId && person.role !== "unit_head";
   return false;
@@ -2817,23 +2825,35 @@ function applyPersonnelTransfer() {
 // "nguoi nay luon do Pho X cham" khong dung thuc te - xem canReviewLog()
 // va "Nop cho lanh dao" trong form tao nhat ky).
 // ============================================
-// Quan tri vien/Vien truong tinh thay duoc TAT CA Pho phong/don vi; rieng
-// Truong phong/Chanh van phong (unit_head) chi thay va chon duoc pho
-// CUA DUNG DON VI MINH.
+// Vien truong tinh (province_head) CHI duoc uy quyen cho DUNG cap pho
+// truc tiep cua minh - Pho Vien truong tinh (province_deputy), khong con
+// duoc chon Pho phong/Pho VT khu vuc nao ca (truoc day gan sai cap - xem
+// production/app.js migration 00061 de biet chi tiet loi goc). Truong
+// phong/Chanh van phong (unit_head) van chi thay va chon duoc pho CUA
+// DUNG DON VI MINH nhu cu. Vai tro khac (vi du administrator) khong uy
+// quyen duoc, an han ca form thay vi hien 1 form khong dung duoc.
 function delegationGrantFormHtml() {
   const user = currentUser();
-  const scoped = !canManageAllAdministration(user);
-  const deputies = users.filter(person => person.role === "unit_deputy" && (!scoped || person.unitId === user.unitId));
-  const delegatorId = scoped ? user.id : null;
-  const alreadyHasActive = delegatorId && delegations.some(d => d.delegatorId === delegatorId && isDelegationActive(d));
-  if (alreadyHasActive) {
+  let deputies, deputyLabel, scopeNote;
+  if (user.role === "province_head") {
+    deputies = users.filter(person => person.role === "province_deputy");
+    deputyLabel = "Phó Viện trưởng tỉnh được ủy quyền";
+    scopeNote = "Trong thời gian này, Phó Viện trưởng tỉnh được chọn sẽ thay mặt chấm điểm và duyệt nhật ký cho <strong>toàn tỉnh</strong>, như Viện trưởng.";
+  } else if (user.role === "unit_head") {
+    deputies = users.filter(person => person.role === "unit_deputy" && person.unitId === user.unitId);
+    deputyLabel = "Phó phòng/Phó Viện trưởng KV được ủy quyền";
+    scopeNote = "Trong thời gian này, Phó phòng được chọn sẽ thay mặt chấm điểm và duyệt nhật ký cho <strong>toàn bộ đơn vị</strong>, như Trưởng phòng.";
+  } else {
+    return `<div class="empty-state compact-empty"><strong>Vai trò này không cấp ủy quyền được</strong><span>Chỉ Viện trưởng tỉnh (cho Phó Viện trưởng tỉnh) hoặc Trưởng phòng/Viện trưởng khu vực (cho Phó của đúng đơn vị mình) mới cấp được ủy quyền.</span></div>`;
+  }
+  if (delegations.some(d => d.delegatorId === user.id && isDelegationActive(d))) {
     return `<div class="empty-state compact-empty"><strong>Bạn đang có 1 ủy quyền còn hiệu lực</strong><span>Thu hồi ủy quyền hiện tại ở bảng bên dưới trước khi cấp ủy quyền mới.</span></div>`;
   }
   return `<div class="form-grid compact-form">
-    <label class="field field-wide"><span>Phó phòng/Phó Viện trưởng KV được ủy quyền</span><select id="delegationDeputy">${deputies.map(d => `<option value="${d.id}">${d.name} · ${unitById(d.unitId).short}</option>`).join("")}</select></label>
+    <label class="field field-wide"><span>${deputyLabel}</span><select id="delegationDeputy">${deputies.map(d => `<option value="${d.id}">${d.name} · ${unitById(d.unitId).short}</option>`).join("")}</select></label>
     <label class="field"><span>Từ ngày</span><input type="date" id="delegationStart" value="${DEMO_TODAY}"></label>
     <label class="field"><span>Đến ngày</span><input type="date" id="delegationEnd"></label>
-    <p class="metric-context field-wide">Trong thời gian này, Phó phòng được chọn sẽ thay mặt chấm điểm và duyệt nhật ký cho <strong>toàn bộ đơn vị</strong>, như Trưởng phòng.</p>
+    <p class="metric-context field-wide">${scopeNote}</p>
   </div><div class="review-actions"><button class="button button-primary" id="grantDelegation">Cấp ủy quyền</button></div>`;
 }
 
@@ -2842,12 +2862,13 @@ function delegationsTableHtml() {
   const scoped = !canManageAllAdministration(user);
   const visible = scoped ? delegations.filter(d => d.unitId === user.unitId) : delegations;
   if (!visible.length) return `<div class="empty-state compact-empty"><strong>Chưa có ủy quyền nào</strong></div>`;
-  return `<div class="table-wrap"><table><thead><tr><th>Phó phòng/Phó VT KV</th><th>Đơn vị</th><th>Phạm vi</th><th>Thời hạn</th><th>Trạng thái</th><th></th></tr></thead><tbody>${visible.slice().reverse().map(d => {
+  return `<div class="table-wrap"><table><thead><tr><th>Người được ủy quyền</th><th>Đơn vị</th><th>Phạm vi</th><th>Thời hạn</th><th>Trạng thái</th><th></th></tr></thead><tbody>${visible.slice().reverse().map(d => {
     const deputy = userById(d.delegateId);
     const active = isDelegationActive(d);
     const statusLabel = d.status === "revoked" ? "Đã thu hồi" : active ? "Đang hiệu lực" : "Hết hạn";
     const statusTone = d.status === "revoked" ? "status-revision" : active ? "status-approved" : "status-pending";
-    return `<tr><td><strong>${deputy ? deputy.name : "—"}</strong></td><td>${unitDisplayName(d.unitId)}</td><td>Toàn bộ đơn vị</td><td>${formatDate(d.startsAt)}–${formatDate(d.endsAt)}</td><td><span class="status-pill ${statusTone}">${statusLabel}</span></td><td class="numeric">${d.status === "active" ? `<button class="button button-danger button-small" data-revoke-delegation="${d.id}">Thu hồi</button>` : ""}</td></tr>`;
+    const scope = d.unitId === "province" ? "Toàn tỉnh" : "Toàn bộ đơn vị";
+    return `<tr><td><strong>${deputy ? deputy.name : "—"}</strong></td><td>${unitDisplayName(d.unitId)}</td><td>${scope}</td><td>${formatDate(d.startsAt)}–${formatDate(d.endsAt)}</td><td><span class="status-pill ${statusTone}">${statusLabel}</span></td><td class="numeric">${d.status === "active" ? `<button class="button button-danger button-small" data-revoke-delegation="${d.id}">Thu hồi</button>` : ""}</td></tr>`;
   }).join("")}</tbody></table></div>`;
 }
 
@@ -2863,8 +2884,11 @@ function grantDelegation() {
   const endsAt = document.getElementById("delegationEnd").value;
   if (!deputy || !startsAt || !endsAt) return showToast("Vui lòng chọn đầy đủ Phó phòng và khoảng thời gian.");
   if (endsAt < startsAt) return showToast("Ngày kết thúc phải sau ngày bắt đầu.");
-  const delegator = users.find(user => user.unitId === deputy.unitId && user.role === "unit_head");
-  const grantedBy = delegator || currentUser();
+  // Nguoi cap uy quyen luon la CHINH nguoi dang dang nhap (Vien truong
+  // tinh hoac Truong phong/Chanh van phong dung don vi voi deputy - da
+  // duoc dam bao boi delegationGrantFormHtml chi hien dung ung vien hop
+  // le), khong can "doan" qua unit_id cua deputy nhu truoc.
+  const grantedBy = currentUser();
   if (delegations.some(d => d.delegatorId === grantedBy.id && isDelegationActive(d))) {
     return showToast("Bạn đang có 1 ủy quyền còn hiệu lực - hãy thu hồi trước khi cấp ủy quyền mới.");
   }
