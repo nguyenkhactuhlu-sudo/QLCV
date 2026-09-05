@@ -163,15 +163,6 @@
           <span>Gắn với việc được giao (không bắt buộc)</span>
           <select name="taskAssignmentId" id="journalTaskSelect"></select>
         </label>
-        <label class="field field-wide">
-          <span>Nộp cho lãnh đạo</span>
-          <select name="submittedToId" id="journalSubmitToSelect" required></select>
-        </label>
-        <label class="field">
-          <span>Ngày thực hiện</span>
-          <input type="date" name="workDate" required>
-          <small class="field-warning" id="journalDateWarning" hidden></small>
-        </label>
         <label class="field">
           <span>Lĩnh vực công tác</span>
           <select name="category" id="categorySelect" required>
@@ -202,6 +193,11 @@
           </select>
         </label>
         <label class="field">
+          <span>Ngày thực hiện</span>
+          <input type="date" name="workDate" required>
+          <small class="field-warning" id="journalDateWarning" hidden></small>
+        </label>
+        <label class="field">
           <span>Thời gian thực hiện</span>
           <select name="duration" required>
             <option value="duoi_2_gio">Dưới 2 giờ</option>
@@ -218,6 +214,10 @@
         <label class="field field-wide">
           <span>Mã hồ sơ/tài liệu minh chứng <em>(không bắt buộc)</em></span>
           <input type="text" name="evidence" placeholder="Ví dụ: HS-2026-018 hoặc đường dẫn nội bộ">
+        </label>
+        <label class="field field-wide">
+          <span>Nộp cho lãnh đạo</span>
+          <select name="submittedToId" id="journalSubmitToSelect" required></select>
         </label>
         <div class="form-actions field-wide">
           <button type="button" class="button button-secondary" data-close-modal>Hủy</button>
