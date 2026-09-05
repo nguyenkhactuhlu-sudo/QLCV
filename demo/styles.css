@@ -629,6 +629,8 @@ tbody tr:hover { background: #fbfbfc; }
 .journal-header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
 .journal-header p { margin: 0; color: var(--muted); font-size: 13px; }
 .journal-header .button { margin-left: auto; }
+.journal-header-actions { margin-left: auto; display: flex; gap: 10px; }
+.journal-header-actions .button { margin-left: 0; }
 .journal-list { display: grid; gap: 12px; }
 .journal-card { display: grid; grid-template-columns: 90px minmax(0, 1fr) auto; gap: 16px; align-items: start; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
 .journal-card.is-revision { border-color: #e2a7ae; box-shadow: inset 4px 0 0 var(--red); }
