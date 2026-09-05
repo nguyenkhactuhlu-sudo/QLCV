@@ -788,6 +788,8 @@ async function oj(logId,presetTaskId){
   await refreshJournalTaskOptions(canEdit?log:null,presetTaskId);
   toggleJournalRangeField();
   checkJournalDateWarning();
+  updateSelfScoreGuide('Complexity',form.elements.selfComplexity.value);
+  updateSelfScoreGuide('Quality',form.elements.selfQuality.value);
   $('journalModal').hidden=false;document.body.style.overflow='hidden';
   (canEdit?form.elements.title:form.elements.category).focus();
   if(!canEdit)bindJournalDraftAutosave();
@@ -954,6 +956,26 @@ function updateJournalRangePreview(){
   var days=weekdayDatesBetween(startStr,endStr);
   if(!days.length){preview.textContent='Khoảng ngày không hợp lệ (ngày bắt đầu phải trước hoặc bằng ngày thực hiện).';return}
   preview.textContent='Sẽ ghi nhận cho '+days.length+' ngày (đã bỏ thứ Bảy/Chủ nhật): '+days.map(function(d){return shortDate(d)}).join(', ');
+}
+
+// Goi y muc diem (dung chung du lieu/cach phan muc voi man hinh duyet cua
+// lanh dao - scoringGuide()) ngay tai o "Tu danh gia" khi ghi nhat ky, de
+// KSV tu cham co can cu tham khao, khong chi lanh dao moi thay goi y nay.
+function updateSelfScoreGuide(kind,value){
+  var guideEl=$('self'+kind+'Guide');
+  if(!guideEl)return;
+  var titleEl=$('self'+kind+'GuideTitle'),textEl=$('self'+kind+'GuideText');
+  if(!value){
+    guideEl.removeAttribute('data-band');
+    titleEl.textContent='—';
+    textEl.textContent='Nhập điểm để xem gợi ý mức độ tương ứng.';
+    return;
+  }
+  var type=kind==='Complexity'?'complexity':'quality';
+  var guide=scoringGuide(type,value);
+  titleEl.textContent='Mức '+value+' · '+guide.title;
+  textEl.textContent=guide.text;
+  guideEl.dataset.band=Number(value)<=4?'low':Number(value)<=8?'standard':'high';
 }
 
 function checkJournalDateWarning(){
@@ -3493,6 +3515,8 @@ document.addEventListener('DOMContentLoaded',function(){
   $('journalForm').elements.workDate.addEventListener('change',function(){checkJournalDateWarning();updateJournalRangePreview()});
   $('journalForm').elements.duration.addEventListener('change',toggleJournalRangeField);
   $('journalForm').elements.rangeStartDate.addEventListener('change',updateJournalRangePreview);
+  $('journalForm').elements.selfComplexity.addEventListener('input',function(e){updateSelfScoreGuide('Complexity',e.target.value)});
+  $('journalForm').elements.selfQuality.addEventListener('input',function(e){updateSelfScoreGuide('Quality',e.target.value)});
   $('journalTaskSelect').addEventListener('change',applyTaskLinkToSubmitTo);
   document.querySelectorAll('[data-close-leave-modal]').forEach(function(b){b.addEventListener('click',cl)});
   $('leaveModal').addEventListener('click',function(e){if(e.target.id==='leaveModal')cl()});

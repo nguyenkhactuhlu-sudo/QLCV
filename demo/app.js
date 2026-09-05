@@ -574,6 +574,8 @@ function initialize() {
   document.getElementById("journalForm").elements.workDate.addEventListener("change", () => { checkJournalDateWarning(); updateJournalRangePreview(); });
   document.getElementById("journalForm").elements.duration.addEventListener("change", toggleJournalRangeField);
   document.getElementById("journalForm").elements.rangeStartDate.addEventListener("change", updateJournalRangePreview);
+  document.getElementById("journalForm").elements.selfComplexity.addEventListener("input", event => updateSelfScoreGuide("Complexity", event.target.value));
+  document.getElementById("journalForm").elements.selfQuality.addEventListener("input", event => updateSelfScoreGuide("Quality", event.target.value));
   document.getElementById("journalTaskSelect").addEventListener("change", applyTaskLinkToSubmitTo);
   document.querySelectorAll("[data-close-leave-modal]").forEach(button => button.addEventListener("click", closeLeaveModal));
   document.getElementById("leaveModal").addEventListener("click", event => { if (event.target.id === "leaveModal") closeLeaveModal(); });
@@ -3195,6 +3197,8 @@ function openJournalModal(logId = null, presetTaskId = null) {
   refreshJournalTaskOptions(canEdit ? log : null, presetTaskId);
   toggleJournalRangeField();
   checkJournalDateWarning();
+  updateSelfScoreGuide("Complexity", form.elements.selfComplexity.value);
+  updateSelfScoreGuide("Quality", form.elements.selfQuality.value);
   document.getElementById("journalModal").hidden = false;
   (canEdit ? form.elements.title : form.elements.category).focus();
   if (!canEdit) bindJournalDraftAutosave();
@@ -3367,6 +3371,27 @@ function updateJournalRangePreview() {
   const days = weekdayDatesBetween(startStr, endStr);
   if (!days.length) { preview.textContent = "Khoảng ngày không hợp lệ (ngày bắt đầu phải trước hoặc bằng ngày thực hiện)."; return; }
   preview.textContent = `Sẽ ghi nhận cho ${days.length} ngày (đã bỏ thứ Bảy/Chủ nhật): ${days.map(shortDate).join(", ")}`;
+}
+
+// Goi y muc diem (dung chung du lieu/cach phan muc voi man hinh duyet cua
+// lanh dao - scoringGuide()) ngay tai o "Tu danh gia" khi ghi nhat ky, de
+// KSV tu cham co can cu tham khao, khong chi lanh dao moi thay goi y nay.
+function updateSelfScoreGuide(kind, value) {
+  const guideEl = document.getElementById(`self${kind}Guide`);
+  if (!guideEl) return;
+  const titleEl = document.getElementById(`self${kind}GuideTitle`);
+  const textEl = document.getElementById(`self${kind}GuideText`);
+  if (!value) {
+    guideEl.removeAttribute("data-band");
+    titleEl.textContent = "—";
+    textEl.textContent = "Nhập điểm để xem gợi ý mức độ tương ứng.";
+    return;
+  }
+  const type = kind === "Complexity" ? "complexity" : "quality";
+  const guide = scoringGuide(type, value);
+  titleEl.textContent = `Mức ${value} · ${guide.title}`;
+  textEl.textContent = guide.text;
+  guideEl.dataset.band = Number(value) <= 4 ? "low" : Number(value) <= 8 ? "standard" : "high";
 }
 
 // Cho phep nhap lui ngay (khong khoa qua khu), chi canh bao nhe khi chon

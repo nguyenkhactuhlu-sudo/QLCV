@@ -194,10 +194,12 @@
         <label class="field">
           <span>Tự đánh giá độ phức tạp (1-10)</span>
           <input type="number" name="selfComplexity" min="1" max="10" step="1" required>
+          <div class="score-guide" id="selfComplexityGuide" data-type="complexity" aria-live="polite"><strong id="selfComplexityGuideTitle">—</strong><span id="selfComplexityGuideText">Nhập điểm để xem gợi ý mức độ tương ứng.</span></div>
         </label>
         <label class="field">
           <span>Tự đánh giá chất lượng (1-10)</span>
           <input type="number" name="selfQuality" min="1" max="10" step="1" required>
+          <div class="score-guide" id="selfQualityGuide" data-type="quality" aria-live="polite"><strong id="selfQualityGuideTitle">—</strong><span id="selfQualityGuideText">Nhập điểm để xem gợi ý mức độ tương ứng.</span></div>
         </label>
         <label class="field">
           <span>Vai trò thực hiện</span>
