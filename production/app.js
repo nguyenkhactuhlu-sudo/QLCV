@@ -2905,20 +2905,23 @@ function bindMonthlyDetailActions(selected){
 
 async function submitScoreAdjustment(){
   if(!requireActive())return;
-  var userSelect=$('scoreAdjustmentUser'),deltaInput=$('scoreAdjustmentDelta'),reasonInput=$('scoreAdjustmentReason');
+  var userSelect=$('scoreAdjustmentUser'),typeSelect=$('scoreAdjustmentType'),deltaInput=$('scoreAdjustmentDelta'),reasonInput=$('scoreAdjustmentReason');
   var userId=userSelect?userSelect.value:'';
-  var delta=Number(deltaInput.value);
+  var type=typeSelect?typeSelect.value:'';
+  var amount=Number(deltaInput.value);
   var reason=(reasonInput.value||'').trim();
   if(!userId){showToast('Vui lòng chọn người cần điều chỉnh.');return}
-  if(!isFinite(delta)||delta===0){showToast('Vui lòng nhập số điểm khác 0 (âm để trừ, dương để cộng).');deltaInput.focus();return}
+  if(type!=='plus'&&type!=='minus'){showToast('Vui lòng chọn loại điều chỉnh: điểm cộng hoặc điểm trừ.');return}
+  if(!isFinite(amount)||amount<=0){showToast('Vui lòng nhập số điểm lớn hơn 0.');deltaInput.focus();return}
   if(!reason){showToast('Vui lòng nhập lý do/căn cứ.');reasonInput.focus();return}
+  var delta=type==='minus'?-amount:amount;
   var btn=$('saveScoreAdjustment');btn.disabled=true;
   try{
     var r=await fetch(API+'rpc/create_score_adjustment',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_user_id:userId,p_delta:delta,p_reason:reason})});
     var d=await r.json();
     if(!r.ok||d.success===false)throw new Error((d&&d.error)||('HTTP '+r.status));
     showToast('Đã lưu điều chỉnh điểm.');
-    deltaInput.value='';reasonInput.value='';
+    typeSelect.value='';deltaInput.value='';reasonInput.value='';
     rsa();
   }catch(e){showToast('Lỗi: '+e.message);btn.disabled=false}
 }
@@ -3009,7 +3012,8 @@ function renderSaShell(){
       +'<p class="metric-context" style="margin:0 0 12px">Luôn áp dụng cho tháng hiện tại ('+esc(periodLabel(ymStr(new Date().getFullYear(),new Date().getMonth())))+') tại thời điểm lưu - không sửa lại điểm các kỳ đã chốt trước đó, kể cả khi đang xem kỳ khác ở trên. Nếu liên quan đến việc ở tháng khác, ghi rõ trong lý do.</p>'
       +'<div class="form-grid compact-form">'
       +'<label class="field field-wide"><span>Người cần điều chỉnh</span><select id="scoreAdjustmentUser"><option value="">Chọn người...</option>'+SA_SCOPE_PEOPLE.map(function(p){return '<option value="'+p.id+'" '+(p.id===jumpSelected?'selected':'')+'>'+esc(p.full_name)+' · '+esc(unitShort(p.unit_id))+'</option>'}).join('')+'</select></label>'
-      +'<label class="field"><span>Số điểm (âm để trừ, dương để cộng)</span><input id="scoreAdjustmentDelta" type="number" step="0.5" placeholder="Ví dụ: -5 hoặc 3"></label>'
+      +'<label class="field"><span>Loại điều chỉnh</span><select id="scoreAdjustmentType"><option value="">Chọn loại...</option><option value="plus">Điểm cộng (khen thưởng)</option><option value="minus">Điểm trừ (kỷ luật)</option></select></label>'
+      +'<label class="field"><span>Số điểm</span><input id="scoreAdjustmentDelta" type="number" min="0" step="0.5" placeholder="Ví dụ: 5"></label>'
       +'<label class="field field-wide"><span>Lý do / căn cứ</span><textarea id="scoreAdjustmentReason" rows="2" placeholder="Ví dụ: Hồ sơ vụ án ABC bị trả vì thiếu chứng cứ, phát hiện ngày .../.../..."></textarea></label>'
       +'</div><div class="review-actions"><button type="button" class="button button-primary" id="saveScoreAdjustment">Lưu điều chỉnh</button></div></section>';
   }
