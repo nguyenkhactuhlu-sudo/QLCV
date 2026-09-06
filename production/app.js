@@ -81,7 +81,7 @@ var STATUS_CLASS={pending:'status-pending',approved:'status-approved',revision:'
 // mang nay.
 // ============================================
 var CHANGELOG=[
-  {date:'2026-09-06',type:'feature',text:'Chấm điểm tháng: thêm cơ chế cộng/trừ điểm đột xuất (khen thưởng/kỷ luật phát hiện sau khi tháng đã chấm xong) - ghi thành từng dòng riêng, không bao giờ mất, luôn áp dụng cho tháng hiện tại (không sửa lại điểm tháng đã chốt), người bị/được áp dụng xem được lý do.'},
+  {date:'2026-09-06',type:'feature',text:'Thêm mục riêng "Điểm cộng/trừ đột xuất" (khen thưởng/kỷ luật phát hiện sau khi tháng đã chấm xong) - có thống kê tổng lượt/tổng điểm riêng, ghi thành từng dòng, không bao giờ mất, luôn áp dụng cho tháng hiện tại (không sửa lại điểm tháng đã chốt), người bị/được áp dụng xem được lý do. Có link nhảy nhanh từ "Chấm điểm tháng" sang.'},
   {date:'2026-09-06',type:'feature',text:'Nhật ký công tác của đơn vị: thêm cách xem "Theo ngày" - chọn 1 ngày cụ thể là thấy ngay ai đã nộp việc, ai đang nghỉ phép, ai chưa nộp trong ngày đó, giúp lãnh đạo đôn đốc kịp thời.'},
   {date:'2026-09-06',type:'fix',text:'Sửa lỗi Trưởng phòng/Viện trưởng khu vực có thể duyệt nhầm nhật ký mà KSV đã nộp đích danh cho 1 Phó - nay tách riêng thành 2 khu "Nộp cho tôi" và "Đang chờ người khác xử lý" trong màn Duyệt & chấm điểm.'},
   {date:'2026-09-06',type:'feature',text:'Ghi chú công việc: thêm nút "Ghi nhật ký cho việc này" - có thể dự thảo trước công việc trong ghi chú, đến khi hoàn thành chỉ cần bấm nút là tự điền sẵn nội dung sang form ghi nhật ký.'},
@@ -265,6 +265,7 @@ function ub(){
   var isAdminOnly=(U.rl==='administrator');
   setVisible(document.querySelector('.journal-nav'),!isAdminOnly);
   setVisible(document.querySelector('.monthly-nav'),!isAdminOnly);
+  setVisible(document.querySelector('.score-adj-nav'),!isAdminOnly);
   setVisible(document.querySelector('.tasks-nav'),!isAdminOnly);
   var taskNavLabel=document.querySelector('.task-nav-label');
   if(taskNavLabel)taskNavLabel.textContent=taskViewLabel();
@@ -284,6 +285,7 @@ function render(){
   else if(V==='tasks')rt();
   else if(V==='reviews')rr();
   else if(V==='unitJournal')ruj();
+  else if(V==='scoreAdjustments')rsa();
   else if(V==='monthly')rm();
   else if(V==='organization')ro();
   else if(V==='administration')ra();
@@ -2897,15 +2899,17 @@ function bindMonthlyDetailActions(selected){
     var suggestion=classificationFromScore(headSelfScoreInput.value);
     if(suggestion)headSelfClassificationSelect.value=suggestion;
   });
-  var adjBtn=$('saveScoreAdjustment');if(adjBtn)adjBtn.addEventListener('click',function(){submitScoreAdjustment(adjBtn.dataset.adjustUser)});
-  document.querySelectorAll('[data-delete-adjustment]').forEach(function(b){b.addEventListener('click',function(){deleteScoreAdjustment(b.dataset.deleteAdjustment)})});
+  var jumpBtn=$('appView').querySelector('[data-jump-score-adjustments]');
+  if(jumpBtn)jumpBtn.addEventListener('click',function(){SA_JUMP_PERSON_ID=jumpBtn.dataset.jumpScoreAdjustments;setView('scoreAdjustments');render()});
 }
 
-async function submitScoreAdjustment(userId){
+async function submitScoreAdjustment(){
   if(!requireActive())return;
-  var deltaInput=$('scoreAdjustmentDelta'),reasonInput=$('scoreAdjustmentReason');
+  var userSelect=$('scoreAdjustmentUser'),deltaInput=$('scoreAdjustmentDelta'),reasonInput=$('scoreAdjustmentReason');
+  var userId=userSelect?userSelect.value:'';
   var delta=Number(deltaInput.value);
   var reason=(reasonInput.value||'').trim();
+  if(!userId){showToast('Vui lòng chọn người cần điều chỉnh.');return}
   if(!isFinite(delta)||delta===0){showToast('Vui lòng nhập số điểm khác 0 (âm để trừ, dương để cộng).');deltaInput.focus();return}
   if(!reason){showToast('Vui lòng nhập lý do/căn cứ.');reasonInput.focus();return}
   var btn=$('saveScoreAdjustment');btn.disabled=true;
@@ -2914,7 +2918,8 @@ async function submitScoreAdjustment(userId){
     var d=await r.json();
     if(!r.ok||d.success===false)throw new Error((d&&d.error)||('HTTP '+r.status));
     showToast('Đã lưu điều chỉnh điểm.');
-    redrawMonthlyDetail();
+    deltaInput.value='';reasonInput.value='';
+    rsa();
   }catch(e){showToast('Lỗi: '+e.message);btn.disabled=false}
 }
 
@@ -2925,8 +2930,108 @@ async function deleteScoreAdjustment(id){
     var d=await r.json();
     if(!r.ok||d.success===false)throw new Error((d&&d.error)||('HTTP '+r.status));
     showToast('Đã xoá điều chỉnh.');
-    redrawMonthlyDetail();
+    rsa();
   }catch(e){showToast('Lỗi: '+e.message)}
+}
+
+// ============================================
+// "DIEM CONG/TRU DOT XUAT" - tab RIENG (tach khoi "Cham diem thang" theo
+// yeu cau nguoi dung - tinh nang nay du lon, co thong ke rieng, nhet vao
+// 1 nguoi dang xem o "Cham diem thang" bi roi). Dung lai dung RPC/bang da
+// co (migration 00065/00066, xem create_score_adjustment/
+// delete_score_adjustment o tren) - chi khac cach hien thi: liet ke toan
+// bo pham vi quan ly + thong ke tong hop, thay vi gan cung vao 1 ho so.
+// ============================================
+var SA_PERIOD=ymStr(new Date().getFullYear(),new Date().getMonth());
+var SA_SEARCH='';
+var SA_SCOPE_PEOPLE=[];
+var SA_ROWS=[];
+var SA_JUMP_PERSON_ID=null;
+
+async function rsa(){
+  $('pageEyebrow').textContent='ĐỘT XUẤT';$('pageTitle').textContent='Điểm cộng/trừ đột xuất';
+  if(U.rl==='administrator'){V='dashboard';render();return}
+  $('appView').innerHTML='<div class="empty-state"><strong>Đang tải...</strong></div>';
+  var scopePeople=[];
+  try{scopePeople=await fetchMonthlyScopeProfiles()}catch(e){}
+  // Chi giu dung nhung nguoi THAT SU dieu chinh duoc (khop dung dieu kien
+  // RPC se kiem tra o server) - tranh cho chon 1 nguoi roi bam luu moi bao
+  // loi, vi fetchMonthlyScopeProfiles() tra ve rong hon (vd Vien truong
+  // tinh thay ca danh sach de hien bang "Cham diem thang" nhung chi duoc
+  // dieu chinh dung Pho Vien truong tinh/Truong phong).
+  SA_SCOPE_PEOPLE=scopePeople.filter(function(p){return p.id!==U.id&&canApproveMonthly(p)});
+  var rows=[];
+  try{
+    // RLS tu gioi han dung pham vi (chinh minh HOAC nguoi minh co quyen
+    // duyet xep loai thang) - khong can loc them o client.
+    var r=await fetch(API+'score_adjustments?period=eq.'+SA_PERIOD+'&select=id,user_id,delta,reason,created_at,person:user_id(full_name,title,unit_id),created_by:created_by(full_name)&order=created_at.desc',{headers:authHeaders()});
+    rows=r.ok?await r.json():[];
+  }catch(e){}
+  SA_ROWS=rows;
+  renderSaShell();
+}
+
+function saFilteredRows(){
+  if(!SA_SEARCH)return SA_ROWS;
+  var q=SA_SEARCH.normalize('NFC').toLowerCase();
+  return SA_ROWS.filter(function(a){return ((a.person&&a.person.full_name)||'').normalize('NFC').toLowerCase().indexOf(q)>=0});
+}
+
+function saListHtml(){
+  var canManage=SA_SCOPE_PEOPLE.length>0;
+  var rows=saFilteredRows();
+  return rows.length?'<div class="score-adjustment-list">'+rows.map(function(a){return scoreAdjustmentRowHtml(a,canManage,true)}).join(''):'<div class="empty-state compact-empty"><strong>Chưa có điều chỉnh nào</strong><span>Trong phạm vi và kỳ đang xem chưa có điều chỉnh điểm đột xuất nào.</span></div>';
+}
+
+function renderSaShell(){
+  var canManage=SA_SCOPE_PEOPLE.length>0;
+  var plusSum=SA_ROWS.filter(function(a){return Number(a.delta)>0}).reduce(function(s,a){return s+Number(a.delta)},0);
+  var minusSum=SA_ROWS.filter(function(a){return Number(a.delta)<0}).reduce(function(s,a){return s+Number(a.delta)},0);
+  var peopleCount=Array.from(new Set(SA_ROWS.map(function(a){return a.user_id}))).length;
+  var jumpSelected=SA_JUMP_PERSON_ID&&SA_SCOPE_PEOPLE.some(function(p){return p.id===SA_JUMP_PERSON_ID})?SA_JUMP_PERSON_ID:'';
+  SA_JUMP_PERSON_ID=null;
+
+  var h='<div class="toolbar"><label class="filter-field"><span>Kỳ</span><select id="saPeriodSelect">'
+    +recentPeriods().map(function(p){return '<option value="'+p+'" '+(p===SA_PERIOD?'selected':'')+'>'+esc(periodLabel(p))+'</option>'}).join('')
+    +'</select></label>'
+    +(canManage?'<label class="field"><span>Tìm theo tên</span><input type="text" id="saSearchInput" value="'+esc(SA_SEARCH)+'" placeholder="Nhập tên..."></label>':'')
+    +'</div>';
+
+  h+='<div class="metric-grid">'
+    +metricCard('Tổng lượt điều chỉnh',SA_ROWS.length,periodLabel(SA_PERIOD),'')
+    +metricCard('Tổng điểm đã cộng','+'+plusSum,'Trong kỳ đang xem','green')
+    +metricCard('Tổng điểm đã trừ',minusSum,'Trong kỳ đang xem','gold')
+    +metricCard('Số người liên quan',peopleCount,'Trong kỳ đang xem','blue')
+    +'</div>';
+
+  if(canManage){
+    h+='<section class="panel" style="padding:18px;margin-bottom:16px"><h3 style="margin:0 0 12px">+ Thêm điều chỉnh đột xuất</h3>'
+      +'<p class="metric-context" style="margin:0 0 12px">Luôn áp dụng cho tháng hiện tại ('+esc(periodLabel(ymStr(new Date().getFullYear(),new Date().getMonth())))+') tại thời điểm lưu - không sửa lại điểm các kỳ đã chốt trước đó, kể cả khi đang xem kỳ khác ở trên. Nếu liên quan đến việc ở tháng khác, ghi rõ trong lý do.</p>'
+      +'<div class="form-grid compact-form">'
+      +'<label class="field field-wide"><span>Người cần điều chỉnh</span><select id="scoreAdjustmentUser"><option value="">Chọn người...</option>'+SA_SCOPE_PEOPLE.map(function(p){return '<option value="'+p.id+'" '+(p.id===jumpSelected?'selected':'')+'>'+esc(p.full_name)+' · '+esc(unitShort(p.unit_id))+'</option>'}).join('')+'</select></label>'
+      +'<label class="field"><span>Số điểm (âm để trừ, dương để cộng)</span><input id="scoreAdjustmentDelta" type="number" step="0.5" placeholder="Ví dụ: -5 hoặc 3"></label>'
+      +'<label class="field field-wide"><span>Lý do / căn cứ</span><textarea id="scoreAdjustmentReason" rows="2" placeholder="Ví dụ: Hồ sơ vụ án ABC bị trả vì thiếu chứng cứ, phát hiện ngày .../.../..."></textarea></label>'
+      +'</div><div class="review-actions"><button type="button" class="button button-primary" id="saveScoreAdjustment">Lưu điều chỉnh</button></div></section>';
+  }
+
+  h+='<section class="panel" style="padding:18px"><h3 style="margin:0 0 12px">Danh sách điều chỉnh — '+esc(periodLabel(SA_PERIOD))+'</h3><div id="saListSlot">'+saListHtml()+'</div></section>';
+
+  $('appView').innerHTML=h;
+  $('saPeriodSelect').addEventListener('change',function(e){SA_PERIOD=e.target.value;rsa()});
+  var saveBtn=$('saveScoreAdjustment');if(saveBtn)saveBtn.addEventListener('click',submitScoreAdjustment);
+  bindSaListActions();
+  var searchInput=$('saSearchInput');
+  if(searchInput)searchInput.addEventListener('input',function(e){
+    SA_SEARCH=e.target.value;
+    var caret=searchInput.selectionStart;
+    $('saListSlot').innerHTML=saListHtml();
+    bindSaListActions();
+    var ni=$('saSearchInput');if(ni){ni.focus();ni.setSelectionRange(caret,caret)}
+  });
+}
+
+function bindSaListActions(){
+  document.querySelectorAll('[data-delete-adjustment]').forEach(function(b){b.addEventListener('click',function(){deleteScoreAdjustment(b.dataset.deleteAdjustment)})});
 }
 
 // Loc theo ten (khong doi MONTHLY_ROWS goc) - can thiet tu khi 1 don vi
@@ -2999,13 +3104,18 @@ function monthlyTableHtml(rows){
 // Diem cong/tru dot xuat: 1 dong = 1 lan dieu chinh, khong bao gio ghi de
 // (xem migration 00066). canDelete = dung tham quyen duyet xep loai thang
 // cua CHINH NGUOI bi/duoc ap dung (khong phai nguoi tao dong nay).
-function scoreAdjustmentRowHtml(a,canDelete){
+// showPerson=true (dung o tab rieng liet ke NHIEU nguoi) hien them ten
+// nguoi bi/duoc ap dung ngay tren dau dong.
+function scoreAdjustmentRowHtml(a,canDelete,showPerson){
   var deltaNum=Number(a.delta);
   var sign=deltaNum>0?'+':'';
   var tone=deltaNum>0?'is-positive':'is-negative';
   var who=(a.created_by&&a.created_by.full_name)||'—';
+  var personName=(showPerson&&a.person)?a.person.full_name:null;
   return '<div class="score-adjustment-item '+tone+'">'
-    +'<div class="score-adjustment-main"><strong>'+sign+deltaNum+' điểm</strong><span>'+esc(a.reason)+'</span></div>'
+    +'<div class="score-adjustment-main">'
+    +(personName?'<span class="score-adjustment-person">'+esc(personName)+'</span>':'')
+    +'<strong>'+sign+deltaNum+' điểm</strong><span>'+esc(a.reason)+'</span></div>'
     +'<div class="score-adjustment-meta"><span>'+esc(who)+' · '+shortDateTime(a.created_at)+'</span>'
     +(canDelete?'<button type="button" class="button button-danger button-small" data-delete-adjustment="'+a.id+'">Xoá</button>':'')
     +'</div></div>';
@@ -3023,15 +3133,14 @@ function monthlyDetailHtml(x,evidence,adjustments){
   // thi giu nguyen dung diem da co (tranh cong don 2 lan neu lanh dao mo
   // lai sua) - lanh dao van sua tay duoc binh thuong.
   var suggestedScore=row.official_score!=null?row.official_score:Math.max(0,Math.min(100,(row.self_score!=null?row.self_score:0)+adjSum));
-  var adjustmentsSectionHtml=(adjustments.length||mayApprove)?(
-    '<div class="detail-section"><h3>Điều chỉnh điểm đột xuất trong tháng'+(adjustments.length?' ('+(adjSum>0?'+':'')+adjSum+' điểm)':'')+'</h3>'
-    +'<p class="metric-context">Áp dụng cho tháng phát hiện/ra quyết định - không sửa lại điểm các tháng đã chốt trước đó. Nếu liên quan đến việc ở tháng khác, ghi rõ trong lý do.</p>'
-    +(adjustments.length?'<div class="score-adjustment-list">'+adjustments.map(function(a){return scoreAdjustmentRowHtml(a,mayApprove)}).join('')+'</div>':'<p class="metric-context">Chưa có điều chỉnh nào trong tháng này.</p>')
-    +(mayApprove?('<details class="score-adjustment-form"><summary>+ Thêm điều chỉnh đột xuất</summary><div class="form-grid compact-form">'
-      +'<label class="field"><span>Số điểm (âm để trừ, dương để cộng)</span><input id="scoreAdjustmentDelta" type="number" step="0.5" placeholder="Ví dụ: -5 hoặc 3"></label>'
-      +'<label class="field field-wide"><span>Lý do / căn cứ</span><textarea id="scoreAdjustmentReason" rows="2" placeholder="Ví dụ: Hồ sơ vụ án ABC bị trả vì thiếu chứng cứ, phát hiện ngày .../.../..."></textarea></label>'
-      +'</div><div class="review-actions"><button type="button" class="button button-primary button-small" id="saveScoreAdjustment" data-adjust-user="'+person.id+'">Lưu điều chỉnh</button></div></details>'):'')
-    +'</div>'
+  // Chi hien 1 dong tom tat + link nhay sang tab rieng "Diem cong/tru dot
+  // xuat" (rsa()) - man hinh quan ly day du (them moi/xoa/liet ke) da
+  // tach het ra do, khong con nhet vao day nua (theo yeu cau nguoi dung -
+  // tinh nang nay du lon, co thong ke rieng, de o day bi roi).
+  var adjustmentsSectionHtml=adjustments.length?(
+    '<button type="button" class="score-adjustment-banner '+(adjSum>0?'is-positive':'is-negative')+'" data-jump-score-adjustments="'+person.id+'">'
+    +'<span>Có '+adjustments.length+' điều chỉnh đột xuất trong tháng này ('+(adjSum>0?'+':'')+adjSum+' điểm)</span><span class="score-adjustment-banner-link">Xem chi tiết →</span>'
+    +'</button>'
   ):'';
   return '<div class="panel-header"><div><span class="eyebrow">HỒ SƠ ĐÁNH GIÁ THÁNG</span><h2>'+esc(person.full_name)+'</h2><p>'+esc(person.title||'')+' · '+esc(person.professional_title||'')+' · '+esc(unitShort(person.unit_id))+'</p></div><span class="grade-seal grade-'+cls+'">'+(row.classification||'…')+'</span></div>'
     +'<div class="evidence-grid"><div><span>Nhật ký</span><strong>'+evidence.total+'</strong></div><div><span>Được công nhận</span><strong>'+evidence.approved+'</strong></div><div><span>Độ phức tạp bình quân</span><strong>'+(evidence.complexity?evidence.complexity.toFixed(1):'—')+'</strong></div><div><span>Chất lượng bình quân</span><strong>'+(evidence.quality?evidence.quality.toFixed(1):'—')+'</strong></div></div>'
