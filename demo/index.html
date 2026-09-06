@@ -101,6 +101,10 @@
           <span class="nav-icon" aria-hidden="true">🗂</span>
           <span>Nhật ký công tác của đơn vị</span>
         </button>
+        <button class="nav-item score-adj-nav" data-view="scoreAdjustments">
+          <span class="nav-icon" aria-hidden="true">⚡</span>
+          <span>Điểm cộng/trừ đột xuất</span>
+        </button>
         <button class="nav-item monthly-nav" data-view="monthly">
           <span class="nav-icon" aria-hidden="true">▤</span>
           <span>Chấm điểm tháng</span>
@@ -290,8 +294,26 @@
       </div>
       <form id="noteForm" class="form-grid">
         <label class="field"><span>Ngày</span><input type="date" name="noteDate" required></label>
+        <label class="field"><span>Giờ hạn chót <em>(không bắt buộc)</em></span><input type="time" name="dueTime"></label>
         <label class="field field-wide"><span>Tiêu đề (hiện ngắn gọn trên lịch)</span><input type="text" name="title" maxlength="80" required placeholder="Ví dụ: Nộp báo cáo quý III"></label>
         <label class="field field-wide"><span>Mô tả chi tiết <em>(không bắt buộc)</em></span><textarea name="content" rows="4" placeholder="Ghi rõ nội dung, đầu việc cần chuẩn bị..."></textarea></label>
+        <label class="field field-wide">
+          <span>Nhắc tôi trước <em>(không bắt buộc)</em></span>
+          <select name="remindBeforeMinutes">
+            <option value="">Không nhắc</option>
+            <option value="15">15 phút</option>
+            <option value="30">30 phút</option>
+            <option value="60">1 giờ</option>
+            <option value="120">2 giờ</option>
+            <option value="240">4 giờ</option>
+            <option value="480">8 giờ</option>
+            <option value="1440">1 ngày</option>
+            <option value="2880">2 ngày</option>
+            <option value="4320">3 ngày</option>
+            <option value="10080">1 tuần</option>
+          </select>
+          <small class="field-hint">Nếu không chọn "Giờ hạn chót", hệ thống coi hạn là cuối ngày (23:59) của "Ngày" đã chọn.</small>
+        </label>
         <div class="form-actions field-wide">
           <button type="button" class="button button-secondary" data-close-note>Hủy</button>
           <button type="submit" class="button button-primary" id="noteSubmitButton">Lưu ghi chú</button>

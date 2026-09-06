@@ -8,6 +8,7 @@ const STICKY_NOTES_STORAGE_KEY = "vks-sticky-notes-demo-v1";
 const SYSTEM_NOTIFICATIONS_STORAGE_KEY = "vks-override-notifications-demo-v1";
 const DELEGATIONS_STORAGE_KEY = "vks-delegations-demo-v1";
 const TASK_ASSIGNMENTS_STORAGE_KEY = "vks-task-assignments-demo-v1";
+const SCORE_ADJUSTMENTS_STORAGE_KEY = "vks-score-adjustments-demo-v1";
 
 const units = [
   { id: "province", name: "VKSND tỉnh", short: "VKSND tỉnh", type: "province", parentId: null },
@@ -279,10 +280,12 @@ const requestedUser = query.get("role");
 const requestedView = query.get("view");
 const state = {
   currentUserId: users.some(user => user.id === requestedUser) ? requestedUser : "u01",
-  currentView: ["dashboard", "journal", "notes", "reviews", "unitJournal", "monthly", "organization", "administration", "settings"].includes(requestedView) ? requestedView : "dashboard",
+  currentView: ["dashboard", "journal", "notes", "reviews", "unitJournal", "monthly", "scoreAdjustments", "organization", "administration", "settings"].includes(requestedView) ? requestedView : "dashboard",
   selectedReviewId: null,
   reviewQueueCollapsed: false,
+  reviewQueueOthersCollapsed: true,
   editingJournalId: null,
+  journalSourceNoteId: null,
   selectedMonthlyUserId: null,
   dashboardUnit: filterPrefs.dashboardUnit || "all",
   dashboardPeriod: filterPrefs.dashboardPeriod || "2026-08",
@@ -299,6 +302,10 @@ const state = {
   ujSearch: "",
   ujSelectedPersonId: null,
   ujPeriod: recentPeriods()[0],
+  ujDaySelected: DEMO_TODAY,
+  saPeriod: recentPeriods()[0],
+  saSearch: "",
+  saJumpPersonId: null,
   orgExpandedUnitId: null,
   notesMonth: DEMO_TODAY.slice(0, 7),
   notesSelectedDate: DEMO_TODAY
@@ -316,11 +323,18 @@ const demoCredentials = {
 };
 
 const samplePersonalNotes = [
-  { id: "PN001", userId: "u01", noteDate: "2026-08-25", title: "Duyệt báo cáo quý III", content: "Xem và ký duyệt báo cáo tổng hợp quý III trước khi gửi VKSND tối cao.", isDone: false },
+  { id: "PN001", userId: "u01", noteDate: "2026-08-25", title: "Duyệt báo cáo quý III", content: "Xem và ký duyệt báo cáo tổng hợp quý III trước khi gửi VKSND tối cao.", isDone: false, dueTime: "16:00", remindBeforeMinutes: 120 },
   { id: "PN002", userId: "u01", noteDate: "2026-08-18", title: "Họp giao ban khu vực", content: "Chuẩn bị nội dung họp giao ban với các VKSND khu vực.", isDone: false },
   { id: "PN003", userId: "u03", noteDate: "2026-08-24", title: "Nộp kế hoạch kiểm sát tháng 9", content: "Hoàn thiện và nộp kế hoạch công tác kiểm sát điều tra tháng 9 cho lãnh đạo Viện.", isDone: false },
   { id: "PN004", userId: "u03", noteDate: "2026-08-20", title: "Rà soát hồ sơ án tồn đọng", content: "Đã rà soát xong 5 hồ sơ án tồn đọng của phòng.", isDone: true }
 ].map(note => ({ ...note, createdAt: `${note.noteDate}T08:00:00` }));
+
+// Diem cong/tru dot xuat (khen thuong/ky luat phat hien sau khi thang da
+// cham xong) - moi lan dieu chinh la 1 dong rieng, khong bao gio ghi de.
+const sampleScoreAdjustments = [
+  { id: "SA001", userId: "u05", period: "2026-08", delta: -5, reason: "Hồ sơ vụ án Nguyễn Văn A bị Viện kiểm sát cấp trên trả vì thiếu chứng cứ, phát hiện sau khi đã chấm điểm tháng 8.", createdBy: "u03", createdAt: "2026-08-30T09:00:00" },
+  { id: "SA002", userId: "u06", period: "2026-08", delta: 3, reason: "Có sáng kiến cải tiến quy trình lập báo cáo kiểm sát, được lãnh đạo phòng ghi nhận.", createdBy: "u03", createdAt: "2026-08-28T14:00:00" }
+];
 
 let logs = loadLogs();
 let monthlyReviews = loadJson(MONTHLY_STORAGE_KEY, sampleMonthly.concat(generateMonthlyHistory()));
@@ -330,6 +344,7 @@ let stickyNotes = loadJson(STICKY_NOTES_STORAGE_KEY, []);
 let systemNotifications = loadJson(SYSTEM_NOTIFICATIONS_STORAGE_KEY, []);
 let delegations = loadJson(DELEGATIONS_STORAGE_KEY, sampleDelegations);
 let taskAssignments = loadJson(TASK_ASSIGNMENTS_STORAGE_KEY, sampleTaskAssignments);
+let scoreAdjustments = loadJson(SCORE_ADJUSTMENTS_STORAGE_KEY, sampleScoreAdjustments);
 let auditEvents = loadJson(AUDIT_STORAGE_KEY, [
   { at: "2026-08-20T08:15:00", actor: "Quản trị hệ thống", action: "Cập nhật danh mục nhân sự tháng 8", detail: "Đồng bộ đơn vị, chức vụ và trạng thái hiệu lực" },
   { at: "2026-08-18T14:30:00", actor: "Phạm Hải Anh", action: "Phân công lãnh đạo phụ trách", detail: "Phạm vi Phòng 1, Phòng 7 và Khu vực 1" }
@@ -381,6 +396,10 @@ function saveStickyNotes() {
 
 function saveSystemNotifications() {
   localStorage.setItem(SYSTEM_NOTIFICATIONS_STORAGE_KEY, JSON.stringify(systemNotifications));
+}
+
+function saveScoreAdjustments() {
+  localStorage.setItem(SCORE_ADJUSTMENTS_STORAGE_KEY, JSON.stringify(scoreAdjustments));
 }
 
 function saveDelegations() {
@@ -731,6 +750,7 @@ function updateNav() {
   const adminOnly = isAdministrator();
   setVisible(document.querySelector(".journal-nav"), !adminOnly);
   setVisible(document.querySelector(".monthly-nav"), !adminOnly);
+  setVisible(document.querySelector(".score-adj-nav"), !adminOnly);
   setVisible(document.querySelector(".tasks-nav"), !adminOnly);
   const taskNavLabel = document.querySelector(".task-nav-label");
   if (taskNavLabel) taskNavLabel.textContent = taskViewLabel();
@@ -805,6 +825,23 @@ function notificationsForCurrentUser() {
       time: formatDateTime(taskDueDate(task)),
       view: "tasks"
     });
+  });
+  // Nhac han ghi chu cong viec (chi ap dung cho ghi chu da chon "Nhac toi
+  // truoc") - dung THOI GIAN THUC (new Date()), khong dung DEMO_TODAY co
+  // dinh, cung ly do da ghi o isTaskOverdue(): day la 1 moc thoi gian
+  // that (gio:phut), khong con la 1 "ngay" trong lich gia lap cua demo.
+  personalNotesForCurrentUser().filter(note => !note.isDone && note.remindBeforeMinutes != null).forEach(note => {
+    const [y, m, d] = note.noteDate.split("-").map(Number);
+    const [hh, mm] = (note.dueTime || "23:59").split(":").map(Number);
+    const dueMoment = new Date(y, m - 1, d, hh || 0, mm || 0, 0);
+    const remindMoment = new Date(dueMoment.getTime() - note.remindBeforeMinutes * 60000);
+    const dueLabel = formatDateTime(dueMoment.toISOString());
+    const now = new Date();
+    if (now >= dueMoment) {
+      notifications.push({ id: `note-overdue-${note.id}`, tone: "escalation", title: "Ghi chú đã quá hạn", message: `${note.title} — hạn ${dueLabel}`, time: dueLabel, view: "notes" });
+    } else if (now >= remindMoment) {
+      notifications.push({ id: `note-reminder-${note.id}`, tone: "pending", title: "Ghi chú sắp đến hạn", message: `${note.title} — hạn ${dueLabel}`, time: dueLabel, view: "notes" });
+    }
   });
   if (isLeader(user)) reviewQueue().forEach(log => {
     const author = userById(log.authorId);
@@ -881,7 +918,7 @@ function openNotification(button) {
 }
 
 function render() {
-  const renderers = { dashboard: renderDashboard, journal: renderJournal, notes: renderNotes, tasks: renderTasks, reviews: renderReviews, unitJournal: renderUnitJournal, monthly: renderMonthly, organization: renderOrganization, administration: renderAdministration, settings: renderSettings };
+  const renderers = { dashboard: renderDashboard, journal: renderJournal, notes: renderNotes, tasks: renderTasks, reviews: renderReviews, unitJournal: renderUnitJournal, monthly: renderMonthly, scoreAdjustments: renderScoreAdjustments, organization: renderOrganization, administration: renderAdministration, settings: renderSettings };
   (renderers[state.currentView] || renderDashboard)();
 }
 
@@ -1393,6 +1430,7 @@ function renderNotes() {
   if (newForDay) newForDay.addEventListener("click", () => openNoteModal(state.notesSelectedDate));
   document.querySelectorAll("[data-edit-note]").forEach(button => button.addEventListener("click", () => openNoteModal(null, button.dataset.editNote)));
   document.querySelectorAll("[data-delete-note]").forEach(button => button.addEventListener("click", () => deleteNote(button.dataset.deleteNote)));
+  document.querySelectorAll("[data-report-note]").forEach(button => button.addEventListener("click", () => openJournalModal(null, null, button.dataset.reportNote)));
   document.querySelectorAll("[data-toggle-note-done]").forEach(checkbox => checkbox.addEventListener("change", () => toggleNoteDone(checkbox.dataset.toggleNoteDone)));
   bindStickyBoard();
 }
@@ -1496,7 +1534,10 @@ function noteCardHtml(note) {
   return `<article class="note-card ${note.isDone ? "is-done" : ""} ${overdue ? "is-overdue" : ""}">
     <label class="note-card-check"><input type="checkbox" data-toggle-note-done="${note.id}" ${note.isDone ? "checked" : ""}><span>${note.title}</span></label>
     ${note.content ? `<p>${note.content}</p>` : ""}
-    <div class="note-card-actions"><button type="button" class="button button-secondary button-small" data-edit-note="${note.id}">Sửa</button><button type="button" class="button button-danger button-small" data-delete-note="${note.id}">Xoá</button></div>
+    <div class="note-card-actions">
+      ${note.isDone ? "" : `<button type="button" class="button button-primary button-small" data-report-note="${note.id}">Ghi nhật ký cho việc này</button>`}
+      <button type="button" class="button button-secondary button-small" data-edit-note="${note.id}">Sửa</button><button type="button" class="button button-danger button-small" data-delete-note="${note.id}">Xoá</button>
+    </div>
   </article>`;
 }
 
@@ -1510,6 +1551,8 @@ function openNoteModal(dateStr, noteId = null) {
   form.elements.noteDate.value = note ? note.noteDate : (dateStr || state.notesSelectedDate);
   form.elements.title.value = note ? note.title : "";
   form.elements.content.value = note ? note.content || "" : "";
+  form.elements.dueTime.value = note && note.dueTime ? note.dueTime : "";
+  form.elements.remindBeforeMinutes.value = note && note.remindBeforeMinutes != null ? String(note.remindBeforeMinutes) : "";
   document.getElementById("noteModal").hidden = false;
   form.elements.title.focus();
 }
@@ -1526,12 +1569,15 @@ function submitNote(event) {
   const noteDate = data.get("noteDate");
   const title = String(data.get("title") || "").trim();
   const content = String(data.get("content") || "").trim();
+  const dueTime = data.get("dueTime") || null;
+  const remindRaw = data.get("remindBeforeMinutes");
+  const remindBeforeMinutes = remindRaw ? Number(remindRaw) : null;
   if (!noteDate || !title) return;
   if (editingId) {
     const note = personalNotes.find(item => item.id === editingId);
-    if (note) Object.assign(note, { noteDate, title, content });
+    if (note) Object.assign(note, { noteDate, title, content, dueTime, remindBeforeMinutes });
   } else {
-    personalNotes.push({ id: `PN-${Date.now()}`, userId: currentUser().id, noteDate, title, content, isDone: false, createdAt: new Date().toISOString() });
+    personalNotes.push({ id: `PN-${Date.now()}`, userId: currentUser().id, noteDate, title, content, dueTime, remindBeforeMinutes, isDone: false, createdAt: new Date().toISOString() });
   }
   savePersonalNotes();
   closeNoteModal();
@@ -1573,26 +1619,77 @@ function groupQueueByAuthor(queue) {
   return groups;
 }
 
+// Nhat ky KSV da nop DICH DANH cho nguoi khac (khong phai minh) nhung
+// minh van co quyen xem/duyet (vd Truong phong voi nhat ky nop cho 1
+// Pho) - dung de tach rieng khoi hang cho chinh, tranh "gianh" duyet
+// nham phan viec dang lam cua nguoi khac.
+function isQueueItemForOthers(log) {
+  return !!(log.submittedToId && log.submittedToId !== currentUser().id);
+}
+
+// Gom theo NGUOI DUOC NOP CHO (khac groupQueueByAuthor gom theo tac gia)
+// - dung cho khu phu "Dang cho nguoi khac xu ly".
+function groupQueueBySubmittedTo(queue) {
+  const order = [], byId = {};
+  queue.forEach(log => {
+    const key = log.submittedToId || "__unknown__";
+    if (!byId[key]) { byId[key] = { submittedTo: userById(log.submittedToId) || null, items: [] }; order.push(key); }
+    byId[key].items.push(log);
+  });
+  const groups = order.map(key => byId[key]);
+  groups.forEach(g => g.items.sort((a, b) => (submittedAtOf(b) || "").localeCompare(submittedAtOf(a) || "")));
+  groups.sort((a, b) => {
+    const at = a.items[0] ? submittedAtOf(a.items[0]) : "";
+    const bt = b.items[0] ? submittedAtOf(b.items[0]) : "";
+    return (bt || "").localeCompare(at || "");
+  });
+  return groups;
+}
+
+function authorQueueGroupHtml(g) {
+  const authorName = g.author ? g.author.name : "Không xác định tác giả";
+  const authorUnit = g.author ? unitById(g.author.unitId).short : "";
+  const items = g.items.map((log, idx) => `<button class="queue-item ${log.id === state.selectedReviewId ? "is-selected" : ""}" data-review-id="${log.id}"><span class="queue-index">${idx + 1}</span><span class="queue-item-body"><p>${log.title}</p><span class="queue-meta">${log.revisionCount ? `<span class="resubmission-badge">Trình lại lần ${log.revisionCount}</span>` : ""}<span>${shortDateTime(submittedAtOf(log))}</span></span></span></button>`).join("");
+  return `<div class="queue-group"><div class="queue-group-header"><strong>${authorName}</strong>${authorUnit ? `<span>${authorUnit}</span>` : ""}</div>${items}</div>`;
+}
+
+function othersQueueGroupHtml(g) {
+  const toName = g.submittedTo ? g.submittedTo.name : "Không xác định";
+  const items = g.items.map((log, idx) => {
+    const author = userById(log.authorId);
+    return `<button class="queue-item ${log.id === state.selectedReviewId ? "is-selected" : ""}" data-review-id="${log.id}"><span class="queue-index">${idx + 1}</span><span class="queue-item-body"><p>${log.title}</p><span class="queue-meta"><span class="meta-tag">${author ? author.name : "—"}</span>${log.revisionCount ? `<span class="resubmission-badge">Trình lại lần ${log.revisionCount}</span>` : ""}<span>Nộp lúc ${shortDateTime(submittedAtOf(log))}</span></span></span></button>`;
+  }).join("");
+  return `<div class="queue-group"><div class="queue-group-header"><strong>Nộp cho: ${toName}</strong></div>${items}</div>`;
+}
+
 function renderReviews() {
   if (!isLeader()) { state.currentView = "dashboard"; renderDashboard(); return; }
   const queue = reviewQueue();
   if (!state.selectedReviewId || !queue.some(log => log.id === state.selectedReviewId)) state.selectedReviewId = queue[0]?.id || null;
   const selected = logs.find(log => log.id === state.selectedReviewId);
+  // Tach 2 khu de tranh "gianh" duyet nham phan da nop dich danh cho
+  // nguoi khac (vd Truong phong thay ca nhat ky KSV da nop cho 1 Pho) -
+  // myQueue la phan nop thang cho chinh minh (hoac khong chi dinh ai),
+  // othersQueue la phan minh CO QUYEN xem/duyet (canReviewLog van tra ve
+  // true, cap truong luon co toan quyen) nhung KSV da chon nguoi khac -
+  // van xem/can thiep duoc, chi khong nam lan trong hang chinh.
+  const myQueue = queue.filter(log => !isQueueItemForOthers(log));
+  const othersQueue = queue.filter(isQueueItemForOthers);
   updateChrome("Duyệt và chấm điểm", "TRÁCH NHIỆM NGƯỜI ĐỨNG ĐẦU");
   document.getElementById("appView").innerHTML = `
     <div class="toolbar"><div><h2>${queue.length} nhật ký chờ đánh giá</h2><p class="metric-context">Chỉ hiển thị cán bộ, công chức thuộc phạm vi được phân công.</p></div></div>
     <div class="review-layout">
-      <section><details class="review-queue-details" ${state.reviewQueueCollapsed ? "" : "open"}><summary>Danh sách hàng chờ <span class="review-queue-hint">(bấm để thu gọn/mở rộng)</span></summary><div class="review-queue">${queue.length ? groupQueueByAuthor(queue).map(g => {
-        const authorName = g.author ? g.author.name : "Không xác định tác giả";
-        const authorUnit = g.author ? unitById(g.author.unitId).short : "";
-        const items = g.items.map((log, idx) => `<button class="queue-item ${log.id === state.selectedReviewId ? "is-selected" : ""}" data-review-id="${log.id}"><span class="queue-index">${idx + 1}</span><span class="queue-item-body"><p>${log.title}</p><span class="queue-meta">${log.revisionCount ? `<span class="resubmission-badge">Trình lại lần ${log.revisionCount}</span>` : ""}<span>${shortDateTime(submittedAtOf(log))}</span></span></span></button>`).join("");
-        return `<div class="queue-group"><div class="queue-group-header"><strong>${authorName}</strong>${authorUnit ? `<span>${authorUnit}</span>` : ""}</div>${items}</div>`;
-      }).join("") : `<div class="panel empty-state"><strong>Đã xử lý hết</strong>Không còn nhật ký chờ đánh giá.</div>`}</div></details></section>
+      <section>
+        <details class="review-queue-details" ${state.reviewQueueCollapsed ? "" : "open"}><summary>Nhật ký nộp cho tôi (${myQueue.length}) <span class="review-queue-hint">(bấm để thu gọn/mở rộng)</span></summary><div class="review-queue">${myQueue.length ? groupQueueByAuthor(myQueue).map(authorQueueGroupHtml).join("") : `<div class="panel empty-state"><strong>Đã xử lý hết</strong>Không còn nhật ký nộp riêng cho bạn.</div>`}</div></details>
+        ${othersQueue.length ? `<details class="review-queue-details review-queue-others" ${state.reviewQueueOthersCollapsed ? "" : "open"}><summary>Đang chờ người khác xử lý (${othersQueue.length}) <span class="review-queue-hint">Nhật ký đã nộp đích danh cho người khác trong đơn vị — bạn vẫn xem/can thiệp được khi cần</span></summary><div class="review-queue">${groupQueueBySubmittedTo(othersQueue).map(othersQueueGroupHtml).join("")}</div></details>` : ""}
+      </section>
       <section class="panel review-detail" id="reviewDetailSlot">${selected ? reviewDetail(selected) : `<div class="empty-state"><strong>Không có nhật ký cần xử lý</strong>Hãy quay lại khi có nhật ký mới.</div>`}</section>
     </div>`;
   bindReviewQueueItemClicks();
   const queueDetails = document.querySelector(".review-queue-details");
   if (queueDetails) queueDetails.addEventListener("toggle", () => { state.reviewQueueCollapsed = !queueDetails.open; });
+  const othersDetails = document.querySelector(".review-queue-others");
+  if (othersDetails) othersDetails.addEventListener("toggle", () => { state.reviewQueueOthersCollapsed = !othersDetails.open; });
   if (selected) bindReviewActions(selected);
 }
 
@@ -1991,23 +2088,41 @@ function ujAuthorName(id) {
 // dao nguoc thu tu theo locale nguoi xem.
 function fullDate(d) { if (!d) return ""; const p = d.split("-"); return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : d; }
 
+// Khoang ngay hop le cua state.ujPeriod ("YYYY-MM") - gioi han o chon
+// ngay cua tab "Theo ngay".
+function ujPeriodStart() { return `${state.ujPeriod}-01`; }
+function ujPeriodEnd() {
+  const [y, m] = state.ujPeriod.split("-").map(Number);
+  return `${state.ujPeriod}-${String(new Date(y, m, 0).getDate()).padStart(2, "0")}`;
+}
+// Giu state.ujDaySelected luon nam trong ky dang xem - uu tien DEMO_TODAY
+// neu roi dung vao ky dang xem, khong thi ve ngay cuoi ky.
+function ujClampDaySelected() {
+  const start = ujPeriodStart(), end = ujPeriodEnd();
+  if (state.ujDaySelected && state.ujDaySelected >= start && state.ujDaySelected <= end) return;
+  state.ujDaySelected = (DEMO_TODAY >= start && DEMO_TODAY <= end) ? DEMO_TODAY : end;
+}
+
 function renderUnitJournal() {
   if (!isLeader()) { state.currentView = "dashboard"; renderDashboard(); return; }
+  ujClampDaySelected();
   updateChrome("Nhật ký công tác của đơn vị", "TRA CỨU");
   const availableUnits = units.filter(u => ujScopeUnitIds().includes(u.id));
   const unitFilterHtml = availableUnits.length > 1 ? `<label class="filter-field"><span>Đơn vị</span><select id="ujUnitFilter"><option value="all">Tất cả đơn vị</option>${availableUnits.map(u => `<option value="${u.id}" ${state.ujUnitFilter === u.id ? "selected" : ""}>${u.short}</option>`).join("")}</select></label>` : "";
   const periodFilterHtml = `<label class="filter-field"><span>Kỳ</span><select id="ujPeriodFilter">${recentPeriods().map(p => `<option value="${p}" ${state.ujPeriod === p ? "selected" : ""}>${periodLabel(p)}</option>`).join("")}</select></label>`;
   const searchHtml = (state.ujMode === "person" && !state.ujSelectedPersonId) ? `<label class="field"><span>Tìm theo tên</span><input type="text" id="ujSearchInput" value="${state.ujSearch}" placeholder="Nhập tên..."></label>` : "";
+  const dayFilterHtml = (state.ujMode === "day") ? `<label class="filter-field"><span>Ngày</span><input type="date" id="ujDayFilter" value="${state.ujDaySelected}" min="${ujPeriodStart()}" max="${ujPeriodEnd()}"></label>` : "";
   document.getElementById("appView").innerHTML = `
     <div class="toolbar uj-toolbar">
       <div class="uj-mode-toggle">
         <button type="button" class="uj-mode-btn ${state.ujMode === "person" ? "is-active" : ""}" data-uj-mode="person">Theo người</button>
         <button type="button" class="uj-mode-btn ${state.ujMode === "timeline" ? "is-active" : ""}" data-uj-mode="timeline">Theo thời gian</button>
-      </div>${unitFilterHtml}${periodFilterHtml}${searchHtml}
+        <button type="button" class="uj-mode-btn ${state.ujMode === "day" ? "is-active" : ""}" data-uj-mode="day">Theo ngày</button>
+      </div>${unitFilterHtml}${periodFilterHtml}${searchHtml}${dayFilterHtml}
     </div>
     <div id="ujContent"></div>`;
   renderUnitJournalContent();
-  document.querySelectorAll("[data-uj-mode]").forEach(b => b.addEventListener("click", () => { state.ujMode = b.dataset.ujMode; renderUnitJournal(); }));
+  document.querySelectorAll("[data-uj-mode]").forEach(b => b.addEventListener("click", () => { state.ujMode = b.dataset.ujMode; if (state.ujMode === "day") ujClampDaySelected(); renderUnitJournal(); }));
   const unitSel = document.getElementById("ujUnitFilter");
   if (unitSel) unitSel.addEventListener("change", e => { state.ujUnitFilter = e.target.value; state.ujSelectedPersonId = null; renderUnitJournal(); });
   document.getElementById("ujPeriodFilter").addEventListener("change", e => { state.ujPeriod = e.target.value; renderUnitJournal(); });
@@ -2019,11 +2134,14 @@ function renderUnitJournal() {
     const ni = document.getElementById("ujSearchInput");
     if (ni) { ni.focus(); ni.setSelectionRange(caret, caret); }
   });
+  const dayInput = document.getElementById("ujDayFilter");
+  if (dayInput) dayInput.addEventListener("change", e => { state.ujDaySelected = e.target.value; renderUnitJournalContent(); });
 }
 
 function renderUnitJournalContent() {
   let html;
   if (state.ujMode === "timeline") html = renderUjTimelineHtml();
+  else if (state.ujMode === "day") html = renderUjDayHtml();
   else if (state.ujSelectedPersonId) html = renderUjPersonDetailHtml(state.ujSelectedPersonId);
   else html = renderUjPersonListHtml();
   document.getElementById("ujContent").innerHTML = html;
@@ -2033,6 +2151,50 @@ function renderUnitJournalContent() {
   document.querySelectorAll("[data-uj-jump-person]").forEach(b => b.addEventListener("click", () => { state.ujMode = "person"; state.ujSelectedPersonId = b.dataset.ujJumpPerson; renderUnitJournal(); }));
   document.querySelectorAll("[data-override-score]").forEach(b => b.addEventListener("click", () => openOverrideModal(b.dataset.overrideScore)));
   document.querySelectorAll("[data-delete-log]").forEach(b => b.addEventListener("click", () => handleDeleteLogClick(b)));
+}
+
+// ============================================
+// "THEO NGAY" - xem nhanh 1 ngay cu the: ai da nop viec, ai dang nghi
+// phep, ai chua nop - de lanh dao don doc kip thoi.
+// ============================================
+function ujDaySubmittedCardHtml(entry) {
+  const itemsHtml = entry.logs.map(log => journalCard(log, { readOnly: true })).join("");
+  return `<details class="uj-day-card"><summary><span class="uj-day-card-name">${entry.person.name}</span><span class="uj-day-card-meta">${entry.person.title} · ${unitById(entry.person.unitId).short}</span><span class="meta-tag">${entry.logs.length} nhật ký</span></summary><div class="uj-day-card-logs">${itemsHtml}</div></details>`;
+}
+function ujDayLeaveCardHtml(entry) {
+  return `<div class="uj-day-card is-static"><span class="uj-day-card-name">${entry.person.name}</span><span class="uj-day-card-meta">${entry.person.title} · ${unitById(entry.person.unitId).short}</span></div>`;
+}
+function ujDayMissingCardHtml(p) {
+  return `<button type="button" class="uj-day-card is-missing" data-uj-jump-person="${p.id}"><span class="uj-day-card-name">${p.name}</span><span class="uj-day-card-meta">${p.title} · ${unitById(p.unitId).short}</span></button>`;
+}
+
+function renderUjDayHtml() {
+  const dateStr = state.ujDaySelected;
+  const people = ujFilteredPeople();
+  if (!dateStr || !people.length) return `<div class="empty-state"><strong>Không có ai trong phạm vi này</strong></div>`;
+  const logsOfDay = ujFilteredLogs().filter(l => l.date === dateStr);
+  const byAuthor = {};
+  logsOfDay.forEach(l => { (byAuthor[l.authorId] ||= []).push(l); });
+  const submitted = [], onLeave = [], missing = [];
+  people.forEach(p => {
+    const logsForPerson = byAuthor[p.id] || [];
+    const workLogs = logsForPerson.filter(l => !isLeaveCategoryName(l.category));
+    if (workLogs.length) { submitted.push({ person: p, logs: workLogs }); return; }
+    const leaveLogs = logsForPerson.filter(l => isLeaveCategoryName(l.category));
+    if (leaveLogs.length) { onLeave.push({ person: p, logs: leaveLogs }); return; }
+    missing.push(p);
+  });
+  const weekday = new Date(`${dateStr}T00:00:00`).getDay();
+  const weekendNote = (weekday === 0 || weekday === 6) ? `<p class="metric-context uj-day-weekend-note">Hôm ${weekday === 0 ? "nay là Chủ nhật" : "nay là Thứ Bảy"} — bình thường sẽ không có ai ghi nhật ký, danh sách "Chưa nộp" dưới đây không hẳn cần đôn đốc.</p>` : "";
+  let h = `<div class="uj-day-header"><h2>${fullDateLabelVi(dateStr)}</h2><div class="uj-day-stats">
+    <span class="uj-day-stat tone-submitted">${submitted.length}/${people.length} đã nộp việc</span>
+    ${onLeave.length ? `<span class="uj-day-stat tone-leave">${onLeave.length} nghỉ phép</span>` : ""}
+    <span class="uj-day-stat tone-missing">${missing.length} chưa nộp</span>
+  </div></div>${weekendNote}`;
+  h += `<div class="uj-day-section"><h3>Đã nộp việc hôm nay (${submitted.length})</h3>${submitted.length ? `<div class="uj-day-list">${submitted.map(ujDaySubmittedCardHtml).join("")}</div>` : `<div class="empty-state compact-empty"><strong>Chưa ai nộp việc</strong></div>`}</div>`;
+  if (onLeave.length) h += `<div class="uj-day-section"><h3>Nghỉ phép hôm nay (${onLeave.length})</h3><div class="uj-day-list">${onLeave.map(ujDayLeaveCardHtml).join("")}</div></div>`;
+  h += `<div class="uj-day-section"><h3>Chưa nộp (${missing.length})</h3>${missing.length ? `<div class="uj-day-list">${missing.map(ujDayMissingCardHtml).join("")}</div>` : `<div class="empty-state compact-empty"><strong>Mọi người đã nộp đủ</strong></div>`}</div>`;
+  return h;
 }
 
 // Tach rieng "Nguoi lao dong" (support_staff) khoi "Can bo/KSV" - truoc
@@ -2206,6 +2368,13 @@ function bindMonthlyDetailActions(selected) {
     const suggestion = classificationFromScore(headSelfScoreInput.value);
     if (suggestion) headSelfClassificationSelect.value = suggestion;
   });
+  const jumpButton = document.querySelector("[data-jump-score-adjustments]");
+  if (jumpButton) jumpButton.addEventListener("click", () => {
+    state.saJumpPersonId = jumpButton.dataset.jumpScoreAdjustments;
+    state.currentView = "scoreAdjustments";
+    updateNav();
+    render();
+  });
 }
 
 // Loc theo ten - can thiet tu khi 1 don vi co toi 30-70 nguoi thay vi
@@ -2247,6 +2416,7 @@ function monthlyDetail(row) {
     <div class="detail-section"><h3>Căn cứ hỗ trợ quyết định</h3><p class="metric-context">Dữ liệu nhật ký chỉ là căn cứ tham khảo; người có thẩm quyền vẫn quyết định điểm chính thức và xếp loại theo quy định.</p><div class="progress-line"><span>Tỷ lệ nhật ký đã xử lý</span><strong>${evidence.reviewRate.toFixed(0)}%</strong><div class="bar-track"><div class="bar-fill green" style="width:${evidence.reviewRate}%"></div></div></div></div>
     <div class="detail-section"><div class="detail-grid"><div class="detail-item"><span>Điểm tự chấm</span><strong>${row.selfScore ?? "Chưa có"}</strong></div><div class="detail-item"><span>Điểm được duyệt</span><strong>${row.officialScore ?? "Chưa duyệt"}</strong></div></div></div>
     ${row.note ? `<div class="override-feedback"><strong>Giải trình khi chấm điểm chính thức</strong><span>${row.note}</span></div>` : ""}
+    ${scoreAdjustmentBannerHtml(person.id, row.period)}
     ${mayApprove ? `<div class="detail-section"><div class="form-grid compact-form"><label class="field"><span>Điểm chính thức</span><input id="officialScore" type="number" min="0" max="100" step="0.25" value="${row.officialScore ?? row.selfScore ?? 0}"></label><label class="field"><span>Xếp loại</span><select id="classification"><option ${row.classification === "A" ? "selected" : ""}>A</option><option ${row.classification === "B" ? "selected" : ""}>B</option><option ${row.classification === "C" ? "selected" : ""}>C</option><option ${row.classification === "D" ? "selected" : ""}>D</option></select></label><label class="field field-wide"><span>Nhận xét/giải trình điều chỉnh</span><textarea id="monthlyNote" rows="2">${row.note || ""}</textarea></label></div><div class="review-actions"><button class="button button-primary" id="saveMonthlyReview">Duyệt và lưu</button></div></div>` : ""}
     ${isSelf && person.role === "province_head" ? `<div class="detail-section"><p class="metric-context">Viện trưởng tỉnh không có cấp trên trong hệ thống nên tự chấm điểm và tự xếp loại; không có điểm duyệt chính thức.</p><div class="form-grid compact-form"><label class="field"><span>Điểm tự chấm</span><input id="headSelfScore" type="number" min="0" max="100" step="0.25" value="${row.selfScore ?? 0}"></label><label class="field"><span>Xếp loại</span><select id="headSelfClassification"><option ${row.classification === "A" ? "selected" : ""}>A</option><option ${row.classification === "B" ? "selected" : ""}>B</option><option ${row.classification === "C" ? "selected" : ""}>C</option><option ${row.classification === "D" ? "selected" : ""}>D</option></select></label></div><div class="review-actions"><button class="button button-primary" id="saveHeadSelfEvaluation">Lưu điểm và xếp loại</button></div></div>` : ""}
     ${isSelf && person.role !== "province_head" ? `<div class="detail-section"><label class="field"><span>Điểm tự chấm của cá nhân</span><input id="selfScore" type="number" min="0" max="100" step="0.25" value="${row.selfScore ?? 0}"></label><div class="review-actions"><button class="button button-primary" id="saveSelfScore">Lưu điểm tự chấm</button></div></div>` : ""}
@@ -2301,6 +2471,159 @@ function saveHeadSelfEvaluation(row) {
   localStorage.setItem(MONTHLY_STORAGE_KEY, JSON.stringify(monthlyReviews));
   showToast("Đã lưu điểm tự chấm và tự xếp loại.");
   renderMonthly();
+}
+
+// ============================================
+// "DIEM CONG/TRU DOT XUAT" - tab RIENG (khen thuong/ky luat phat hien
+// sau khi thang da cham xong). Ghi thanh 1 dong RIENG cho moi lan dieu
+// chinh - khong bao gio ghi de len dong cu - luon ap dung cho THANG HIEN
+// TAI (thoi diem luu, dung THOI GIAN THUC nhu isTaskOverdue(), khong
+// dung DEMO_TODAY co dinh) - khong sua lai diem cac ky da chot truoc do,
+// ke ca dang xem ky khac o tab nay.
+// ============================================
+function currentRealPeriod() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function scoreAdjustmentsFor(userId, period) {
+  return scoreAdjustments.filter(a => a.userId === userId && a.period === period).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+function scoreAdjustmentScopePeople() {
+  return users.filter(p => canApproveMonthly(p));
+}
+
+function scoreAdjustmentRowHtml(a, canDelete, showPerson) {
+  const tone = a.delta > 0 ? "is-positive" : "is-negative";
+  const sign = a.delta > 0 ? "+" : "";
+  const creator = userById(a.createdBy);
+  const person = userById(a.userId);
+  return `<div class="score-adjustment-item ${tone}">
+    <div class="score-adjustment-main">
+      ${showPerson && person ? `<span class="score-adjustment-person">${person.name}</span>` : ""}
+      <strong>${sign}${a.delta} điểm</strong><span>${a.reason}</span>
+    </div>
+    <div class="score-adjustment-meta"><span>${creator ? creator.name : "—"} · ${shortDateTime(a.createdAt)}</span>
+      ${canDelete ? `<button type="button" class="button button-danger button-small" data-delete-adjustment="${a.id}">Xoá</button>` : ""}
+    </div>
+  </div>`;
+}
+
+// Banner tom tat hien trong "Cham diem thang" - bam vao nhay sang tab
+// "Diem cong/tru dot xuat", man hinh quan ly day du nam rieng o do.
+function scoreAdjustmentBannerHtml(userId, period) {
+  const items = scoreAdjustmentsFor(userId, period);
+  if (!items.length) return "";
+  const sum = items.reduce((s, a) => s + Number(a.delta), 0);
+  const tone = sum > 0 ? "is-positive" : "is-negative";
+  return `<button type="button" class="score-adjustment-banner ${tone}" data-jump-score-adjustments="${userId}">
+    <span>Có ${items.length} điều chỉnh đột xuất trong tháng này (${sum > 0 ? "+" : ""}${sum} điểm)</span><span class="score-adjustment-banner-link">Xem chi tiết →</span>
+  </button>`;
+}
+
+function saFilteredRows(rows) {
+  if (!state.saSearch) return rows;
+  const q = state.saSearch.normalize("NFC").toLowerCase();
+  return rows.filter(a => {
+    const person = userById(a.userId);
+    return person && person.name.normalize("NFC").toLowerCase().includes(q);
+  });
+}
+
+function saListHtml(canManage) {
+  const rows = saFilteredRows(scoreAdjustments.filter(a => a.period === state.saPeriod));
+  return rows.length ? `<div class="score-adjustment-list">${rows.map(a => scoreAdjustmentRowHtml(a, canManage, true)).join("")}</div>`
+    : `<div class="empty-state compact-empty"><strong>Chưa có điều chỉnh nào</strong><span>Trong phạm vi và kỳ đang xem chưa có điều chỉnh điểm đột xuất nào.</span></div>`;
+}
+
+function renderScoreAdjustments() {
+  const user = currentUser();
+  if (user.role === "administrator") { state.currentView = "dashboard"; renderDashboard(); return; }
+  const scopePeople = scoreAdjustmentScopePeople();
+  const canManage = scopePeople.length > 0;
+  const periodRows = scoreAdjustments.filter(a => a.period === state.saPeriod);
+  const plusSum = periodRows.filter(a => a.delta > 0).reduce((s, a) => s + Number(a.delta), 0);
+  const minusSum = periodRows.filter(a => a.delta < 0).reduce((s, a) => s + Number(a.delta), 0);
+  const peopleCount = new Set(periodRows.map(a => a.userId)).size;
+  const jumpSelected = state.saJumpPersonId && scopePeople.some(p => p.id === state.saJumpPersonId) ? state.saJumpPersonId : "";
+  state.saJumpPersonId = null;
+
+  updateChrome("Điểm cộng/trừ đột xuất", "ĐỘT XUẤT");
+  document.getElementById("appView").innerHTML = `
+    <div class="toolbar"><label class="filter-field"><span>Kỳ</span><select id="saPeriodSelect">${recentPeriods().map(p => `<option value="${p}" ${p === state.saPeriod ? "selected" : ""}>${periodLabel(p)}</option>`).join("")}</select></label>
+      ${canManage ? `<label class="field"><span>Tìm theo tên</span><input type="text" id="saSearchInput" value="${state.saSearch}" placeholder="Nhập tên..."></label>` : ""}
+    </div>
+    <div class="metric-grid">
+      ${metricCard("Tổng lượt điều chỉnh", periodRows.length, periodLabel(state.saPeriod), "")}
+      ${metricCard("Tổng điểm đã cộng", `+${plusSum}`, "Trong kỳ đang xem", "green")}
+      ${metricCard("Tổng điểm đã trừ", minusSum, "Trong kỳ đang xem", "gold")}
+      ${metricCard("Số người liên quan", peopleCount, "Trong kỳ đang xem", "blue")}
+    </div>
+    ${canManage ? `<section class="panel" style="padding:18px;margin-bottom:16px"><h3 style="margin:0 0 12px">+ Thêm điều chỉnh đột xuất</h3>
+      <p class="metric-context" style="margin:0 0 12px">Luôn áp dụng cho tháng hiện tại (${periodLabel(currentRealPeriod())}) tại thời điểm lưu - không sửa lại điểm các kỳ đã chốt trước đó, kể cả khi đang xem kỳ khác ở trên. Nếu liên quan đến việc ở tháng khác, ghi rõ trong lý do.</p>
+      <div class="form-grid compact-form">
+        <label class="field field-wide"><span>Người cần điều chỉnh</span><select id="scoreAdjustmentUser"><option value="">Chọn người...</option>${scopePeople.map(p => `<option value="${p.id}" ${p.id === jumpSelected ? "selected" : ""}>${p.name} · ${unitById(p.unitId).short}</option>`).join("")}</select></label>
+        <label class="field"><span>Loại điều chỉnh</span><select id="scoreAdjustmentType"><option value="">Chọn loại...</option><option value="plus">Điểm cộng (khen thưởng)</option><option value="minus">Điểm trừ (kỷ luật)</option></select></label>
+        <label class="field"><span>Số điểm</span><input id="scoreAdjustmentDelta" type="number" min="0" step="0.5" placeholder="Ví dụ: 5"></label>
+        <label class="field field-wide"><span>Lý do / căn cứ</span><textarea id="scoreAdjustmentReason" rows="2" placeholder="Ví dụ: Hồ sơ vụ án ABC bị trả vì thiếu chứng cứ, phát hiện ngày .../.../..."></textarea></label>
+      </div><div class="review-actions"><button type="button" class="button button-primary" id="saveScoreAdjustment">Lưu điều chỉnh</button></div></section>` : ""}
+    <section class="panel" style="padding:18px"><h3 style="margin:0 0 12px">Danh sách điều chỉnh — ${periodLabel(state.saPeriod)}</h3><div id="saListSlot">${saListHtml(canManage)}</div></section>`;
+
+  document.getElementById("saPeriodSelect").addEventListener("change", e => { state.saPeriod = e.target.value; renderScoreAdjustments(); });
+  const saveButton = document.getElementById("saveScoreAdjustment");
+  if (saveButton) saveButton.addEventListener("click", submitScoreAdjustment);
+  bindSaListActions();
+  const searchInput = document.getElementById("saSearchInput");
+  if (searchInput) searchInput.addEventListener("input", e => {
+    state.saSearch = e.target.value;
+    const caret = searchInput.selectionStart;
+    document.getElementById("saListSlot").innerHTML = saListHtml(canManage);
+    bindSaListActions();
+    const ni = document.getElementById("saSearchInput");
+    if (ni) { ni.focus(); ni.setSelectionRange(caret, caret); }
+  });
+}
+
+function bindSaListActions() {
+  document.querySelectorAll("[data-delete-adjustment]").forEach(button => button.addEventListener("click", () => deleteScoreAdjustment(button.dataset.deleteAdjustment)));
+}
+
+function submitScoreAdjustment() {
+  const userSelect = document.getElementById("scoreAdjustmentUser");
+  const typeSelect = document.getElementById("scoreAdjustmentType");
+  const deltaInput = document.getElementById("scoreAdjustmentDelta");
+  const reasonInput = document.getElementById("scoreAdjustmentReason");
+  const userId = userSelect ? userSelect.value : "";
+  const type = typeSelect ? typeSelect.value : "";
+  const amount = Number(deltaInput.value);
+  const reason = (reasonInput.value || "").trim();
+  if (!userId) return showToast("Vui lòng chọn người cần điều chỉnh.");
+  if (type !== "plus" && type !== "minus") return showToast("Vui lòng chọn loại điều chỉnh: điểm cộng hoặc điểm trừ.");
+  if (!Number.isFinite(amount) || amount <= 0) { showToast("Vui lòng nhập số điểm lớn hơn 0."); deltaInput.focus(); return; }
+  if (!reason) { showToast("Vui lòng nhập lý do/căn cứ."); reasonInput.focus(); return; }
+  const targetPerson = userById(userId);
+  if (!targetPerson || !canApproveMonthly(targetPerson)) return showToast("Không có quyền điều chỉnh điểm của người này.");
+  const delta = type === "minus" ? -amount : amount;
+  scoreAdjustments.push({
+    id: `SA-${Date.now()}`, userId, period: currentRealPeriod(), delta, reason,
+    createdBy: currentUser().id, createdAt: new Date().toISOString()
+  });
+  saveScoreAdjustments();
+  showToast("Đã lưu điều chỉnh điểm.");
+  renderScoreAdjustments();
+}
+
+function deleteScoreAdjustment(id) {
+  if (!confirm("Xoá điều chỉnh điểm này?")) return;
+  const adjustment = scoreAdjustments.find(a => a.id === id);
+  if (!adjustment) return;
+  const person = userById(adjustment.userId);
+  if (!person || !canApproveMonthly(person)) return showToast("Không có quyền xoá điều chỉnh này.");
+  scoreAdjustments = scoreAdjustments.filter(a => a.id !== id);
+  saveScoreAdjustments();
+  showToast("Đã xoá điều chỉnh.");
+  renderScoreAdjustments();
 }
 
 // ============================================
@@ -3034,14 +3357,35 @@ function renderTasks() {
   document.querySelectorAll("[data-report-task]").forEach(button => button.addEventListener("click", () => openJournalModal(null, button.dataset.reportTask)));
 }
 
+// Chia danh sach "nguoi phoi hop" theo nhom vai tro - trong da so truong
+// hop chi can chon 1 lanh dao chu tri + nhieu KSV phoi hop, gom nhom giup
+// don vi dong nguoi (30-70 nguoi) de tim hon la 1 danh sach dai dang.
+const TASK_SUPPORT_GROUP_DEFS = [
+  { label: "Lãnh đạo dưới quyền", roles: ["unit_deputy", "unit_head", "province_deputy"], openByDefault: false },
+  { label: "Cán bộ, Kiểm sát viên", roles: ["staff"], openByDefault: true },
+  { label: "Người lao động", roles: ["support_staff"], openByDefault: false }
+];
+function taskSupportPickerHtml(candidates) {
+  const covered = new Set(TASK_SUPPORT_GROUP_DEFS.flatMap(def => def.roles));
+  const groups = TASK_SUPPORT_GROUP_DEFS.map(def => ({ def, people: candidates.filter(p => def.roles.includes(p.role)) }));
+  const uncovered = candidates.filter(p => !covered.has(p.role));
+  if (uncovered.length) groups[0].people = groups[0].people.concat(uncovered);
+  const groupsHtml = groups.filter(g => g.people.length).map(g => {
+    const items = g.people.map(person => `<label data-name="${person.name.toLowerCase()}" data-person-name="${person.name}"><input type="checkbox" name="supportIds" value="${person.id}"> ${person.name} · ${unitById(person.unitId).short}</label>`).join("");
+    return `<details class="support-group" ${g.def.openByDefault ? "open" : ""}><summary>${g.def.label} (${g.people.length})</summary><div class="unit-checklist unit-checklist-lg">${items}</div></details>`;
+  }).join("");
+  return `<div class="support-picker" id="taskSupportPicker">
+    <div class="support-picker-chips" id="taskSupportChips"><span class="support-picker-chips-empty">Chưa chọn ai</span></div>
+    ${candidates.length > 6 ? `<input type="text" id="taskSupportSearch" placeholder="Tìm theo tên...">` : ""}
+    <div id="taskSupportChecklist">${groupsHtml}</div>
+  </div>`;
+}
+
 function taskAssignFormHtml(candidates) {
   const options = candidates.map(person => `<option value="${person.id}">${person.name} · ${unitById(person.unitId).short}</option>`).join("");
-  const checklist = candidates.map(person => `<label data-name="${person.name.toLowerCase()}"><input type="checkbox" name="supportIds" value="${person.id}"> ${person.name} · ${unitById(person.unitId).short}</label>`).join("");
   return `<form class="form-grid compact-form" id="taskAssignForm">
     <label class="field field-wide"><span>Người chủ trì</span><select name="leadId" required>${options}</select></label>
-    <div class="field field-wide"><span>Người phối hợp (không bắt buộc) — <span id="taskSupportCount">chưa chọn ai</span></span>
-      ${candidates.length > 6 ? `<input type="text" id="taskSupportSearch" placeholder="Tìm theo tên...">` : ""}
-      <div class="unit-checklist" id="taskSupportChecklist">${checklist}</div></div>
+    <div class="field field-wide"><span>Người phối hợp (không bắt buộc)</span>${taskSupportPickerHtml(candidates)}</div>
     <label class="field field-wide"><span>Tên công việc</span><input type="text" name="title" required maxlength="200"></label>
     <label class="field field-wide"><span>Mô tả / yêu cầu</span><textarea name="description" rows="5" placeholder="Có thể ghi chi tiết yêu cầu, phạm vi công việc..."></textarea></label>
     <label class="field"><span>Hạn gợi ý (không bắt buộc)</span><input type="datetime-local" name="suggestedDueDate"></label>
@@ -3049,25 +3393,40 @@ function taskAssignFormHtml(candidates) {
   </form>`;
 }
 
-// Tim theo ten + dem so nguoi da chon - can thiet tu khi don vi co toi
-// 30-70 nguoi (truoc day chi vai nguoi, khung 5 dong la du dung).
+// Tim theo ten (tu mo het cac nhom dang thu gon khi co tu khoa tim) + ve
+// lai khu "Da chon" dang the (chip) moi khi tich/bo tich - can thiet tu
+// khi don vi co toi 30-70 nguoi (truoc day chi vai nguoi, khung 5 dong
+// don gian la du dung).
 function bindTaskSupportExtras() {
   const search = document.getElementById("taskSupportSearch");
   const checklist = document.getElementById("taskSupportChecklist");
   if (!checklist) return;
-  const updateCount = () => {
-    const n = checklist.querySelectorAll('input[type="checkbox"]:checked').length;
-    const el = document.getElementById("taskSupportCount");
-    if (el) el.textContent = n ? `${n} đã chọn` : "chưa chọn ai";
+  const renderChips = () => {
+    const chipsEl = document.getElementById("taskSupportChips");
+    if (!chipsEl) return;
+    const checked = Array.from(checklist.querySelectorAll('input[type="checkbox"]:checked'));
+    if (!checked.length) { chipsEl.innerHTML = `<span class="support-picker-chips-empty">Chưa chọn ai</span>`; return; }
+    chipsEl.innerHTML = checked.map(cb => {
+      const label = cb.closest("label");
+      const name = label ? (label.dataset.personName || "") : "";
+      return `<span class="support-chip">${name}<button type="button" class="support-chip-remove" data-unselect-support="${cb.value}" aria-label="Bỏ chọn ${name}">×</button></span>`;
+    }).join("");
+    chipsEl.querySelectorAll("[data-unselect-support]").forEach(button => {
+      button.addEventListener("click", () => {
+        const cb = checklist.querySelector(`input[value="${button.dataset.unselectSupport}"]`);
+        if (cb) { cb.checked = false; renderChips(); }
+      });
+    });
   };
-  checklist.addEventListener("change", updateCount);
-  updateCount();
+  checklist.addEventListener("change", renderChips);
+  renderChips();
   if (search) {
     search.addEventListener("input", () => {
       const q = search.value.trim().normalize("NFC").toLowerCase();
       checklist.querySelectorAll("label").forEach(label => {
         label.style.display = (!q || (label.dataset.name || "").includes(q)) ? "" : "none";
       });
+      if (q) checklist.querySelectorAll("details.support-group").forEach(d => { d.open = true; });
     });
   }
 }
@@ -3180,9 +3539,10 @@ function orgUnitCard(unit) {
   return `<div class="org-unit-wrap"><button type="button" class="org-unit ${expanded ? "is-expanded" : ""}" data-org-unit-toggle="${unit.id}"><div><strong>${unit.short}</strong><span>${head ? head.name : "Chưa phân công người đứng đầu"}</span></div><span class="score-pill score-mid">${members.length} người</span></button>${memberRows}</div>`;
 }
 
-function openJournalModal(logId = null, presetTaskId = null) {
+function openJournalModal(logId = null, presetTaskId = null, presetNoteId = null) {
   const form = document.getElementById("journalForm");
   form.reset();
+  state.journalSourceNoteId = null;
   const log = typeof logId === "string" ? logs.find(item => item.id === logId) : null;
   const canEdit = log && log.authorId === currentUser().id && log.status === "revision";
   state.editingJournalId = canEdit ? log.id : null;
@@ -3204,9 +3564,21 @@ function openJournalModal(logId = null, presetTaskId = null) {
     form.elements.rangeStartDate.value = log.rangeStartDate || "";
   } else {
     form.elements.workDate.value = DEMO_TODAY;
+    // Mo tu 1 ghi chu ca nhan ("Ghi nhat ky cho viec nay") - dien san Noi
+    // dung/Ket qua tu tieu de/noi dung ghi chu, cac muc con lai de trong
+    // nhu ghi nhat ky moi binh thuong.
+    if (presetNoteId) {
+      const srcNote = personalNotes.find(item => item.id === presetNoteId);
+      if (srcNote) {
+        form.elements.title.value = srcNote.title || "";
+        form.elements.result.value = srcNote.content || "";
+        state.journalSourceNoteId = presetNoteId;
+      }
+    }
     // Khoi phuc nhap dang go do (neu co) - chi khi tao MOI thuc su (khong
-    // phai dang gan san 1 viec duoc giao, tranh de nham noi dung cu).
-    if (!presetTaskId) {
+    // phai dang gan san 1 viec duoc giao hoac 1 ghi chu, tranh de nham noi
+    // dung cu).
+    if (!presetTaskId && !presetNoteId) {
       const draft = loadJournalDraft();
       if (draft) {
         if (draft.category) form.elements.category.value = draft.category;
@@ -3474,6 +3846,7 @@ function applyCopyJournal(logId) {
 
 function closeJournalModal() {
   state.editingJournalId = null;
+  state.journalSourceNoteId = null;
   document.getElementById("journalModal").hidden = true;
 }
 
@@ -3548,6 +3921,12 @@ function submitJournal(event) {
   });
   if (linkedTask) { linkedTask.linkedLogId = nextId; linkedTask.status = "reported"; saveTaskAssignments(); }
   saveLogs();
+  // Ghi tu 1 ghi chu ca nhan ("Ghi nhat ky cho viec nay") - gui thanh
+  // cong thi coi nhu viec da xong, tu danh dau ghi chu goc "Da xong".
+  if (state.journalSourceNoteId) {
+    const sourceNote = personalNotes.find(item => item.id === state.journalSourceNoteId);
+    if (sourceNote) { sourceNote.isDone = true; savePersonalNotes(); }
+  }
   closeJournalModal();
   clearJournalDraft();
   showToast("Đã gửi nhật ký đến người đứng đầu đơn vị.");
@@ -3617,6 +3996,7 @@ function resetDemo() {
   delegations = structuredClone(sampleDelegations);
   taskAssignments = structuredClone(sampleTaskAssignments);
   monthlyReviews = structuredClone(sampleMonthly.concat(generateMonthlyHistory()));
+  scoreAdjustments = structuredClone(sampleScoreAdjustments);
   defaultPersonnelState.forEach(item => {
     const user = userById(item.id);
     if (user) Object.assign(user, structuredClone(item));
@@ -3632,6 +4012,7 @@ function resetDemo() {
   saveDelegations();
   saveTaskAssignments();
   localStorage.setItem(MONTHLY_STORAGE_KEY, JSON.stringify(monthlyReviews));
+  saveScoreAdjustments();
   savePersonnelState();
   localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(auditEvents));
   notificationReadState = {};
