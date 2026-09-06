@@ -81,6 +81,7 @@ var STATUS_CLASS={pending:'status-pending',approved:'status-approved',revision:'
 // mang nay.
 // ============================================
 var CHANGELOG=[
+  {date:'2026-09-06',type:'feature',text:'Nhật ký công tác của đơn vị: thêm cách xem "Theo ngày" - chọn 1 ngày cụ thể là thấy ngay ai đã nộp việc, ai đang nghỉ phép, ai chưa nộp trong ngày đó, giúp lãnh đạo đôn đốc kịp thời.'},
   {date:'2026-09-06',type:'fix',text:'Sửa lỗi Trưởng phòng/Viện trưởng khu vực có thể duyệt nhầm nhật ký mà KSV đã nộp đích danh cho 1 Phó - nay tách riêng thành 2 khu "Nộp cho tôi" và "Đang chờ người khác xử lý" trong màn Duyệt & chấm điểm.'},
   {date:'2026-09-06',type:'feature',text:'Ghi chú công việc: thêm nút "Ghi nhật ký cho việc này" - có thể dự thảo trước công việc trong ghi chú, đến khi hoàn thành chỉ cần bấm nút là tự điền sẵn nội dung sang form ghi nhật ký.'},
   {date:'2026-09-06',type:'feature',text:'Ghi chú công việc: có thể đặt giờ hạn chót và chọn thời điểm muốn được nhắc trước, chuông thông báo sẽ tự nhắc khi sắp đến hạn hoặc đã quá hạn.'},
@@ -2442,7 +2443,7 @@ async function submitDeleteWorkLog(logId,reason){
 // cho lanh dao, theo don vi/pham vi da co san. RLS work_logs (unit/province/
 // assigned) da cho phep xem toan bo trang thai, chi can mo rong truy van.
 // ============================================
-var UJ_MODE='person',UJ_UNIT_FILTER='all',UJ_SEARCH='',UJ_SELECTED_PERSON_ID=null;
+var UJ_MODE='person',UJ_UNIT_FILTER='all',UJ_SEARCH='',UJ_SELECTED_PERSON_ID=null,UJ_DAY_SELECTED=todayStr();
 var UJ_PERIOD=ymStr(new Date().getFullYear(),new Date().getMonth());
 var UJ_PEOPLE=[],UJ_LOGS=[];
 
@@ -2487,6 +2488,7 @@ async function ruj(){
     $('appView').innerHTML='<div class="empty-state"><strong>Không tải được dữ liệu</strong><span>'+esc(e.message)+'</span></div>';
     return;
   }
+  ujClampDaySelected();
   renderUnitJournalShell();
 }
 
@@ -2534,6 +2536,24 @@ function ujAuthorName(id){
   return p?p.full_name:'Không xác định';
 }
 
+// Khoang ngay hop le cua UJ_PERIOD ("YYYY-MM") - dung de gioi han o chon
+// ngay cua tab "Theo ngay" (khong cho chon ngoai thang dang xem, vi
+// UJ_LOGS chi tai du lieu cho dung 1 thang).
+function ujPeriodStart(){return UJ_PERIOD+'-01'}
+function ujPeriodEnd(){
+  var parts=UJ_PERIOD.split('-'),y=Number(parts[0]),m=Number(parts[1]);
+  return ymdStr(y,m-1,new Date(y,m,0).getDate());
+}
+// Giu UJ_DAY_SELECTED luon nam trong ky dang xem - goi lai moi khi doi Ky
+// (trong ruj()). Uu tien mac dinh la HOM NAY neu roi dung vao ky dang
+// xem (truong hop hay gap nhat - xem lich hien tai), khong thi ve ngay
+// cuoi cung cua ky (thuong la ngay gan nhat co du lieu khi xem ky cu).
+function ujClampDaySelected(){
+  var start=ujPeriodStart(),end=ujPeriodEnd(),today=todayStr();
+  if(UJ_DAY_SELECTED&&UJ_DAY_SELECTED>=start&&UJ_DAY_SELECTED<=end)return;
+  UJ_DAY_SELECTED=(today>=start&&today<=end)?today:end;
+}
+
 function renderUnitJournalShell(){
   var availableUnits=dashboardAvailableUnits();
   var unitFilterHtml=availableUnits.length>1?'<label class="filter-field"><span>Đơn vị</span><select id="ujUnitFilter">'
@@ -2543,15 +2563,17 @@ function renderUnitJournalShell(){
     +recentPeriods().map(function(p){return '<option value="'+p+'" '+(UJ_PERIOD===p?'selected':'')+'>'+esc(periodLabel(p))+'</option>'}).join('')
     +'</select></label>';
   var searchHtml=(UJ_MODE==='person'&&!UJ_SELECTED_PERSON_ID)?'<label class="field"><span>Tìm theo tên</span><input type="text" id="ujSearchInput" value="'+esc(UJ_SEARCH)+'" placeholder="Nhập tên..."></label>':'';
+  var dayFilterHtml=(UJ_MODE==='day')?'<label class="filter-field"><span>Ngày</span><input type="date" id="ujDayFilter" value="'+esc(UJ_DAY_SELECTED)+'" min="'+ujPeriodStart()+'" max="'+ujPeriodEnd()+'"></label>':'';
   var h='<div class="toolbar uj-toolbar">'
     +'<div class="uj-mode-toggle">'
     +'<button type="button" class="uj-mode-btn '+(UJ_MODE==='person'?'is-active':'')+'" data-uj-mode="person">Theo người</button>'
     +'<button type="button" class="uj-mode-btn '+(UJ_MODE==='timeline'?'is-active':'')+'" data-uj-mode="timeline">Theo thời gian</button>'
-    +'</div>'+unitFilterHtml+periodFilterHtml+searchHtml+'</div>';
+    +'<button type="button" class="uj-mode-btn '+(UJ_MODE==='day'?'is-active':'')+'" data-uj-mode="day">Theo ngày</button>'
+    +'</div>'+unitFilterHtml+periodFilterHtml+searchHtml+dayFilterHtml+'</div>';
   h+='<div id="ujContent"></div>';
   $('appView').innerHTML=h;
   renderUnitJournalContent();
-  document.querySelectorAll('[data-uj-mode]').forEach(function(b){b.addEventListener('click',function(){UJ_MODE=b.dataset.ujMode;renderUnitJournalShell()})});
+  document.querySelectorAll('[data-uj-mode]').forEach(function(b){b.addEventListener('click',function(){UJ_MODE=b.dataset.ujMode;if(UJ_MODE==='day')ujClampDaySelected();renderUnitJournalShell()})});
   var unitSel=$('ujUnitFilter');if(unitSel)unitSel.addEventListener('change',function(e){UJ_UNIT_FILTER=e.target.value;UJ_SELECTED_PERSON_ID=null;renderUnitJournalShell()});
   $('ujPeriodFilter').addEventListener('change',function(e){UJ_PERIOD=e.target.value;ruj()});
   var searchInput=$('ujSearchInput');
@@ -2561,11 +2583,14 @@ function renderUnitJournalShell(){
     renderUnitJournalContent();
     var ni=$('ujSearchInput');if(ni){ni.focus();ni.setSelectionRange(caret,caret)}
   });
+  var dayInput=$('ujDayFilter');
+  if(dayInput)dayInput.addEventListener('change',function(e){UJ_DAY_SELECTED=e.target.value;renderUnitJournalContent()});
 }
 
 function renderUnitJournalContent(){
   var html;
   if(UJ_MODE==='timeline')html=renderUjTimelineHtml();
+  else if(UJ_MODE==='day')html=renderUjDayHtml();
   else if(UJ_SELECTED_PERSON_ID)html=renderUjPersonDetailHtml(UJ_SELECTED_PERSON_ID);
   else html=renderUjPersonListHtml();
   $('ujContent').innerHTML=html;
@@ -2615,23 +2640,89 @@ function renderUjTimelineHtml(){
   return groups.map(function(g){return ujDateGroupHtml(g,true)}).join('');
 }
 
+// Tinh san opts hien thi + quyen thao tac cho 1 nhat ky trong pham vi
+// "Nhat ky cong tac cua don vi" - dung chung cho ujDateGroupHtml (xem
+// theo thoi gian) VA renderUjDayHtml (xem theo ngay, muc "Theo ngay").
+function ujLogCardOpts(l,showAuthor){
+  var opts={readOnly:true};
+  if(showAuthor){opts.authorName=ujAuthorName(l.author_id);opts.authorId=l.author_id}
+  if(l.submitted_to_id){var stp=UJ_PEOPLE.find(function(p){return p.id===l.submitted_to_id});if(stp)opts.submittedToName=stp.full_name}
+  if(l.status==='approved'&&l.reviewer_id){
+    var curReviewer=UJ_PEOPLE.find(function(p){return p.id===l.reviewer_id});
+    if(curReviewer)opts.reviewerName=curReviewer.full_name;
+    // Dieu chinh diem la kiem tra thu bac voi NGUOI DA CHAM truoc, khong
+    // lien quan toi "nop cho ai" cua log nay - dung canManagePerson.
+    if(l.reviewer_id!==U.id&&curReviewer&&!isLeaveCategory(l.category_id))opts.canOverride=canManagePerson(curReviewer);
+  }
+  var author=UJ_PEOPLE.find(function(p){return p.id===l.author_id});
+  if(author)opts.canDelete=canReviewLog(l,author);
+  return opts;
+}
+
 function ujDateGroupHtml(g,showAuthor){
   var items=g.items.map(function(l,idx){
-    var opts={readOnly:true};
-    if(showAuthor){opts.authorName=ujAuthorName(l.author_id);opts.authorId=l.author_id}
-    if(l.submitted_to_id){var stp=UJ_PEOPLE.find(function(p){return p.id===l.submitted_to_id});if(stp)opts.submittedToName=stp.full_name}
-    if(l.status==='approved'&&l.reviewer_id){
-      var curReviewer=UJ_PEOPLE.find(function(p){return p.id===l.reviewer_id});
-      if(curReviewer)opts.reviewerName=curReviewer.full_name;
-      // Dieu chinh diem la kiem tra thu bac voi NGUOI DA CHAM truoc, khong
-      // lien quan toi "nop cho ai" cua log nay - dung canManagePerson.
-      if(l.reviewer_id!==U.id&&curReviewer&&!isLeaveCategory(l.category_id))opts.canOverride=canManagePerson(curReviewer);
-    }
-    var author=UJ_PEOPLE.find(function(p){return p.id===l.author_id});
-    if(author)opts.canDelete=canReviewLog(l,author);
-    return '<div class="uj-numbered-item"><span class="queue-index">'+(idx+1)+'</span>'+journalCardHtml(l,opts)+'</div>';
+    return '<div class="uj-numbered-item"><span class="queue-index">'+(idx+1)+'</span>'+journalCardHtml(l,ujLogCardOpts(l,showAuthor))+'</div>';
   }).join('');
   return '<div class="uj-date-group"><div class="uj-date-group-header"><strong>'+esc(fullDate(g.date)||'Không xác định ngày')+'</strong><span>'+g.items.length+' việc</span></div><div class="uj-date-items">'+items+'</div></div>';
+}
+
+// ============================================
+// "THEO NGAY" - xem nhanh 1 ngay cu the: ai da nop viec, ai dang nghi
+// phep, ai chua nop - de lanh dao don doc kip thoi (thay vi phai cuon het
+// "Theo thoi gian" ca thang moi tim duoc dung ngay can xem, va truoc day
+// khong co cach nao biet duoc AI CHUA nop - chi thay duoc ai DA nop).
+// Khong can fetch them gi - UJ_LOGS/UJ_PEOPLE da co san ca thang, chi loc
+// lai theo dung ngay dang chon.
+// ============================================
+function ujDaySubmittedCardHtml(entry){
+  var p=entry.person,logs=entry.logs;
+  var itemsHtml=logs.map(function(l){return journalCardHtml(l,ujLogCardOpts(l,false))}).join('');
+  return '<details class="uj-day-card"><summary><span class="uj-day-card-name">'+esc(p.full_name)+'</span><span class="uj-day-card-meta">'+esc(p.title||'')+' · '+esc(unitShort(p.unit_id))+'</span><span class="meta-tag">'+logs.length+' nhật ký</span></summary><div class="uj-day-card-logs">'+itemsHtml+'</div></details>';
+}
+function ujDayLeaveCardHtml(entry){
+  var p=entry.person;
+  return '<div class="uj-day-card is-static"><span class="uj-day-card-name">'+esc(p.full_name)+'</span><span class="uj-day-card-meta">'+esc(p.title||'')+' · '+esc(unitShort(p.unit_id))+'</span></div>';
+}
+function ujDayMissingCardHtml(p){
+  return '<button type="button" class="uj-day-card is-missing" data-uj-jump-person="'+p.id+'"><span class="uj-day-card-name">'+esc(p.full_name)+'</span><span class="uj-day-card-meta">'+esc(p.title||'')+' · '+esc(unitShort(p.unit_id))+'</span></button>';
+}
+
+function renderUjDayHtml(){
+  var dateStr=UJ_DAY_SELECTED;
+  var people=ujFilteredPeople();
+  if(!dateStr||!people.length)return '<div class="empty-state"><strong>Không có ai trong phạm vi này</strong></div>';
+  var logsOfDay=ujFilteredLogs().filter(function(l){return l.log_date===dateStr});
+  var byAuthor={};
+  logsOfDay.forEach(function(l){(byAuthor[l.author_id]=byAuthor[l.author_id]||[]).push(l)});
+  // 1 nguoi co the vua co viec vua co nghi phep cung 1 ngay (hiem nhung
+  // khong loai tru) - uu tien xep vao "da nop" neu co it nhat 1 viec
+  // thuc su, chi xep "nghi phep" khi CHI co dong nghi phep.
+  var submitted=[],onLeave=[],missing=[];
+  people.forEach(function(p){
+    var logs=byAuthor[p.id]||[];
+    var workLogs=logs.filter(function(l){return !isLeaveCategory(l.category_id)});
+    if(workLogs.length){submitted.push({person:p,logs:workLogs});return}
+    var leaveLogs=logs.filter(function(l){return isLeaveCategory(l.category_id)});
+    if(leaveLogs.length){onLeave.push({person:p,logs:leaveLogs});return}
+    missing.push(p);
+  });
+  var weekday=new Date(dateStr+'T00:00:00').getDay();
+  var weekendNote=(weekday===0||weekday===6)?'<p class="metric-context uj-day-weekend-note">Hôm '+(weekday===0?'nay là Chủ nhật':'nay là Thứ Bảy')+' — bình thường sẽ không có ai ghi nhật ký, danh sách "Chưa nộp" dưới đây không hẳn cần đôn đốc.</p>':'';
+  var h='<div class="uj-day-header"><h2>'+esc(fullDateLabelVi(dateStr))+'</h2><div class="uj-day-stats">'
+    +'<span class="uj-day-stat tone-submitted">'+submitted.length+'/'+people.length+' đã nộp việc</span>'
+    +(onLeave.length?'<span class="uj-day-stat tone-leave">'+onLeave.length+' nghỉ phép</span>':'')
+    +'<span class="uj-day-stat tone-missing">'+missing.length+' chưa nộp</span>'
+    +'</div></div>'+weekendNote;
+  h+='<div class="uj-day-section"><h3>Đã nộp việc hôm nay ('+submitted.length+')</h3>'
+    +(submitted.length?'<div class="uj-day-list">'+submitted.map(ujDaySubmittedCardHtml).join('')+'</div>':'<div class="empty-state compact-empty"><strong>Chưa ai nộp việc</strong></div>')
+    +'</div>';
+  if(onLeave.length){
+    h+='<div class="uj-day-section"><h3>Nghỉ phép hôm nay ('+onLeave.length+')</h3><div class="uj-day-list">'+onLeave.map(ujDayLeaveCardHtml).join('')+'</div></div>';
+  }
+  h+='<div class="uj-day-section"><h3>Chưa nộp ('+missing.length+')</h3>'
+    +(missing.length?'<div class="uj-day-list">'+missing.map(ujDayMissingCardHtml).join('')+'</div>':'<div class="empty-state compact-empty"><strong>Mọi người đã nộp đủ</strong></div>')
+    +'</div>';
+  return h;
 }
 
 // ============================================

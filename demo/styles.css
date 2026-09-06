@@ -735,6 +735,33 @@ tbody tr:hover { background: #fbfbfc; }
 .uj-date-items { display: grid; gap: 10px; }
 .uj-numbered-item { display: flex; align-items: flex-start; gap: 10px; }
 .uj-numbered-item .journal-card { flex: 1; }
+
+/* Tab "Theo ngay" cua Nhat ky cong tac don vi - xem nhanh 1 ngay cu the:
+   ai da nop, ai nghi phep, ai chua nop, de lanh dao don doc. */
+.uj-day-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+.uj-day-header h2 { margin: 0; font-size: 16px; }
+.uj-day-stats { display: flex; flex-wrap: wrap; gap: 8px; }
+.uj-day-stat { padding: 5px 11px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.uj-day-stat.tone-submitted { color: var(--green); background: var(--green-soft); }
+.uj-day-stat.tone-leave { color: var(--blue); background: var(--blue-soft); }
+.uj-day-stat.tone-missing { color: var(--red); background: var(--red-soft); }
+.uj-day-weekend-note { margin: 4px 0 0; }
+.uj-day-section { margin-top: 20px; }
+.uj-day-section:first-of-type { margin-top: 14px; }
+.uj-day-section h3 { margin: 0 0 10px; font-size: 13px; color: var(--text); }
+.uj-day-list { display: grid; gap: 8px; }
+.uj-day-card { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); text-align: left; width: 100%; box-sizing: border-box; }
+.uj-day-card-name { font-weight: 700; font-size: 13px; color: var(--text); }
+.uj-day-card-meta { color: var(--muted); font-size: 11px; margin-right: auto; }
+button.uj-day-card { cursor: pointer; }
+button.uj-day-card.is-missing { border-color: #ecc; background: var(--red-soft); }
+button.uj-day-card.is-missing:hover { border-color: var(--red); }
+.uj-day-card.is-static { background: var(--blue-soft); border-color: #c7dcf2; }
+details.uj-day-card { display: block; padding: 0; overflow: hidden; }
+details.uj-day-card summary { display: flex; align-items: center; gap: 10px; padding: 11px 14px; cursor: pointer; list-style: revert; }
+details.uj-day-card .uj-day-card-logs { padding: 4px 14px 14px; border-top: 1px solid var(--line); }
+details.uj-day-card .uj-day-card-logs .journal-card { margin-top: 10px; }
+details.uj-day-card .uj-day-card-logs .journal-card:first-child { margin-top: 12px; }
 .journal-author-tag { border: 0; color: var(--primary-dark); background: var(--primary-light); font-weight: 700; cursor: pointer; }
 .review-detail { min-height: 520px; }
 .detail-section { padding: 16px 0; border-bottom: 1px solid var(--line); }
