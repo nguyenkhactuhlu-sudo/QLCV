@@ -70,6 +70,31 @@ var DURATION_LABEL={duoi_2_gio:'Dưới 2 giờ','2_4_gio':'2–4 giờ',tren_4_
 var STATUS_LABEL={pending:'Chờ đánh giá',approved:'Đã xác nhận',revision:'Cần bổ sung'};
 var STATUS_CLASS={pending:'status-pending',approved:'status-approved',revision:'status-revision'};
 
+// ============================================
+// NHAT KY "PHAT TRIEN TINH NANG & SUA LOI" - danh cho nguoi dung khong
+// ranh ky thuat, xem muc 6.x trong PROJECT_STRUCTURE.md truoc khi sua.
+// QUY UOC: moi khi shipping 1 thay doi nguoi dung THAY DUOC tren giao
+// dien (tinh nang moi, sua loi, cai tien) - them 1 dong MOI LEN DAU mang
+// nay, viet bang tieng Viet thuong, khong dung tu ky thuat/ten bien/ten
+// migration. type: 'feature' (🆕 Tinh nang moi) | 'fix' (🐛 Sua loi) |
+// 'improve' (⚙️ Cai tien). Khong can sua gi khac - rc() ben duoi tu doc
+// mang nay.
+// ============================================
+var CHANGELOG=[
+  {date:'2026-09-06',type:'feature',text:'Thêm lĩnh vực "Kế toán" vào danh sách lĩnh vực công tác khi ghi nhật ký.'},
+  {date:'2026-09-06',type:'fix',text:'Nhận xét của lãnh đạo khi duyệt/chấm điểm nay hiển thị đầy đủ kèm theo nhật ký (trước đây bị ẩn mất trong nhiều trường hợp).'},
+  {date:'2026-09-05',type:'fix',text:'Sửa lỗi Viện trưởng tỉnh có thể ủy quyền nhầm cho người không đúng cấp - nay chỉ ủy quyền được cho Phó Viện trưởng tỉnh.'},
+  {date:'2026-09-05',type:'feature',text:'Khi tự chấm điểm lúc ghi nhật ký, hệ thống hiện luôn gợi ý mức điểm tương ứng (trước đây chỉ hiện khi lãnh đạo duyệt).'},
+  {date:'2026-09-05',type:'improve',text:'Sắp xếp lại thứ tự các mục trong form ghi nhật ký cho hợp lý, dễ điền hơn.'},
+  {date:'2026-09-05',type:'feature',text:'Thêm cách ghi "Nghỉ phép" và "Công việc nhiều ngày": chỉ cần ghi 1 lần cho cả khoảng ngày, hệ thống tự động tạo nhật ký cho từng ngày.'},
+  {date:'2026-09-04',type:'feature',text:'Phân quyền giao việc và nhận việc rõ ràng hơn theo từng vai trò.'},
+  {date:'2026-09-03',type:'feature',text:'Bổ sung, cập nhật lại danh mục lĩnh vực công tác và thêm thống kê theo lĩnh vực công tác.'},
+  {date:'2026-09-03',type:'improve',text:'Sửa lại cách "Nộp cho lãnh đạo": Trưởng phòng/Viện trưởng khu vực nộp lên cấp tỉnh, Phó Viện trưởng tỉnh tự động nộp cho Viện trưởng.'},
+  {date:'2026-08-31',type:'fix',text:'Tăng cường bảo mật tài khoản: khắc phục một số lỗi có thể bị lợi dụng để xem/thao tác sai quyền hạn; yêu cầu mật khẩu mới phải đủ mạnh hơn (tối thiểu 8 ký tự, có cả chữ và số).'},
+  {date:'2026-08-30',type:'fix',text:'Sửa lỗi lãnh đạo cấp trên không điều chỉnh được điểm cấp dưới đã chấm; thêm hiển thị lịch sử chấm điểm.'},
+  {date:'2026-08-29',type:'feature',text:'Đổi cách ủy quyền sang "nộp nhật ký đích danh cho lãnh đạo cụ thể"; cho phép ủy quyền thay mặt 100%; thêm giao việc cho nhiều người cùng lúc với hạn hoàn thành chính xác đến giờ/phút.'}
+];
+
 function catName(id){var c=CATS.find(function(x){return x.id===id});return c?c.name:'—'}
 function isLeaveCategory(id){var c=CATS.find(function(x){return x.id===id});return !!(c&&c.is_leave)}
 function shortDate(d){try{return new Intl.DateTimeFormat('vi-VN',{day:'2-digit',month:'2-digit'}).format(new Date(d+'T00:00:00'))}catch(e){return d||''}}
@@ -256,6 +281,7 @@ function render(){
   else if(V==='monthly')rm();
   else if(V==='organization')ro();
   else if(V==='administration')ra();
+  else if(V==='changelog')rc();
   else if(V==='settings')rs();
   else rp();
 }
@@ -3432,6 +3458,42 @@ function togglePasswordField(inputId,buttonId){
   input.type=showing?'password':'text';
   button.textContent=showing?'Hiện':'Ẩn';
   button.setAttribute('aria-label',showing?'Hiện mật khẩu':'Ẩn mật khẩu');
+}
+
+// ============================================
+// PHAT TRIEN TINH NANG & SUA LOI - nhat ky cap nhat phan mem viet cho
+// nguoi khong ranh ky thuat, doc du lieu tinh tu mang CHANGELOG o dau
+// file. Xem huong dan them dong moi ngay tren mang do.
+// ============================================
+function changelogTagHtml(type){
+  var meta={
+    feature:{cls:'tag-feature',label:'🆕 Tính năng mới'},
+    fix:{cls:'tag-fix',label:'🐛 Sửa lỗi'},
+    improve:{cls:'tag-improve',label:'⚙️ Cải tiến'}
+  }[type]||{cls:'tag-improve',label:'⚙️ Cải tiến'};
+  return '<span class="changelog-tag '+meta.cls+'">'+meta.label+'</span>';
+}
+function rc(){
+  $('pageEyebrow').textContent='CẬP NHẬT PHẦN MỀM';$('pageTitle').textContent='Phát triển tính năng & sửa lỗi';
+  var h='<p class="metric-context" style="margin:0 0 16px;max-width:640px">Nơi ghi lại vắn tắt những gì phần mềm vừa thêm mới hoặc vừa sửa, theo thời gian gần nhất lên đầu - để mọi người biết phần mềm đang thay đổi những gì.</p>';
+  if(!CHANGELOG.length){
+    h+='<div class="empty-state"><strong>Chưa có cập nhật nào được ghi lại</strong></div>';
+  }else{
+    var sorted=CHANGELOG.slice().sort(function(a,b){return a.date<b.date?1:a.date>b.date?-1:0});
+    var groups=[];
+    sorted.forEach(function(item){
+      var g=groups.length?groups[groups.length-1]:null;
+      if(!g||g.date!==item.date){g={date:item.date,items:[]};groups.push(g)}
+      g.items.push(item);
+    });
+    h+='<div class="changelog-list">'+groups.map(function(g){
+      return '<div class="changelog-group"><div class="changelog-date">'+esc(fullDate(g.date))+'</div>'
+        +'<div class="changelog-items">'+g.items.map(function(item){
+          return '<div class="changelog-item">'+changelogTagHtml(item.type)+'<span>'+esc(item.text)+'</span></div>';
+        }).join('')+'</div></div>';
+    }).join('')+'</div>';
+  }
+  $('appView').innerHTML=h;
 }
 
 // ============================================

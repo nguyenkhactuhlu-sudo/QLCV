@@ -662,6 +662,18 @@ tbody tr:hover { background: #fbfbfc; }
 .override-feedback { display: grid; gap: 4px; margin: 10px 0; padding: 10px 12px; border-left: 3px solid #d4af37; border-radius: 8px; color: #6b5310; background: #fffaf0; }
 .override-feedback strong { color: #8a650d; font-size: 12px; }
 .override-feedback span { font-size: 12px; line-height: 1.45; }
+/* Trang "Phat trien tinh nang & sua loi" - nhat ky cap nhat phan mem
+   danh cho nguoi khong ranh ky thuat, nhom theo ngay, moi ngay gan nhat
+   len dau. */
+.changelog-list { display: grid; gap: 22px; max-width: 720px; }
+.changelog-date { margin-bottom: 8px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
+.changelog-items { display: grid; gap: 10px; }
+.changelog-item { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.changelog-item span { font-size: 13px; line-height: 1.5; color: var(--text); }
+.changelog-tag { flex: 0 0 auto; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.changelog-tag.tag-feature { color: var(--blue); background: var(--blue-soft); }
+.changelog-tag.tag-fix { color: var(--red); background: var(--red-soft); }
+.changelog-tag.tag-improve { color: var(--orange); background: var(--orange-soft); }
 .resubmission-context strong { color: var(--blue); }
 .resubmission-badge { display: inline-flex; margin: 0 0 5px; padding: 3px 7px; border-radius: 999px; color: var(--blue); background: var(--blue-soft); font-size: 10px; font-weight: 700; }
 .score-box { min-width: 76px; padding: 8px; border-radius: 9px; background: var(--surface-soft); text-align: center; }
