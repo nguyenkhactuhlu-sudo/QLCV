@@ -70,7 +70,7 @@ QLCV/
 ├── supabase-auth.js            # Xử lý đăng nhập và khôi phục phiên, dùng chung production
 ├── supabase/
 │   ├── config.toml
-│   ├── migrations/            # 00001 → 00063 (+ 1 file gộp tiện dụng), xem mục 7
+│   ├── migrations/            # 00001 → 00064 (+ 1 file gộp tiện dụng), xem mục 7
 │   └── seed/00001_seed_data.sql
 └── .github/workflows/
     └── deploy-cloudflare.yml  # DUY NHẤT workflow có tác dụng thật (xem mục 4)

@@ -1,5 +1,5 @@
 // QLCV Production - Ket noi Supabase that, khong co du lieu demo
-var U=null,V='dashboard',LOGS=[],UNITS=[],CATS=[],EDITING_ID=null,PROVINCE_UNIT_ID=null,REVIEW_QUEUE=[],SELECTED_REVIEW_ID=null,REVIEW_QUEUE_COLLAPSED=false;
+var U=null,V='dashboard',LOGS=[],UNITS=[],CATS=[],EDITING_ID=null,PROVINCE_UNIT_ID=null,REVIEW_QUEUE=[],SELECTED_REVIEW_ID=null,REVIEW_QUEUE_COLLAPSED=false,REVIEW_QUEUE_OTHERS_COLLAPSED=true,JOURNAL_SOURCE_NOTE_ID=null;
 function $(i){return document.getElementById(i)}
 // .sidebar va .nav-item co san "display:flex" trong styles.css, manh hon
 // thuoc tinh "hidden" mac dinh cua trinh duyet - phai ep display truc tiep
@@ -81,6 +81,10 @@ var STATUS_CLASS={pending:'status-pending',approved:'status-approved',revision:'
 // mang nay.
 // ============================================
 var CHANGELOG=[
+  {date:'2026-09-06',type:'fix',text:'Sửa lỗi Trưởng phòng/Viện trưởng khu vực có thể duyệt nhầm nhật ký mà KSV đã nộp đích danh cho 1 Phó - nay tách riêng thành 2 khu "Nộp cho tôi" và "Đang chờ người khác xử lý" trong màn Duyệt & chấm điểm.'},
+  {date:'2026-09-06',type:'feature',text:'Ghi chú công việc: thêm nút "Ghi nhật ký cho việc này" - có thể dự thảo trước công việc trong ghi chú, đến khi hoàn thành chỉ cần bấm nút là tự điền sẵn nội dung sang form ghi nhật ký.'},
+  {date:'2026-09-06',type:'feature',text:'Ghi chú công việc: có thể đặt giờ hạn chót và chọn thời điểm muốn được nhắc trước, chuông thông báo sẽ tự nhắc khi sắp đến hạn hoặc đã quá hạn.'},
+  {date:'2026-09-06',type:'improve',text:'Giao việc: làm lại ô chọn "người phối hợp" - chia theo nhóm (Lãnh đạo dưới quyền/Cán bộ, KSV/Người lao động), có thể mở rộng/thu gọn, người đã chọn hiện thành thẻ nhỏ dễ theo dõi, vẫn tìm kiếm và tích chọn như cũ.'},
   {date:'2026-09-06',type:'feature',text:'Thêm lĩnh vực "Kế toán" vào danh sách lĩnh vực công tác khi ghi nhật ký.'},
   {date:'2026-09-06',type:'fix',text:'Nhận xét của lãnh đạo khi duyệt/chấm điểm nay hiển thị đầy đủ kèm theo nhật ký (trước đây bị ẩn mất trong nhiều trường hợp).'},
   {date:'2026-09-05',type:'fix',text:'Sửa lỗi Viện trưởng tỉnh có thể ủy quyền nhầm cho người không đúng cấp - nay chỉ ủy quyền được cho Phó Viện trưởng tỉnh.'},
@@ -764,9 +768,10 @@ function journalCardHtml(log,opts){
     +(canDelete?'<button type="button" class="button button-danger button-small" data-delete-log="'+log.id+'" data-delete-self="'+(canDeleteSelf&&!opts.canDelete?'1':'0')+'">Xoá</button>':'')+'</div></article>';
 }
 
-async function oj(logId,presetTaskId){
+async function oj(logId,presetTaskId,presetNoteId){
   if(!requireActive())return;
   var form=$('journalForm');form.reset();
+  JOURNAL_SOURCE_NOTE_ID=null;
   var log=logId?LOGS.find(function(l){return l.id===logId}):null;
   var canEdit=Boolean(log&&log.status==='revision');
   EDITING_ID=canEdit?log.id:null;
@@ -789,9 +794,22 @@ async function oj(logId,presetTaskId){
     form.elements.rangeStartDate.value=log.range_start_date||'';
   }else{
     form.elements.workDate.valueAsDate=new Date();
+    // Mo tu 1 ghi chu ca nhan ("Ghi nhat ky cho viec nay") - dien san Noi
+    // dung/Ket qua tu tieu de/noi dung ghi chu, cac muc con lai de trong
+    // nhu ghi nhat ky moi binh thuong. Tim trong NOTES_CACHE (da tai san
+    // co san khi dang o man "Ghi chu cong viec"), khong fetch lai.
+    if(presetNoteId){
+      var srcNote=(NOTES_CACHE||[]).find(function(n){return n.id===presetNoteId});
+      if(srcNote){
+        form.elements.title.value=srcNote.title||'';
+        form.elements.result.value=srcNote.content||'';
+        JOURNAL_SOURCE_NOTE_ID=presetNoteId;
+      }
+    }
     // Khoi phuc nhap dang go do (neu co) - chi khi tao MOI thuc su (khong
-    // phai dang gan san 1 viec duoc giao, tranh de nham noi dung cu).
-    if(!presetTaskId){
+    // phai dang gan san 1 viec duoc giao hoac 1 ghi chu, tranh de nham noi
+    // dung cu).
+    if(!presetTaskId&&!presetNoteId){
       var draft=loadJournalDraft();
       if(draft){
         if(draft.category)form.elements.category.value=draft.category;
@@ -822,7 +840,7 @@ async function oj(logId,presetTaskId){
   (canEdit?form.elements.title:form.elements.category).focus();
   if(!canEdit)bindJournalDraftAutosave();
 }
-function cj(){$('journalModal').hidden=true;document.body.style.overflow='';EDITING_ID=null}
+function cj(){$('journalModal').hidden=true;document.body.style.overflow='';EDITING_ID=null;JOURNAL_SOURCE_NOTE_ID=null}
 
 // Tu luu nhap noi dung dang go trong form tao nhat ky MOI (khong ap dung
 // khi dang sua/trinh lai, vi du lieu do da la that) - phong khi lo tat
@@ -1107,6 +1125,16 @@ async function sj(e){
         }
       }
       clearJournalDraft();
+      // Ghi tu 1 ghi chu ca nhan ("Ghi nhat ky cho viec nay") - gui thanh
+      // cong thi coi nhu viec da xong, tu danh dau ghi chu goc "Da xong"
+      // (best-effort, khong chan/lam hong luong gui nhat ky neu loi).
+      if(JOURNAL_SOURCE_NOTE_ID){
+        try{
+          await fetch(API+'personal_notes?id=eq.'+JOURNAL_SOURCE_NOTE_ID,{method:'PATCH',headers:authHeaders({'Content-Type':'application/json','Prefer':'return=minimal'}),body:JSON.stringify({is_done:true})});
+          var cachedNote=(NOTES_CACHE||[]).find(function(n){return n.id===JOURNAL_SOURCE_NOTE_ID});
+          if(cachedNote)cachedNote.is_done=true;
+        }catch(e){}
+      }
       showToast('Đã gửi nhật ký.');
     }
     cj();
@@ -1276,14 +1304,40 @@ async function rt(){
   document.querySelectorAll('[data-report-task]').forEach(function(b){b.addEventListener('click',function(){oj(null,b.dataset.reportTask)})});
 }
 
+// Chia danh sach "nguoi phoi hop" theo nhom vai tro - trong da so truong
+// hop chi can chon 1 lanh dao chu tri + nhieu KSV phoi hop, gom nhom giup
+// don vi dong nguoi (30-70 nguoi) de tim hon la 1 danh sach dai dang.
+var TASK_SUPPORT_GROUP_DEFS=[
+  {label:'Lãnh đạo dưới quyền',roles:['unit_deputy','unit_head','province_deputy'],openByDefault:false},
+  {label:'Cán bộ, Kiểm sát viên',roles:['staff'],openByDefault:true},
+  {label:'Người lao động',roles:['support_staff'],openByDefault:false}
+];
+function taskSupportPickerHtml(){
+  var covered={};
+  TASK_SUPPORT_GROUP_DEFS.forEach(function(def){def.roles.forEach(function(r){covered[r]=true})});
+  var groups=TASK_SUPPORT_GROUP_DEFS.map(function(def){return {def:def,people:TASK_CANDIDATES.filter(function(p){return def.roles.indexOf(p.role)>=0})}});
+  // Vai tro la nao khong khop nhom nao (khong nen xay ra thuc te, de phong
+  // xa) - gom vao nhom dau tien thay vi lam mat nguoi khoi danh sach chon.
+  var uncovered=TASK_CANDIDATES.filter(function(p){return !covered[p.role]});
+  if(uncovered.length)groups[0].people=groups[0].people.concat(uncovered);
+  var groupsHtml=groups.filter(function(g){return g.people.length}).map(function(g){
+    var items=g.people.map(function(p){
+      return '<label data-name="'+esc((p.full_name||'').toLowerCase())+'" data-person-name="'+esc(p.full_name||'')+'"><input type="checkbox" name="supportIds" value="'+p.id+'"> '+esc(p.full_name)+' · '+esc(unitShort(p.unit_id))+'</label>';
+    }).join('');
+    return '<details class="support-group" '+(g.def.openByDefault?'open':'')+'><summary>'+esc(g.def.label)+' ('+g.people.length+')</summary><div class="unit-checklist unit-checklist-lg">'+items+'</div></details>';
+  }).join('');
+  return '<div class="support-picker" id="taskSupportPicker">'
+    +'<div class="support-picker-chips" id="taskSupportChips"><span class="support-picker-chips-empty">Chưa chọn ai</span></div>'
+    +(TASK_CANDIDATES.length>6?'<input type="text" id="taskSupportSearch" placeholder="Tìm theo tên...">':'')
+    +'<div id="taskSupportChecklist">'+groupsHtml+'</div>'
+    +'</div>';
+}
+
 function taskAssignFormHtml(){
   var options=TASK_CANDIDATES.map(function(p){return '<option value="'+p.id+'">'+esc(p.full_name)+' · '+esc(unitShort(p.unit_id))+'</option>'}).join('');
-  var checklist=TASK_CANDIDATES.map(function(p){return '<label data-name="'+esc((p.full_name||'').toLowerCase())+'"><input type="checkbox" name="supportIds" value="'+p.id+'"> '+esc(p.full_name)+' · '+esc(unitShort(p.unit_id))+'</label>'}).join('');
   return '<form class="form-grid compact-form" id="taskAssignForm">'
     +'<label class="field field-wide"><span>Người chủ trì</span><select name="leadId" required>'+options+'</select></label>'
-    +'<div class="field field-wide"><span>Người phối hợp (không bắt buộc) — <span id="taskSupportCount">chưa chọn ai</span></span>'
-    +(TASK_CANDIDATES.length>6?'<input type="text" id="taskSupportSearch" placeholder="Tìm theo tên...">':'')
-    +'<div class="unit-checklist" id="taskSupportChecklist">'+checklist+'</div></div>'
+    +'<div class="field field-wide"><span>Người phối hợp (không bắt buộc)</span>'+taskSupportPickerHtml()+'</div>'
     +'<label class="field field-wide"><span>Tên công việc</span><input type="text" name="title" required maxlength="200"></label>'
     +'<label class="field field-wide"><span>Mô tả / yêu cầu</span><textarea name="description" rows="5" placeholder="Có thể ghi chi tiết yêu cầu, phạm vi công việc..."></textarea></label>'
     +'<label class="field"><span>Hạn gợi ý (không bắt buộc)</span><input type="datetime-local" name="suggestedDueDate"></label>'
@@ -1291,26 +1345,41 @@ function taskAssignFormHtml(){
     +'</form>';
 }
 
-// Tim theo ten (khong dau khong phan biet, giong renderCopyJournalList) +
-// dem so nguoi da chon - can thiet tu khi don vi co toi 30-70 nguoi
-// (truoc day chi vai nguoi, khung 5 dong la du dung).
+// Tim theo ten (khong dau khong phan biet, giong renderCopyJournalList),
+// tu mo het cac nhom dang thu gon khi co tu khoa tim (tranh an mat ket
+// qua nam trong nhom dong) + ve lai khu "Da chon" dang the (chip) moi khi
+// tich/bo tich - can thiet tu khi don vi co toi 30-70 nguoi (truoc day
+// chi vai nguoi, khung 5 dong don gian la du dung).
 function bindTaskAssignExtras(){
   var search=$('taskSupportSearch');
   var checklist=$('taskSupportChecklist');
   if(!checklist)return;
-  function updateCount(){
-    var n=checklist.querySelectorAll('input[type="checkbox"]:checked').length;
-    var el=$('taskSupportCount');
-    if(el)el.textContent=n?n+' đã chọn':'chưa chọn ai';
+  function renderChips(){
+    var chipsEl=$('taskSupportChips');
+    if(!chipsEl)return;
+    var checked=Array.from(checklist.querySelectorAll('input[type="checkbox"]:checked'));
+    if(!checked.length){chipsEl.innerHTML='<span class="support-picker-chips-empty">Chưa chọn ai</span>';return}
+    chipsEl.innerHTML=checked.map(function(cb){
+      var label=cb.closest('label');
+      var name=label?(label.dataset.personName||''):'';
+      return '<span class="support-chip">'+esc(name)+'<button type="button" class="support-chip-remove" data-unselect-support="'+esc(cb.value)+'" aria-label="Bỏ chọn '+esc(name)+'">×</button></span>';
+    }).join('');
+    chipsEl.querySelectorAll('[data-unselect-support]').forEach(function(btn){
+      btn.addEventListener('click',function(){
+        var cb=checklist.querySelector('input[value="'+btn.dataset.unselectSupport+'"]');
+        if(cb){cb.checked=false;renderChips()}
+      });
+    });
   }
-  checklist.addEventListener('change',updateCount);
-  updateCount();
+  checklist.addEventListener('change',renderChips);
+  renderChips();
   if(search){
     search.addEventListener('input',function(){
       var q=search.value.trim().normalize('NFC').toLowerCase();
       checklist.querySelectorAll('label').forEach(function(label){
         label.style.display=(!q||(label.dataset.name||'').indexOf(q)>=0)?'':'none';
       });
+      if(q)checklist.querySelectorAll('details.support-group').forEach(function(d){d.open=true});
     });
   }
 }
@@ -1495,6 +1564,7 @@ function renderNotesView(gridDates){
   var newForDay=$('newNoteForDay');if(newForDay)newForDay.addEventListener('click',function(){openNoteModal(NOTES_SELECTED_DATE)});
   document.querySelectorAll('[data-edit-note]').forEach(function(b){b.addEventListener('click',function(){openNoteModal(null,b.dataset.editNote)})});
   document.querySelectorAll('[data-delete-note]').forEach(function(b){b.addEventListener('click',function(){deleteNote(b.dataset.deleteNote)})});
+  document.querySelectorAll('[data-report-note]').forEach(function(b){b.addEventListener('click',function(){oj(null,null,b.dataset.reportNote)})});
   document.querySelectorAll('[data-toggle-note-done]').forEach(function(cb){cb.addEventListener('change',function(){toggleNoteDone(cb.dataset.toggleNoteDone,cb.checked)})});
   bindStickyBoard(gridDates);
 }
@@ -1607,7 +1677,9 @@ function noteCardHtml(note,todayStr2){
   return '<article class="note-card '+(note.is_done?'is-done':'')+' '+(overdue?'is-overdue':'')+'">'
     +'<label class="note-card-check"><input type="checkbox" data-toggle-note-done="'+note.id+'" '+(note.is_done?'checked':'')+'><span>'+esc(note.title)+'</span></label>'
     +(note.content?'<p>'+esc(note.content)+'</p>':'')
-    +'<div class="note-card-actions"><button type="button" class="button button-secondary button-small" data-edit-note="'+note.id+'">Sửa</button><button type="button" class="button button-danger button-small" data-delete-note="'+note.id+'">Xoá</button></div>'
+    +'<div class="note-card-actions">'
+    +(note.is_done?'':'<button type="button" class="button button-primary button-small" data-report-note="'+note.id+'">Ghi nhật ký cho việc này</button>')
+    +'<button type="button" class="button button-secondary button-small" data-edit-note="'+note.id+'">Sửa</button><button type="button" class="button button-danger button-small" data-delete-note="'+note.id+'">Xoá</button></div>'
     +'</article>';
 }
 
@@ -1620,6 +1692,8 @@ function openNoteModal(dateStr,noteId){
   form.elements.noteDate.value=note?note.note_date:(dateStr||NOTES_SELECTED_DATE);
   form.elements.title.value=note?note.title:'';
   form.elements.content.value=note?(note.content||''):'';
+  form.elements.dueTime.value=note&&note.due_time?note.due_time.slice(0,5):'';
+  form.elements.remindBeforeMinutes.value=note&&note.remind_before_minutes!=null?String(note.remind_before_minutes):'';
   $('noteModal').hidden=false;
   form.elements.title.focus();
 }
@@ -1632,15 +1706,18 @@ async function submitNote(e){
   var noteDate=f.get('noteDate');
   var title=(f.get('title')||'').trim();
   var content=(f.get('content')||'').trim();
+  var dueTime=f.get('dueTime')||null;
+  var remindRaw=f.get('remindBeforeMinutes');
+  var remindBeforeMinutes=remindRaw?Number(remindRaw):null;
   if(!noteDate||!title)return;
   var btn=$('noteSubmitButton');btn.disabled=true;
   try{
     if(editingId){
-      var r=await fetch(API+'personal_notes?id=eq.'+editingId,{method:'PATCH',headers:authHeaders({'Content-Type':'application/json','Prefer':'return=minimal'}),body:JSON.stringify({note_date:noteDate,title:title,content:content||null})});
+      var r=await fetch(API+'personal_notes?id=eq.'+editingId,{method:'PATCH',headers:authHeaders({'Content-Type':'application/json','Prefer':'return=minimal'}),body:JSON.stringify({note_date:noteDate,title:title,content:content||null,due_time:dueTime,remind_before_minutes:remindBeforeMinutes})});
       if(!r.ok)throw new Error('HTTP '+r.status);
       showToast('Đã cập nhật ghi chú.');
     }else{
-      var r2=await fetch(API+'personal_notes',{method:'POST',headers:authHeaders({'Content-Type':'application/json','Prefer':'return=minimal'}),body:JSON.stringify({user_id:U.id,note_date:noteDate,title:title,content:content||null})});
+      var r2=await fetch(API+'personal_notes',{method:'POST',headers:authHeaders({'Content-Type':'application/json','Prefer':'return=minimal'}),body:JSON.stringify({user_id:U.id,note_date:noteDate,title:title,content:content||null,due_time:dueTime,remind_before_minutes:remindBeforeMinutes})});
       if(!r2.ok)throw new Error('HTTP '+r2.status);
       showToast('Đã thêm ghi chú.');
     }
@@ -1998,11 +2075,47 @@ async function fetchReviewQueue(){
   if(!r.ok)throw new Error('HTTP '+r.status);
   var pending=(await r.json()).filter(function(l){return l.author_id!==U.id});
   if(!pending.length)return [];
-  var ids=Array.from(new Set(pending.map(function(l){return l.author_id}))).join(',');
+  // Lay chung ca tac gia LAN nguoi duoc nop cho (submitted_to_id) trong 1
+  // lan fetch - can ten cua ca 2 de tach khu "nop cho toi" / "nop cho
+  // nguoi khac" o rr() (xem groupQueueBySubmittedTo).
+  var ids=Array.from(new Set(
+    pending.map(function(l){return l.author_id})
+      .concat(pending.map(function(l){return l.submitted_to_id}).filter(Boolean))
+  )).join(',');
   var pr=await fetch(API+'profiles?id=in.('+ids+')&select=id,full_name,title,role,unit_id',{headers:authHeaders()});
-  var authors=pr.ok?await pr.json():[];
-  var authorMap={};authors.forEach(function(a){authorMap[a.id]=a});
-  return pending.filter(function(l){return canReviewLog(l,authorMap[l.author_id])}).map(function(l){l._author=authorMap[l.author_id];return l});
+  var people=pr.ok?await pr.json():[];
+  var peopleMap={};people.forEach(function(a){peopleMap[a.id]=a});
+  return pending.filter(function(l){return canReviewLog(l,peopleMap[l.author_id])}).map(function(l){
+    l._author=peopleMap[l.author_id];
+    l._submittedTo=l.submitted_to_id?peopleMap[l.submitted_to_id]:null;
+    return l;
+  });
+}
+
+// Nhat ky KSV da nop DICH DANH cho nguoi khac (khong phai minh) nhung minh
+// van co quyen xem/duyet (vi du Truong phong voi nhat ky nop cho 1 Pho) -
+// dung de tach rieng khoi hang cho chinh, tranh "gianh" duyet nham phan
+// viec dang lam cua nguoi khac. Xem rr().
+function isQueueItemForOthers(l){return !!(l.submitted_to_id&&l.submitted_to_id!==U.id)}
+
+// Gom theo NGUOI DUOC NOP CHO (khac groupQueueByAuthor gom theo tac gia) -
+// dung cho khu phu "Dang cho nguoi khac xu ly", de thay ro tung nhat ky
+// dang cho DUNG Pho nao xu ly.
+function groupQueueBySubmittedTo(queue){
+  var order=[],byId={};
+  queue.forEach(function(l){
+    var key=l.submitted_to_id||'__unknown__';
+    if(!byId[key]){byId[key]={submittedTo:l._submittedTo||null,items:[]};order.push(key)}
+    byId[key].items.push(l);
+  });
+  var groups=order.map(function(key){return byId[key]});
+  groups.forEach(function(g){g.items.sort(function(a,b){return (submittedAtOf(b)||'').localeCompare(submittedAtOf(a)||'')})});
+  groups.sort(function(a,b){
+    var at=a.items[0]?submittedAtOf(a.items[0]):'';
+    var bt=b.items[0]?submittedAtOf(b.items[0]):'';
+    return (bt||'').localeCompare(at||'');
+  });
+  return groups;
 }
 
 // Gom danh sach cho duyet theo tung tac gia (KSV), xep theo lan nop gan
@@ -2027,6 +2140,33 @@ function groupQueueByAuthor(queue){
   return groups;
 }
 
+function authorQueueGroupHtml(g){
+  var authorName=g.author?esc(g.author.full_name||''):'Không xác định tác giả';
+  var authorUnit=g.author?esc(unitShort(g.author.unit_id)):'';
+  var items=g.items.map(function(l,idx){
+    return '<button class="queue-item '+(l.id===SELECTED_REVIEW_ID?'is-selected':'')+'" data-review-id="'+l.id+'">'
+      +'<span class="queue-index">'+(idx+1)+'</span>'
+      +'<span class="queue-item-body"><p>'+esc(l.title)+'</p><span class="queue-meta">'+(l.revision_count?'<span class="resubmission-badge">Trình lại lần '+l.revision_count+'</span>':'')+'<span>'+shortDateTime(submittedAtOf(l))+'</span></span></span>'
+      +'</button>';
+  }).join('');
+  return '<div class="queue-group"><div class="queue-group-header"><strong>'+authorName+'</strong>'+(authorUnit?'<span>'+authorUnit+'</span>':'')+'</div>'+items+'</div>';
+}
+
+// Khu phu "Dang cho nguoi khac xu ly" - gom theo NGUOI DUOC NOP CHO, moi
+// nhat ky hien them ro tac gia (vi 1 nhom o day co the co nhieu KSV khac
+// nhau cung nop cho 1 Pho) + gio nop, de nguoi xem biet dung "dang cho ai".
+function othersQueueGroupHtml(g){
+  var toName=g.submittedTo?esc(g.submittedTo.full_name||''):'Không xác định';
+  var items=g.items.map(function(l,idx){
+    var authorName=l._author?esc(l._author.full_name||''):'—';
+    return '<button class="queue-item '+(l.id===SELECTED_REVIEW_ID?'is-selected':'')+'" data-review-id="'+l.id+'">'
+      +'<span class="queue-index">'+(idx+1)+'</span>'
+      +'<span class="queue-item-body"><p>'+esc(l.title)+'</p><span class="queue-meta"><span class="meta-tag">'+authorName+'</span>'+(l.revision_count?'<span class="resubmission-badge">Trình lại lần '+l.revision_count+'</span>':'')+'<span>Nộp lúc '+shortDateTime(submittedAtOf(l))+'</span></span></span>'
+      +'</button>';
+  }).join('');
+  return '<div class="queue-group"><div class="queue-group-header"><strong>Nộp cho: '+toName+'</strong></div>'+items+'</div>';
+}
+
 async function rr(){
   $('pageEyebrow').textContent='CHỜ DUYỆT';$('pageTitle').textContent='Duyệt và chấm điểm';
   if(!isLeader()){V='dashboard';render();return}
@@ -2037,24 +2177,31 @@ async function rr(){
   updatePendingBadge(queue.length);
   if(!SELECTED_REVIEW_ID||!queue.some(function(l){return l.id===SELECTED_REVIEW_ID})){SELECTED_REVIEW_ID=queue[0]?queue[0].id:null}
   var selected=queue.find(function(l){return l.id===SELECTED_REVIEW_ID});
+  // Tach 2 khu de tranh "gianh" duyet nham phan da nop dich danh cho nguoi
+  // khac (vd Truong phong mo hang cho thay ca nhat ky KSV da nop cho 1
+  // Pho) - myQueue la phan nop thang cho chinh minh (hoac khong chi dinh
+  // ai), othersQueue la phan minh CO QUYEN xem/duyet (can_review_log van
+  // tra ve true, cap truong luon co toan quyen) nhung KSV da chon nguoi
+  // khac - van xem/can thiep duoc, chi khong nam lan trong hang chinh.
+  var myQueue=queue.filter(function(l){return !isQueueItemForOthers(l)});
+  var othersQueue=queue.filter(isQueueItemForOthers);
   var h='<div class="toolbar"><div><h2>'+queue.length+' nhật ký chờ đánh giá</h2><p class="metric-context">Chỉ hiển thị nhật ký thuộc phạm vi được phân công.</p></div></div>';
-  h+='<div class="review-layout"><section><details class="review-queue-details" '+(REVIEW_QUEUE_COLLAPSED?'':'open')+'><summary>Danh sách hàng chờ <span class="review-queue-hint">(bấm để thu gọn/mở rộng)</span></summary><div class="review-queue">';
-  h+=queue.length?groupQueueByAuthor(queue).map(function(g){
-    var authorName=g.author?esc(g.author.full_name||''):'Không xác định tác giả';
-    var authorUnit=g.author?esc(unitShort(g.author.unit_id)):'';
-    var items=g.items.map(function(l,idx){
-      return '<button class="queue-item '+(l.id===SELECTED_REVIEW_ID?'is-selected':'')+'" data-review-id="'+l.id+'">'
-        +'<span class="queue-index">'+(idx+1)+'</span>'
-        +'<span class="queue-item-body"><p>'+esc(l.title)+'</p><span class="queue-meta">'+(l.revision_count?'<span class="resubmission-badge">Trình lại lần '+l.revision_count+'</span>':'')+'<span>'+shortDateTime(submittedAtOf(l))+'</span></span></span>'
-        +'</button>';
-    }).join('');
-    return '<div class="queue-group"><div class="queue-group-header"><strong>'+authorName+'</strong>'+(authorUnit?'<span>'+authorUnit+'</span>':'')+'</div>'+items+'</div>';
-  }).join(''):'<div class="panel empty-state"><strong>Đã xử lý hết</strong><span>Không còn nhật ký chờ đánh giá.</span></div>';
-  h+='</div></details></section><section class="panel review-detail" id="reviewDetailSlot">'+(selected?reviewDetailHtml(selected):'<div class="empty-state"><strong>Không có nhật ký cần xử lý</strong><span>Hãy quay lại khi có nhật ký mới.</span></div>')+'</section></div>';
+  h+='<div class="review-layout"><section>';
+  h+='<details class="review-queue-details" '+(REVIEW_QUEUE_COLLAPSED?'':'open')+'><summary>Nhật ký nộp cho tôi ('+myQueue.length+') <span class="review-queue-hint">(bấm để thu gọn/mở rộng)</span></summary><div class="review-queue">';
+  h+=myQueue.length?groupQueueByAuthor(myQueue).map(authorQueueGroupHtml).join(''):'<div class="panel empty-state"><strong>Đã xử lý hết</strong><span>Không còn nhật ký nộp riêng cho bạn.</span></div>';
+  h+='</div></details>';
+  if(othersQueue.length){
+    h+='<details class="review-queue-details review-queue-others" '+(REVIEW_QUEUE_OTHERS_COLLAPSED?'':'open')+'><summary>Đang chờ người khác xử lý ('+othersQueue.length+') <span class="review-queue-hint">Nhật ký đã nộp đích danh cho người khác trong đơn vị — bạn vẫn xem/can thiệp được khi cần</span></summary><div class="review-queue">'
+      +groupQueueBySubmittedTo(othersQueue).map(othersQueueGroupHtml).join('')
+      +'</div></details>';
+  }
+  h+='</section><section class="panel review-detail" id="reviewDetailSlot">'+(selected?reviewDetailHtml(selected):'<div class="empty-state"><strong>Không có nhật ký cần xử lý</strong><span>Hãy quay lại khi có nhật ký mới.</span></div>')+'</section></div>';
   $('appView').innerHTML=h;
   bindReviewQueueItemClicks();
   var queueDetails=$('appView').querySelector('.review-queue-details');
   if(queueDetails)queueDetails.addEventListener('toggle',function(){REVIEW_QUEUE_COLLAPSED=!queueDetails.open});
+  var othersDetails=$('appView').querySelector('.review-queue-others');
+  if(othersDetails)othersDetails.addEventListener('toggle',function(){REVIEW_QUEUE_OTHERS_COLLAPSED=!othersDetails.open});
   if(selected)bindReviewActions(selected);
 }
 
@@ -3170,6 +3317,29 @@ async function fetchNotifications(){
     (tbr.ok?await tbr.json():[]).forEach(function(t){
       var due=t.actual_due_date||t.suggested_due_date;
       if(due&&new Date(due)<nowT2)list.push({id:'task-overdue-assigner-'+t.id,tone:'escalation',title:'Việc đã giao quá hạn chưa hoàn thành',message:((t.assignee&&t.assignee.full_name)||'Cán bộ')+': '+t.title,time:formatDateTime(due),view:'tasks'});
+    });
+  }catch(e){}
+  // Nhac han ghi chu cong viec (chi ap dung cho ghi chu da chon "Nhac toi
+  // truoc" - remind_before_minutes khac null la "cong tac"). due_time
+  // khong bat buoc, bo trong coi nhu han la cuoi ngay 23:59. Dung gio dia
+  // phuong (khong qua chuoi UTC) khi ghep ngay+gio de tranh dung lai loi
+  // lech mui gio da tung gap va sua o weekdayDatesBetween().
+  try{
+    var nowN=new Date();
+    var nr2=await fetch(API+'personal_notes?user_id=eq.'+U.id+'&is_done=eq.false&remind_before_minutes=not.is.null&select=id,title,note_date,due_time,remind_before_minutes',{headers:authHeaders()});
+    (nr2.ok?await nr2.json():[]).forEach(function(note){
+      var dateParts=(note.note_date||'').split('-').map(Number);
+      if(dateParts.length!==3)return;
+      var timeParts=(note.due_time||'23:59').split(':').map(Number);
+      var dueMoment=new Date(dateParts[0],dateParts[1]-1,dateParts[2],timeParts[0]||0,timeParts[1]||0,0);
+      var remindMoment=new Date(dueMoment.getTime()-note.remind_before_minutes*60000);
+      var p2=function(n){return String(n).padStart(2,'0')};
+      var dueLabel=p2(dueMoment.getDate())+'/'+p2(dueMoment.getMonth()+1)+'/'+dueMoment.getFullYear()+' '+p2(dueMoment.getHours())+':'+p2(dueMoment.getMinutes());
+      if(nowN>=dueMoment){
+        list.push({id:'note-overdue-'+note.id,tone:'escalation',title:'Ghi chú đã quá hạn',message:note.title+' — hạn '+dueLabel,time:dueLabel,view:'notes'});
+      }else if(nowN>=remindMoment){
+        list.push({id:'note-reminder-'+note.id,tone:'reminder',title:'Ghi chú sắp đến hạn',message:note.title+' — hạn '+dueLabel,time:dueLabel,view:'notes'});
+      }
     });
   }catch(e){}
   if(isLeader()){

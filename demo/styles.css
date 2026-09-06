@@ -685,6 +685,11 @@ tbody tr:hover { background: #fbfbfc; }
 .review-queue { display: grid; gap: 9px; }
 .review-queue-details summary { cursor: pointer; font-weight: 700; font-size: 13px; margin-bottom: 10px; list-style: revert; }
 .review-queue-hint { font-weight: 400; color: var(--muted); font-size: 11px; }
+/* Khu phu "Dang cho nguoi khac xu ly" - nhat ky da nop dich danh cho
+   nguoi khac (vd 1 Pho) nhung minh van co quyen can thiep - tach roi
+   bang duong ke ngan cach de khong lan vao hang chinh, tranh gianh duyet
+   nham. */
+.review-queue-others { margin-top: 18px; padding-top: 16px; border-top: 1px dashed var(--line); }
 @media (min-width: 821px) {
   /* Man hinh rong van hien song song 2 ben nhu cu - an het phan
      tom-tat/mui ten cua <details> de khong doi giao dien desktop. */
@@ -1037,6 +1042,23 @@ tbody tr:hover { background: #fbfbfc; }
    vuong nho - phai ghi de rieng width/height/padding/border. */
 .unit-checklist input[type="checkbox"] { flex: 0 0 auto; width: 16px; height: 16px; margin: 0; padding: 0; border: 1px solid var(--line); accent-color: var(--primary); }
 .unit-checklist-empty { display: inline-block; color: var(--muted); font-size: 11px; font-style: italic; }
+
+/* O chon "nguoi phoi hop" trong Giao viec - phong to + chia nhom vai tro
+   (Lanh dao duoi quyen / Can bo, KSV / Nguoi lao dong) co the mo rong/thu
+   gon, kem khu "Da chon" dang the (chip) phia tren de khong phai do lai
+   trong danh sach dai khi don vi dong nguoi. */
+.support-picker { display: grid; gap: 6px; }
+.support-picker-chips { display: flex; flex-wrap: wrap; gap: 6px; min-height: 30px; padding: 6px 2px; }
+.support-picker-chips-empty { color: var(--muted); font-size: 11px; font-style: italic; align-self: center; }
+.support-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 6px 5px 11px; border-radius: 999px; color: var(--primary-dark); background: var(--primary-light); font-size: 12px; font-weight: 600; }
+.support-chip-remove { display: grid; place-items: center; width: 18px; height: 18px; border: none; border-radius: 50%; color: var(--primary-dark); background: rgba(29,113,184,.16); font-size: 13px; line-height: 1; cursor: pointer; }
+.support-chip-remove:hover { background: rgba(29,113,184,.28); }
+.support-group { border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; overflow: hidden; }
+.support-group:last-child { margin-bottom: 0; }
+.support-group summary { padding: 9px 12px; cursor: pointer; font-weight: 700; font-size: 12.5px; color: var(--text); background: var(--surface-soft); list-style: revert; }
+.unit-checklist-lg { min-width: 220px; max-height: 260px; gap: 6px; padding: 10px 12px; border: none; border-radius: 0; box-shadow: none; border-top: 1px solid var(--line); }
+.unit-checklist-lg label { font-size: 13px; gap: 9px; }
+.unit-checklist-lg input[type="checkbox"] { width: 18px; height: 18px; }
 
 /* Nhom bang "Gan vai tro va don vi" theo tung don vi, gap/mo bang the
    <details> co san cua trinh duyet - khong can thu vien ngoai. */
