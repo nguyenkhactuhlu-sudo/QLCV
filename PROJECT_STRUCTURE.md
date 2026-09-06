@@ -70,7 +70,7 @@ QLCV/
 ├── supabase-auth.js            # Xử lý đăng nhập và khôi phục phiên, dùng chung production
 ├── supabase/
 │   ├── config.toml
-│   ├── migrations/            # 00001 → 00061 (+ 1 file gộp tiện dụng), xem mục 7
+│   ├── migrations/            # 00001 → 00062 (+ 1 file gộp tiện dụng), xem mục 7
 │   └── seed/00001_seed_data.sql
 └── .github/workflows/
     └── deploy-cloudflare.yml  # DUY NHẤT workflow có tác dụng thật (xem mục 4)
@@ -173,6 +173,7 @@ Vẫn giữ nguyên "1 dòng `work_logs` = 1 ngày" (cấu trúc này dùng kh�
 Nguyên tắc cốt lõi: **dòng nhân bản chỉ được tạo SAU KHI đã xử lý xong dòng gốc** (helper dùng chung `create_work_log_clones(p_primary_id)`, bỏ thứ Bảy/Chủ nhật) — nhờ vậy hàng chờ duyệt/chuông thông báo không bao giờ bị nhân N lần cho cùng 1 việc.
 
 - **Công việc nhiều ngày**: chọn "Thời gian thực hiện" = "Nhiều ngày" → hiện thêm ô "Bắt đầu từ ngày". Vẫn chỉ tạo/trình duyệt **1 dòng gốc**; `approve_work_log` sau khi duyệt+chấm điểm xong tự gọi `create_work_log_clones()`. `override_work_log_score` đã mở rộng để đồng bộ điểm mới cho **cả nhóm** khi sửa điểm sau này (dù sửa từ dòng gốc hay 1 dòng nhân bản).
+- **Nhận xét của lãnh đạo hiển thị kèm mọi dòng nhật ký** (thêm 06/09/2026, migration 00062): `work_logs.review_comment` trước đó chỉ hiện trên giao diện khi nhật ký ở trạng thái "Cần bổ sung" hoặc khi bị điều chỉnh điểm lần 2 trở lên — nhận xét kèm theo lần duyệt+chấm điểm ĐẦU TIÊN bị lưu vào DB nhưng không ai xem lại được. Đã sửa `journalCardHtml`/`journalCard` (dùng chung cho cả "Nhật ký của tôi" và "Nhật ký công tác của đơn vị") để luôn hiện khối "Nhận xét của lãnh đạo" khi `status='approved'` và có `review_comment`. Đồng thời `create_work_log_clones()` và `override_work_log_score()` được sửa để copy/đồng bộ `review_comment` cho **cả nhóm nhân bản** (trước đó chỉ đồng bộ 2 cột điểm, bỏ sót nhận xét) — nếu không, các ngày nhân bản của 1 việc nhiều ngày sẽ thiếu nhận xét dù dòng gốc có.
 - **Nghỉ phép**: nút riêng "+ Ghi nghỉ phép", dùng 1 danh mục đặc biệt trong `work_categories` (`code='NGHI_PHEP'`, cột mới `is_leave=true`) — **không** hiện trong danh sách lĩnh vực chọn thủ công khi ghi nhật ký thường. Không chấm điểm — lãnh đạo dùng RPC riêng `acknowledge_leave_log(p_log_id)` (chỉ "Xác nhận đã biết", không có điểm) thay vì `approve_work_log` (RPC này chủ động từ chối nếu category `is_leave=true`, buộc dùng đúng RPC).
 - **Công bằng khi tổng hợp tháng**: dòng `is_clone=true` VÀ mọi nhật ký nghỉ phép đều bị loại khỏi Tổng quan/`monthlyEvidence()` (đọc `work_logs?is_clone=eq.false` + lọc client-side qua `isLeaveCategory()`) — 1 việc kéo dài 5 ngày không bị tính nặng gấp 5 lần. Ngược lại, các nơi liệt kê theo ngày (Nhật ký của tôi, Nhật ký công tác của đơn vị) **không lọc** — vẫn hiện đủ để thấy đúng ngày nào cũng có ghi nhận.
 - **Giới hạn đã biết**: tối đa 60 ngày/lần ghi (CHECK constraint), nội dung mô tả sao y nguyên giống hệt mọi ngày nhân bản (không sửa riêng từng ngày), tự động bỏ thứ Bảy/Chủ nhật (không có tùy chọn bật lại).

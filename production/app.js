@@ -717,18 +717,20 @@ function journalCardHtml(log,opts){
   var resubmission=log.revision_count?'<span class="meta-tag">Đã trình lại '+log.revision_count+' lần</span>':'';
   var isOverridden=log.status==='approved'&&(log._reviewCount||0)>=2;
   var overriddenTag=isOverridden?'<span class="meta-tag meta-tag-warning">Điểm đã được lãnh đạo cấp trên điều chỉnh</span>':'';
-  // Cho tac gia/nguoi cham truoc biet AI vua dieu chinh + vi sao (khong bat
-  // buoc co ly do - xem migration 00048). reviewerName lay tu opts (ruj -
-  // tra cuu qua UJ_PEOPLE) hoac tu log.reviewer (rj - join san qua select).
-  var overrideReviewerName=opts.reviewerName||(log.reviewer&&log.reviewer.full_name)||'';
-  var overriddenFeedback=isOverridden?'<div class="override-feedback"><strong>Điểm đã được lãnh đạo cấp trên điều chỉnh'+(overrideReviewerName?(' · '+esc(overrideReviewerName)):'')+'</strong><span>'+esc(log.review_comment||'Không có giải thích thêm.')+'</span></div>':'';
+  // Nhan xet cua lanh dao (neu co) hien luon kem nhat ky da xac nhan + cham
+  // diem - khong chi rieng khi bi dieu chinh lai (truoc day chi hien trong
+  // truong hop do). reviewerName lay tu opts (ruj - tra cuu qua UJ_PEOPLE)
+  // hoac tu log.reviewer (rj - join san qua select) - dung 1 nguon cho ca
+  // "Nhat ky cua toi" lan "Nhat ky cong tac cua don vi".
+  var reviewerName=opts.reviewerName||(log.reviewer&&log.reviewer.full_name)||'';
+  var leaderComment=(log.status==='approved'&&(log.review_comment||'').trim())?'<div class="leader-comment"><strong>Nhận xét của lãnh đạo'+(reviewerName?(' · '+esc(reviewerName)):'')+'</strong><span>'+esc(log.review_comment)+'</span></div>':'';
   var authorTag=opts.authorName?(opts.authorId?'<button type="button" class="meta-tag journal-author-tag" data-uj-jump-person="'+esc(opts.authorId)+'">'+esc(opts.authorName)+'</button>':'<span class="meta-tag journal-author-tag">'+esc(opts.authorName)+'</span>'):'';
   var submittedToName=opts.submittedToName||(log.submitted_to&&log.submitted_to.full_name)||null;
   var submittedToTag=submittedToName?'<span class="meta-tag">Nộp cho: '+esc(submittedToName)+'</span>':'';
   var cloneTag=log.is_clone?'<span class="meta-tag">Tự động ghi nhận (công việc nhiều ngày)</span>':'';
   return '<article class="journal-card '+(log.status==='revision'?'is-revision':'')+'">'
     +'<div class="journal-date"><strong>'+shortDate(log.log_date)+'</strong>'+(log.log_date||'').slice(0,4)+'</div>'
-    +'<div class="journal-body"><h3>'+esc(log.title)+'</h3><p>'+esc(log.result)+'</p>'+revisionFeedback+overriddenFeedback
+    +'<div class="journal-body"><h3>'+esc(log.title)+'</h3><p>'+esc(log.result)+'</p>'+revisionFeedback+leaderComment
     +'<div class="journal-meta">'+authorTag+'<span class="meta-tag">'+esc(catName(log.category_id))+'</span><span class="meta-tag">'+esc(WORK_ROLE_LABEL[log.work_role]||log.work_role)+'</span><span class="meta-tag">'+esc(DURATION_LABEL[log.duration]||log.duration)+'</span>'+submittedToTag+cloneTag+resubmission+overriddenTag+'<span class="status-pill '+(STATUS_CLASS[log.status]||'')+'">'+(STATUS_LABEL[log.status]||log.status)+'</span></div></div>'
     +'<div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>'+(log.complexity_score==null?'—':log.complexity_score)+'</strong></div><div class="score-box"><span>Chất lượng</span><strong>'+(log.quality_score==null?'—':log.quality_score)+'</strong></div></div>'
     +(canEdit?'<button type="button" class="button button-primary button-small" data-edit-journal="'+log.id+'">Sửa và trình lại</button>':'')

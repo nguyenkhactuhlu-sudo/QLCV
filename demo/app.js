@@ -1309,13 +1309,13 @@ function journalCard(log, opts = {}) {
   const revisionFeedback = log.status === "revision" ? `<div class="revision-feedback"><strong>Lãnh đạo yêu cầu bổ sung</strong><span>${log.comment || "Cần chỉnh sửa, làm rõ kết quả công tác."}</span></div>` : "";
   const resubmission = log.revisionCount ? `<span class="meta-tag">Đã trình lại ${log.revisionCount} lần</span>` : "";
   const overriddenTag = overridden ? `<span class="meta-tag meta-tag-warning">Điểm đã được lãnh đạo cấp trên điều chỉnh</span>` : "";
-  // Cho tac gia/nguoi cham truoc biet AI vua dieu chinh + vi sao (khong bat
-  // buoc co ly do).
-  const overrideReviewer = overridden ? userById(log.reviewerId) : null;
-  const overriddenFeedback = overridden ? `<div class="override-feedback"><strong>Điểm đã được lãnh đạo cấp trên điều chỉnh${overrideReviewer ? " · " + overrideReviewer.name : ""}</strong><span>${log.comment || "Không có giải thích thêm."}</span></div>` : "";
+  // Nhan xet cua lanh dao (neu co) hien luon kem nhat ky da xac nhan + cham
+  // diem - khong chi rieng khi bi dieu chinh lai.
+  const reviewer = log.status === "approved" ? userById(log.reviewerId) : null;
+  const leaderComment = (log.status === "approved" && log.comment) ? `<div class="leader-comment"><strong>Nhận xét của lãnh đạo${reviewer ? " · " + reviewer.name : ""}</strong><span>${log.comment}</span></div>` : "";
   const authorTag = opts.authorName ? (opts.authorId ? `<button type="button" class="meta-tag journal-author-tag" data-uj-jump-person="${opts.authorId}">${opts.authorName}</button>` : `<span class="meta-tag journal-author-tag">${opts.authorName}</span>`) : "";
   const cloneTag = log.isClone ? `<span class="meta-tag">Tự động ghi nhận (công việc nhiều ngày)</span>` : "";
-  return `<article class="journal-card ${log.status === "revision" ? "is-revision" : ""}"><div class="journal-date"><strong>${shortDate(log.date)}</strong>${log.date.slice(0,4)}</div><div class="journal-body"><h3>${log.title}</h3><p>${log.result}</p>${revisionFeedback}${overriddenFeedback}<div class="journal-meta">${authorTag}<span class="meta-tag">${log.category}</span><span class="meta-tag">${log.workRole}</span><span class="meta-tag">${log.duration}</span>${submittedToTag}${cloneTag}${resubmission}${overriddenTag}<span class="status-pill ${statusClass(log.status)}">${statusLabel(log.status)}</span></div></div><div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>${log.complexity ?? "—"}</strong></div><div class="score-box"><span>Chất lượng</span><strong>${log.quality ?? "—"}</strong></div></div>${canEdit ? `<button type="button" class="button button-primary button-small" data-edit-journal="${log.id}">Sửa và trình lại</button>` : ""}${canOverride ? `<button type="button" class="button button-secondary button-small" data-override-score="${log.id}">Điều chỉnh điểm</button>` : ""}${canDelete ? `<button type="button" class="button button-danger button-small" data-delete-log="${log.id}" data-delete-self="${canDeleteSelf ? "1" : "0"}">Xoá</button>` : ""}</div></article>`;
+  return `<article class="journal-card ${log.status === "revision" ? "is-revision" : ""}"><div class="journal-date"><strong>${shortDate(log.date)}</strong>${log.date.slice(0,4)}</div><div class="journal-body"><h3>${log.title}</h3><p>${log.result}</p>${revisionFeedback}${leaderComment}<div class="journal-meta">${authorTag}<span class="meta-tag">${log.category}</span><span class="meta-tag">${log.workRole}</span><span class="meta-tag">${log.duration}</span>${submittedToTag}${cloneTag}${resubmission}${overriddenTag}<span class="status-pill ${statusClass(log.status)}">${statusLabel(log.status)}</span></div></div><div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>${log.complexity ?? "—"}</strong></div><div class="score-box"><span>Chất lượng</span><strong>${log.quality ?? "—"}</strong></div></div>${canEdit ? `<button type="button" class="button button-primary button-small" data-edit-journal="${log.id}">Sửa và trình lại</button>` : ""}${canOverride ? `<button type="button" class="button button-secondary button-small" data-override-score="${log.id}">Điều chỉnh điểm</button>` : ""}${canDelete ? `<button type="button" class="button button-danger button-small" data-delete-log="${log.id}" data-delete-self="${canDeleteSelf ? "1" : "0"}">Xoá</button>` : ""}</div></article>`;
 }
 
 // Gom danh sach cho duyet theo tung tac gia (KSV), xep theo lan nop gan
@@ -1729,7 +1729,7 @@ function createLogClones(primaryLog) {
       evidence: primaryLog.evidence, selfComplexity: null, selfQuality: null,
       submittedToId: primaryLog.submittedToId, rangeStartDate: null,
       status: "approved", complexity: primaryLog.complexity, quality: primaryLog.quality,
-      reviewerId: primaryLog.reviewerId, comment: "", createdAt: new Date().toISOString(), reviewedAt: primaryLog.reviewedAt,
+      reviewerId: primaryLog.reviewerId, comment: primaryLog.comment || "", createdAt: new Date().toISOString(), reviewedAt: primaryLog.reviewedAt,
       taskAssignmentId: null, isClone: true, cloneGroupId: primaryLog.id
     });
   });
@@ -1826,6 +1826,16 @@ function submitOverrideScore(event) {
   const reviewedAt = new Date().toISOString();
   Object.assign(log, { complexity, quality, comment, reviewerId: reviewer.id, reviewedAt });
   log.scoringHistory = [...(log.scoringHistory || []), { reviewerId: reviewer.id, complexity, quality, comment, at: reviewedAt }];
+  // Dong bo diem + nhan xet cho ca nhom nhan ban (neu day la 1 phan cua
+  // "cong viec nhieu ngay") - giong het override_work_log_score phia
+  // production (migration 00060/00062), tranh cac ngay con lai trong
+  // nhom bi lech diem/nhan xet so voi ngay vua duoc dieu chinh.
+  const anchorId = log.cloneGroupId || log.id;
+  logs.forEach(other => {
+    if (other.id !== log.id && (other.id === anchorId || other.cloneGroupId === anchorId)) {
+      Object.assign(other, { complexity, quality, comment });
+    }
+  });
   saveLogs();
   const author = userById(log.authorId);
   // Tach rieng thong bao cho tac gia (co the la nhan vien thuong, khong

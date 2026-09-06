@@ -649,9 +649,16 @@ tbody tr:hover { background: #fbfbfc; }
 .revision-feedback strong, .revision-notice strong, .resubmission-context strong { color: var(--red); font-size: 12px; }
 .revision-feedback span, .revision-notice span, .resubmission-context span { font-size: 12px; line-height: 1.45; }
 .resubmission-context { margin-bottom: 16px; border-left-color: var(--blue); background: var(--blue-soft); }
-/* Bao cho tac gia/nguoi cham truoc biet lanh dao cap tren vua dieu chinh
-   diem - dung tong mau vang (giong .meta-tag-warning), khac mau do cua
-   ".revision-feedback" vi day khong phai "can bo sung", chi la thong tin. */
+/* Nhan xet cua lanh dao di kem nhat ky da xac nhan/da cham diem (ca khi
+   duyet lan dau lan khi bi dieu chinh lai sau do) - dung tong mau xanh la
+   giong trang thai "Da xac nhan", khac mau do cua ".revision-feedback" vi
+   day khong phai "can bo sung", chi la thong tin tham khao. */
+.leader-comment { display: grid; gap: 4px; margin: 10px 0; padding: 10px 12px; border-left: 3px solid var(--green); border-radius: 8px; color: var(--text); background: var(--green-soft); }
+.leader-comment strong { color: var(--green); font-size: 12px; }
+.leader-comment span { font-size: 12px; line-height: 1.45; }
+/* Rieng cho khung "Giai trinh khi cham diem chinh thuc" o Cham diem thang
+   (row.note) - van dung tong mau vang nhu truoc, khac voi .leader-comment
+   o nhat ky hang ngay. */
 .override-feedback { display: grid; gap: 4px; margin: 10px 0; padding: 10px 12px; border-left: 3px solid #d4af37; border-radius: 8px; color: #6b5310; background: #fffaf0; }
 .override-feedback strong { color: #8a650d; font-size: 12px; }
 .override-feedback span { font-size: 12px; line-height: 1.45; }
