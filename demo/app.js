@@ -288,6 +288,10 @@ const state = {
   journalSourceNoteId: null,
   taskSearchActive: "",
   taskSearchDone: "",
+  // Khu "Da hoan thanh" mac dinh thu gon (bam moi mo) - tranh danh sach dai
+  // lam tran man hinh (yeu cau nguoi dung, 2026-09-07). Nho trang thai qua
+  // lan render lai de khong tu dong dong lai khi lanh dao dang xem.
+  taskDoneExpanded: false,
   selectedMonthlyUserId: null,
   dashboardUnit: filterPrefs.dashboardUnit || "all",
   dashboardPeriod: filterPrefs.dashboardPeriod || "2026-08",
@@ -3471,6 +3475,23 @@ function taskGroupListHtml(groups, q, emptyText) {
 function bindTaskGroupCardActions(root) {
   root.querySelectorAll("[data-edit-task-group]").forEach(button => button.addEventListener("click", () => openEditTaskModal(button.dataset.editTaskGroup)));
   root.querySelectorAll("[data-delete-task-group]").forEach(button => button.addEventListener("click", () => deleteTaskGroup(button.dataset.deleteTaskGroup)));
+  root.querySelectorAll("[data-report-task-group]").forEach(button => button.addEventListener("click", () => reportTaskGroupLog(button.dataset.reportTaskGroup)));
+}
+
+// Lanh dao lo ghi nhat ky khi giao viec (khong bam "Giao viec va ghi nhat
+// ky" luc do) - nut nay o the "Cong viec da giao" cho ghi bo sung bat cu
+// luc nao, dung lai dung noi dung/kieu chu nhu nhanh "withLog" trong
+// bindTaskAssignForm (yeu cau nguoi dung, 2026-09-07). Chi dien san form,
+// van phai tu xem lai/cham diem va bam Gui nhu nhat ky binh thuong.
+function reportTaskGroupLog(groupId) {
+  const rows = taskAssignments.filter(r => r.taskGroupId === groupId);
+  if (!rows.length) return;
+  const activeRows = rows.filter(r => !r.removedAt);
+  const lead = activeRows.find(r => r.workRole === "chu_tri") || activeRows[0] || rows[0];
+  const leadPerson = userById(lead.assigneeId);
+  const supportPeople = activeRows.filter(r => r !== lead && r.workRole === "phoi_hop").map(r => userById(r.assigneeId)).filter(Boolean);
+  const resultText = `Đã giao việc "${lead.title}" cho ${leadPerson ? leadPerson.name : "—"} (chủ trì)${supportPeople.length ? `, phối hợp: ${supportPeople.map(p => p.name).join(", ")}` : ""}.${lead.description ? ` Yêu cầu: ${lead.description}` : ""}`;
+  openJournalModal(null, null, null, { category: "Quản lý, chỉ đạo điều hành", title: `Giao việc: ${lead.title}`, result: resultText });
 }
 
 // O tim rieng cho tung khu (Dang thuc hien / Da hoan thanh) - chi ve lai
@@ -3531,8 +3552,13 @@ function renderTasks() {
         <div class="task-list" id="taskListActive">${taskGroupListHtml(groupsInProgress, state.taskSearchActive, "Chưa có việc nào đang thực hiện")}</div>
       </section>
       <section class="panel"><div class="panel-header"><div><h2>Đã hoàn thành</h2><p>${groupsDoneList.length} việc</p></div></div>
-        ${groupsDoneList.length ? `<label class="field field-wide task-search-field"><span>Tìm theo tên việc hoặc người thực hiện</span><input type="text" id="taskSearchDoneInput" value="${state.taskSearchDone}" placeholder="Nhập từ khoá..."></label>` : ""}
-        <div class="task-list" id="taskListDone">${taskGroupListHtml(groupsDoneList, state.taskSearchDone, "Chưa có việc nào hoàn thành")}</div>
+        <details class="unit-group task-done-collapse" id="taskDoneCollapse" ${state.taskDoneExpanded ? "open" : ""}>
+          <summary><strong>Xem danh sách đã hoàn thành</strong><span>${groupsDoneList.length} việc</span></summary>
+          <div class="task-done-collapse-body">
+            ${groupsDoneList.length ? `<label class="field field-wide task-search-field"><span>Tìm theo tên việc hoặc người thực hiện</span><input type="text" id="taskSearchDoneInput" value="${state.taskSearchDone}" placeholder="Nhập từ khoá..."></label>` : ""}
+            <div class="task-list" id="taskListDone">${taskGroupListHtml(groupsDoneList, state.taskSearchDone, "Chưa có việc nào hoàn thành")}</div>
+          </div>
+        </details>
       </section>
     </div>` : ""}
     ${canReceive ? `<section class="panel"><div class="panel-header"><div><h2>Công việc được giao</h2><p>${assignedToMe.length} việc</p></div></div>
@@ -3545,6 +3571,8 @@ function renderTasks() {
   bindTaskSearchInputs();
   const openAssignBtn = document.getElementById("openAssignTaskBtn");
   if (openAssignBtn) openAssignBtn.addEventListener("click", openAssignTaskModal);
+  const doneCollapseEl = document.getElementById("taskDoneCollapse");
+  if (doneCollapseEl) doneCollapseEl.addEventListener("toggle", () => { state.taskDoneExpanded = doneCollapseEl.open; });
 }
 
 // Modal "Giao viec moi" - truoc day form nay nam co dinh, dai, ben tren
@@ -3972,6 +4000,7 @@ function taskGroupCardHtml(rows) {
     <div class="task-member-list">${memberRow(lead)}${others.map(memberRow).join("")}${removedRows.map(removedRow).join("")}</div>
     <div class="task-card-actions">
       <button type="button" class="button button-secondary button-small" data-edit-task-group="${lead.taskGroupId}">Sửa</button>
+      <button type="button" class="button button-secondary button-small" data-report-task-group="${lead.taskGroupId}">Ghi nhật ký cho việc này</button>
       <button type="button" class="button button-danger button-small" data-delete-task-group="${lead.taskGroupId}">Xóa</button>
     </div>
   </article>`;

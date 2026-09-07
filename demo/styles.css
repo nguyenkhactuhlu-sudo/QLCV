@@ -213,7 +213,7 @@ body.login-active { overflow: hidden; }
 /* O thong tin nguoi dang dang nhap, dat giua khoi logo va danh sach tab
    de tranh dang nhap nham tai khoan. */
 .sidebar-user-card {
-  margin: 0 0 18px;
+  margin: 0 0 6px;
   padding: 10px 14px;
   border-radius: 12px;
   background: rgba(255,255,255,.07);
@@ -225,7 +225,7 @@ body.login-active { overflow: hidden; }
 .nav-list {
   display: grid;
   gap: 6px;
-  margin-top: 24px;
+  margin-top: 0;
   min-height: 0; /* bat buoc de flex child nay co the co ngan lai va cuon,
                     thay vi giu chieu cao tu nhien va tran ra ngoai sidebar */
   overflow-y: auto;
@@ -1169,6 +1169,10 @@ details.uj-day-card .uj-day-card-logs .journal-card:first-child { margin-top: 12
 .unit-group.is-unassigned { border-color: rgba(212,175,55,.5); }
 .unit-group.is-unassigned summary { background: var(--gold-soft, #fff8e7); }
 .unit-group.is-unassigned summary strong { color: #7a5b00; }
+
+/* Khu "Da hoan thanh" o man Giao viec - tai su dung dung style unit-group,
+   chi them padding rieng cho phan noi dung (o tim + danh sach) khi mo. */
+.task-done-collapse-body { padding: 12px 14px; }
 
 .copy-journal-block { display: flex; flex-direction: column; gap: 10px; margin-bottom: 4px; }
 .copy-journal-panel { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }

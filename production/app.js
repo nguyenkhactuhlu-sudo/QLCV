@@ -93,6 +93,9 @@ var CHANGELOG=[
   {date:'2026-09-07',type:'feature',text:'Giao việc: người giao việc nay có thể "Sửa" (tên việc, mô tả, hạn gợi ý) hoặc "Xóa" việc đã giao, áp dụng cho tất cả người cùng nhận (chủ trì và phối hợp). Nhật ký đã báo cáo (nếu có) không bị xóa theo, chỉ gỡ liên kết.'},
   {date:'2026-09-07',type:'improve',text:'Giao việc/Ghi chú công việc: đổi ô chọn giờ hạn (hạn gợi ý, đặt hạn, giờ hạn chót) sang đúng khung 24 giờ (00-23 giờ), không còn phụ thuộc vào việc trình duyệt hiển thị kiểu sáng/chiều (AM/PM) hay không.'},
   {date:'2026-09-07',type:'fix',text:'Sửa lỗi không sửa được nhật ký đang "Chờ đánh giá" (chưa ai chấm điểm) - trước đây chỉ sửa được nhật ký bị trả lại "Cần bổ sung", muốn sửa nhật ký còn đang chờ duyệt phải xoá rồi ghi lại từ đầu. Nay bấm "Sửa" là chỉnh sửa được luôn.'},
+  {date:'2026-09-07',type:'improve',text:'Giao việc: khu "Đã hoàn thành" nay mặc định thu gọn (chỉ hiện dòng tóm tắt số việc), bấm vào mới mở ra xem danh sách - đỡ chiếm chỗ màn hình.'},
+  {date:'2026-09-07',type:'feature',text:'Giao việc: thêm nút "Ghi nhật ký cho việc này" ngay trên thẻ việc đã giao (cạnh "Sửa"/"Xóa") - dùng khi lãnh đạo lỡ quên ghi nhật ký lúc giao việc, bấm vào là mở sẵn form nhật ký điền trước nội dung, chỉ cần xem lại và gửi.'},
+  {date:'2026-09-07',type:'improve',text:'Thanh điều hướng bên trái: rút ngắn khoảng cách thừa giữa thẻ tên người đăng nhập và nút "Tổng quan", bằng đúng khoảng cách giữa các nút khác cho gọn gàng.'},
   {date:'2026-09-06',type:'feature',text:'Thêm mục riêng "Điểm cộng/trừ đột xuất" (khen thưởng/kỷ luật phát hiện sau khi tháng đã chấm xong) - có thống kê tổng lượt/tổng điểm riêng, ghi thành từng dòng, không bao giờ mất, luôn áp dụng cho tháng hiện tại (không sửa lại điểm tháng đã chốt), người bị/được áp dụng xem được lý do. Có link nhảy nhanh từ "Chấm điểm tháng" sang.'},
   {date:'2026-09-06',type:'feature',text:'Nhật ký công tác của đơn vị: thêm cách xem "Theo ngày" - chọn 1 ngày cụ thể là thấy ngay ai đã nộp việc, ai đang nghỉ phép, ai chưa nộp trong ngày đó, giúp lãnh đạo đôn đốc kịp thời.'},
   {date:'2026-09-06',type:'fix',text:'Sửa lỗi Trưởng phòng/Viện trưởng khu vực có thể duyệt nhầm nhật ký mà KSV đã nộp đích danh cho 1 Phó - nay tách riêng thành 2 khu "Nộp cho tôi" và "Đang chờ người khác xử lý" trong màn Duyệt & chấm điểm.'},
@@ -1300,6 +1303,10 @@ var TASK_STATUS_TONES={pending:'status-pending',reported:'status-info',done:'sta
 var TASK_WORK_ROLE_LABELS={chu_tri:'Chủ trì',phoi_hop:'Phối hợp'};
 var TASKS_BY_ME=[],TASKS_TO_ME=[],TASK_CANDIDATES=[],TASK_GROUP_MEMBERS=[];
 var TASK_SEARCH_ACTIVE='',TASK_SEARCH_DONE='';
+// Khu "Da hoan thanh" mac dinh thu gon (bam moi mo) - tranh danh sach dai
+// lam tran man hinh (yeu cau nguoi dung, 2026-09-07). Nho trang thai qua
+// lan render lai (rt()) de khong tu dong dong lai khi lanh dao dang xem.
+var TASK_DONE_EXPANDED=false;
 
 // Dinh dang co dinh "dd/mm/yyyy hh:mm" (giong shortDateTime nhung khong co
 // dau phay, dung cho han giao viec).
@@ -1358,6 +1365,24 @@ function taskGroupListHtml(groups,q,emptyText){
 function bindTaskGroupCardActions(root){
   root.querySelectorAll('[data-edit-task-group]').forEach(function(b){b.addEventListener('click',function(){openEditTaskModal(b.dataset.editTaskGroup)})});
   root.querySelectorAll('[data-delete-task-group]').forEach(function(b){b.addEventListener('click',function(){deleteTaskGroup(b.dataset.deleteTaskGroup)})});
+  root.querySelectorAll('[data-report-task-group]').forEach(function(b){b.addEventListener('click',function(){reportTaskGroupLog(b.dataset.reportTaskGroup)})});
+}
+
+// Lanh dao lo ghi nhat ky khi giao viec (khong bam "Giao viec va ghi nhat
+// ky" luc do) - nut nay o the "Cong viec da giao" cho ghi bo sung bat cu
+// luc nao, dung lai dung noi dung/kieu chu nhu nhanh "withLog" trong
+// submitTaskAssignment (yeu cau nguoi dung, 2026-09-07). Chi dien san form,
+// van phai tu xem lai/cham diem va bam Gui nhu nhat ky binh thuong.
+function reportTaskGroupLog(groupId){
+  var rows=TASKS_BY_ME.filter(function(r){return r.task_group_id===groupId});
+  if(!rows.length)return;
+  var activeRows=rows.filter(function(r){return !r.removed_at});
+  var lead=activeRows.find(function(r){return r.work_role==='chu_tri'})||activeRows[0]||rows[0];
+  var leadName=(lead.assignee&&lead.assignee.full_name)||'';
+  var supportNames=activeRows.filter(function(r){return r!==lead&&r.work_role==='phoi_hop'}).map(function(r){return r.assignee&&r.assignee.full_name}).filter(Boolean);
+  var mgmtCat=CATS.find(function(c){return c.name==='Quản lý, chỉ đạo điều hành'});
+  var resultText='Đã giao việc "'+lead.title+'" cho '+leadName+' (chủ trì)'+(supportNames.length?(', phối hợp: '+supportNames.join(', ')):'')+'.'+(lead.description?(' Yêu cầu: '+lead.description):'');
+  oj(null,null,null,{categoryId:mgmtCat?mgmtCat.id:'',title:'Giao việc: '+lead.title,result:resultText});
 }
 
 // O tim rieng cho tung khu (Dang thuc hien / Da hoan thanh) - chi ve lai
@@ -1444,8 +1469,12 @@ async function rt(){
       +(groupsByMe.length?'<label class="field field-wide task-search-field"><span>Tìm theo tên việc hoặc người thực hiện</span><input type="text" id="taskSearchActiveInput" value="'+esc(TASK_SEARCH_ACTIVE)+'" placeholder="Nhập từ khoá..."></label>':'')
       +'<div class="task-list" id="taskListActive">'+taskGroupListHtml(groupsInProgress,TASK_SEARCH_ACTIVE,'Chưa có việc nào đang thực hiện')+'</div></section>'
       +'<section class="panel"><div class="panel-header"><div><h2>Đã hoàn thành</h2><p>'+groupsDoneList.length+' việc</p></div></div>'
+      +'<details class="unit-group task-done-collapse" id="taskDoneCollapse"'+(TASK_DONE_EXPANDED?' open':'')+'>'
+      +'<summary><strong>Xem danh sách đã hoàn thành</strong><span>'+groupsDoneList.length+' việc</span></summary>'
+      +'<div class="task-done-collapse-body">'
       +(groupsDoneList.length?'<label class="field field-wide task-search-field"><span>Tìm theo tên việc hoặc người thực hiện</span><input type="text" id="taskSearchDoneInput" value="'+esc(TASK_SEARCH_DONE)+'" placeholder="Nhập từ khoá..."></label>':'')
-      +'<div class="task-list" id="taskListDone">'+taskGroupListHtml(groupsDoneList,TASK_SEARCH_DONE,'Chưa có việc nào hoàn thành')+'</div></section>'
+      +'<div class="task-list" id="taskListDone">'+taskGroupListHtml(groupsDoneList,TASK_SEARCH_DONE,'Chưa có việc nào hoàn thành')+'</div>'
+      +'</div></details></section>'
       +'</div>';
   }
   if(canReceive)h+='<section class="panel"><div class="panel-header"><div><h2>Công việc được giao</h2><p>'+TASKS_TO_ME.length+' việc</p></div></div>'
@@ -1457,6 +1486,8 @@ async function rt(){
   document.querySelectorAll('[data-report-task]').forEach(function(b){b.addEventListener('click',function(){oj(null,b.dataset.reportTask)})});
   bindTaskGroupCardActions(document);
   bindTaskSearchInputs();
+  var doneCollapseEl=$('taskDoneCollapse');
+  if(doneCollapseEl)doneCollapseEl.addEventListener('toggle',function(){TASK_DONE_EXPANDED=doneCollapseEl.open});
   var openAssignBtn=$('openAssignTaskBtn');if(openAssignBtn)openAssignBtn.addEventListener('click',openAssignTaskModal);
 }
 
@@ -1832,7 +1863,9 @@ function taskGroupCardHtml(rows){
     +(lead.description?('<p>'+esc(lead.description)+'</p>'):'')
     +'<div class="task-card-meta">'+(lead.suggested_due_date?('<span>Hạn gợi ý: '+formatDateTime(lead.suggested_due_date)+'</span>'):'')+'</div>'
     +'<div class="task-member-list">'+memberRow(lead)+others.map(memberRow).join('')+removedRows.map(removedRow).join('')+'</div>'
-    +'<div class="task-card-actions"><button type="button" class="button button-secondary button-small" data-edit-task-group="'+lead.task_group_id+'">Sửa</button><button type="button" class="button button-danger button-small" data-delete-task-group="'+lead.task_group_id+'">Xóa</button></div>'
+    +'<div class="task-card-actions"><button type="button" class="button button-secondary button-small" data-edit-task-group="'+lead.task_group_id+'">Sửa</button>'
+    +'<button type="button" class="button button-secondary button-small" data-report-task-group="'+lead.task_group_id+'">Ghi nhật ký cho việc này</button>'
+    +'<button type="button" class="button button-danger button-small" data-delete-task-group="'+lead.task_group_id+'">Xóa</button></div>'
     +'</article>';
 }
 
