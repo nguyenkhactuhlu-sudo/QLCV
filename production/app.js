@@ -81,6 +81,10 @@ var STATUS_CLASS={pending:'status-pending',approved:'status-approved',revision:'
 // mang nay.
 // ============================================
 var CHANGELOG=[
+  {date:'2026-09-07',type:'improve',text:'Tổng quan: đổi cột "Tổng độ phức tạp" trong bảng "Kết quả theo đơn vị/cán bộ" thành "Tỷ lệ đã chấm điểm" (số nhật ký đã được lãnh đạo chấm điểm / tổng số nhật ký đã nộp trong kỳ) - hữu ích hơn để theo dõi tiến độ chấm điểm.'},
+  {date:'2026-09-07',type:'fix',text:'Ô chọn ngày (ghi nhật ký, nghỉ phép, ghi chú, ủy quyền, tra cứu theo ngày...) nay luôn hiển thị đúng thứ tự Ngày/Tháng/Năm quen thuộc, không còn phụ thuộc vào việc trình duyệt hiển thị kiểu ngày/tháng/năm hay tháng/ngày/năm (kiểu Mỹ).'},
+  {date:'2026-09-07',type:'improve',text:'Điểm cộng/trừ đột xuất: Phó phòng/Phó Viện trưởng khu vực nay xem được điều chỉnh của cả đơn vị (trước đây chỉ xem được của chính mình nếu chưa được ủy quyền chấm điểm thay).'},
+  {date:'2026-09-07',type:'improve',text:'Cơ cấu & phân quyền: sau khi bấm "Lưu" vai trò/đơn vị, màn hình không còn đóng hết các nhóm đang mở và nhảy về đầu trang nữa (trước đây gây cảm giác như trang bị tải lại).'},
   {date:'2026-09-07',type:'feature',text:'Giao việc: người giao việc nay có thể "Sửa" (tên việc, mô tả, hạn gợi ý) hoặc "Xóa" việc đã giao, áp dụng cho tất cả người cùng nhận (chủ trì và phối hợp). Nhật ký đã báo cáo (nếu có) không bị xóa theo, chỉ gỡ liên kết.'},
   {date:'2026-09-07',type:'improve',text:'Giao việc/Ghi chú công việc: đổi ô chọn giờ hạn (hạn gợi ý, đặt hạn, giờ hạn chót) sang đúng khung 24 giờ (00-23 giờ), không còn phụ thuộc vào việc trình duyệt hiển thị kiểu sáng/chiều (AM/PM) hay không.'},
   {date:'2026-09-07',type:'fix',text:'Sửa lỗi không sửa được nhật ký đang "Chờ đánh giá" (chưa ai chấm điểm) - trước đây chỉ sửa được nhật ký bị trả lại "Cần bổ sung", muốn sửa nhật ký còn đang chờ duyệt phải xoá rồi ghi lại từ đầu. Nay bấm "Sửa" là chỉnh sửa được luôn.'},
@@ -394,35 +398,46 @@ async function fetchDashboardScopeProfiles(){
   return await r3.json();
 }
 
-function aggregateRowSnake(id,label,items,peopleCount,sublabel){
+// totalCount (so nhat ky da NOP trong ky, moi trang thai) dung de tinh
+// "Ty le da cham diem" = count(da duyet)/totalCount - khac "Ty le >= 8"
+// (chi xet trong so da duyet). Neu khong truyen totalCount (vd bieu do so
+// sanh khong can cot nay), mac dinh lay = count (ty le 100%), tranh chia 0.
+function aggregateRowSnake(id,label,items,peopleCount,sublabel,totalCount){
+  var total=totalCount||items.length;
   return {
     id:id,label:label,sublabel:sublabel||'',people:peopleCount,count:items.length,
-    complexityTotal:items.reduce(function(s,i){return s+(i.complexity_score||0)},0),
     complexityAvg:average(items.map(function(i){return i.complexity_score}).filter(function(v){return Number.isFinite(v)})),
     quality:weightedQualitySnake(items),
-    highQuality:items.filter(function(i){return i.quality_score>=8}).length
+    highQuality:items.filter(function(i){return i.quality_score>=8}).length,
+    reviewedRate:total?(items.length/total*100):0
   };
 }
 
-function aggregateByUnit(approved,people){
+// scope (khong bat buoc): TOAN BO nhat ky da nop trong ky (moi trang thai
+// pending/approved/revision) - dung lam mau so tinh "Ty le da cham diem".
+// approved luon la tap con cua scope (da loc san o rd()).
+function aggregateByUnit(approved,people,scope){
   return dashboardAvailableUnits().map(function(u){
     var subset=approved.filter(function(l){return l.unit_id===u.id});
     var peopleCount=people.filter(function(p){return p.unit_id===u.id}).length;
-    return aggregateRowSnake(u.id,u.short_name||u.code,subset,peopleCount);
+    var totalCount=scope?scope.filter(function(l){return l.unit_id===u.id}).length:undefined;
+    return aggregateRowSnake(u.id,u.short_name||u.code,subset,peopleCount,null,totalCount);
   }).filter(function(row){return row.count>0});
 }
 
-function aggregateByUser(approved,people,unitId){
+function aggregateByUser(approved,people,unitId,scope){
   return people.filter(function(p){return p.unit_id===unitId}).map(function(p){
     var subset=approved.filter(function(l){return l.author_id===p.id});
-    return aggregateRowSnake(p.id,p.full_name,subset,1,p.title);
+    var totalCount=scope?scope.filter(function(l){return l.author_id===p.id}).length:undefined;
+    return aggregateRowSnake(p.id,p.full_name,subset,1,p.title,totalCount);
   }).filter(function(row){return row.count>0});
 }
 
-function aggregateVisibleUsers(approved,people,unitId){
+function aggregateVisibleUsers(approved,people,unitId,scope){
   return people.filter(function(p){return p.role!=='administrator'&&(!unitId||p.unit_id===unitId)}).map(function(p){
     var subset=approved.filter(function(l){return l.author_id===p.id});
-    return aggregateRowSnake(p.id,p.full_name,subset,1,(p.title||'')+' · '+unitShort(p.unit_id));
+    var totalCount=scope?scope.filter(function(l){return l.author_id===p.id}).length:undefined;
+    return aggregateRowSnake(p.id,p.full_name,subset,1,(p.title||'')+' · '+unitShort(p.unit_id),totalCount);
   }).filter(function(row){return row.count>0});
 }
 
@@ -565,12 +580,12 @@ function summaryTableHtml(rows,isUnit,people){
   }
   function personById(id){return people.find(function(p){return p.id===id})}
   var clickable=isLeader();
-  return '<div class="table-sort-help">Chọn tên cột để sắp xếp · nhấn lần nữa để đổi chiều'+(clickable?' · Nhấn 1 dòng để xem nhật ký công tác':'')+'</div><div class="table-wrap"><table><thead><tr><th>'+(isUnit?'Đơn vị':'Cán bộ')+'</th>'+sortableHeader('Kết quả','count')+sortableHeader('Tổng phức tạp','complexityTotal')+sortableHeader('Phức tạp BQ','complexityAvg')+sortableHeader('Chất lượng','quality')+sortableHeader('Tỷ lệ ≥ 8','highQualityRate')+'</tr></thead><tbody>'+sortedRows.map(function(row){
+  return '<div class="table-sort-help">Chọn tên cột để sắp xếp · nhấn lần nữa để đổi chiều'+(clickable?' · Nhấn 1 dòng để xem nhật ký công tác':'')+'</div><div class="table-wrap"><table><thead><tr><th>'+(isUnit?'Đơn vị':'Cán bộ')+'</th>'+sortableHeader('Kết quả','count')+sortableHeader('Tỷ lệ đã chấm điểm','reviewedRate')+sortableHeader('Phức tạp BQ','complexityAvg')+sortableHeader('Chất lượng','quality')+sortableHeader('Tỷ lệ ≥ 8','highQualityRate')+'</tr></thead><tbody>'+sortedRows.map(function(row){
     var firstCell;
     if(isUnit){firstCell='<strong>'+esc(row.label)+'</strong><br><span class="metric-context">'+row.people+' người</span>'}
     else{var p=personById(row.id);firstCell='<div class="person-cell"><span class="mini-avatar">'+esc(p&&p.initials?p.initials:'')+'</span><div><strong>'+esc(row.label)+'</strong><span>'+esc(row.sublabel)+'</span></div></div>'}
     var rowAttr=clickable?(isUnit?' class="summary-row-clickable" data-summary-unit="'+esc(row.id)+'"':' class="summary-row-clickable" data-summary-person="'+esc(row.id)+'"'):'';
-    return '<tr'+rowAttr+'><td>'+firstCell+'</td><td class="numeric">'+row.count+'</td><td class="numeric">'+row.complexityTotal+'</td><td class="numeric">'+row.complexityAvg.toFixed(1)+'</td><td class="numeric"><span class="score-pill '+scoreClassOf(row.quality)+'">'+row.quality.toFixed(1)+'</span></td><td class="numeric">'+(row.highQuality/row.count*100).toFixed(0)+'%</td></tr>';
+    return '<tr'+rowAttr+'><td>'+firstCell+'</td><td class="numeric">'+row.count+'</td><td class="numeric">'+row.reviewedRate.toFixed(0)+'%</td><td class="numeric">'+row.complexityAvg.toFixed(1)+'</td><td class="numeric"><span class="score-pill '+scoreClassOf(row.quality)+'">'+row.quality.toFixed(1)+'</span></td><td class="numeric">'+(row.highQuality/row.count*100).toFixed(0)+'%</td></tr>';
   }).join('')+'</tbody></table></div>';
 }
 
@@ -599,10 +614,10 @@ async function rd(){
   var availableUnits=dashboardAvailableUnits();
   var unitFilterHtml=provinceScope?('<label class="filter-field"><span>Đơn vị</span><select id="dashboardUnitFilter"><option value="all">Tất cả đơn vị</option>'+availableUnits.map(function(u){return '<option value="'+u.id+'" '+(DASHBOARD_UNIT_FILTER===u.id?'selected':'')+'>'+esc(u.short_name||u.code)+'</option>'}).join('')+'</select></label>'):'';
 
-  var grouping=provinceScope?aggregateByUnit(approved,people):aggregateByUser(approved,people,U.uid);
+  var grouping=provinceScope?aggregateByUnit(approved,people,scope):aggregateByUser(approved,people,U.uid,scope);
   var comparisonMode=provinceScope?DASHBOARD_COMPARISON_MODE:'person';
   var personUnitId=DASHBOARD_PERSON_UNIT==='all'?null:DASHBOARD_PERSON_UNIT;
-  var personalGrouping=aggregateVisibleUsers(approved,people,personUnitId);
+  var personalGrouping=aggregateVisibleUsers(approved,people,personUnitId,scope);
   var comparisonGrouping=comparisonMode==='person'?personalGrouping:grouping;
   var tableTitle=provinceScope?'Kết quả theo đơn vị':'Kết quả theo cán bộ';
 
@@ -798,7 +813,7 @@ async function oj(logId,presetTaskId,presetNoteId){
   $('journalRevisionComment').textContent=isRevision?(log.review_comment||''):'';
   populateCategorySelect();
   if(canEdit){
-    form.elements.workDate.value=log.log_date;
+    $('journalWorkDateField').innerHTML=dateOnlyFieldHtml('journalWorkDate',log.log_date);
     form.elements.category.value=log.category_id;
     form.elements.title.value=log.title;
     form.elements.result.value=log.result;
@@ -807,9 +822,10 @@ async function oj(logId,presetTaskId,presetNoteId){
     form.elements.evidence.value=log.evidence||'';
     form.elements.selfComplexity.value=log.self_complexity_score||'';
     form.elements.selfQuality.value=log.self_quality_score||'';
-    form.elements.rangeStartDate.value=log.range_start_date||'';
+    $('journalRangeStartDateField').innerHTML=dateOnlyFieldHtml('journalRangeStartDate',log.range_start_date||null);
   }else{
-    form.elements.workDate.valueAsDate=new Date();
+    $('journalWorkDateField').innerHTML=dateOnlyFieldHtml('journalWorkDate',todayStr());
+    $('journalRangeStartDateField').innerHTML=dateOnlyFieldHtml('journalRangeStartDate',null);
     // Mo tu 1 ghi chu ca nhan ("Ghi nhat ky cho viec nay") - dien san Noi
     // dung/Ket qua tu tieu de/noi dung ghi chu, cac muc con lai de trong
     // nhu ghi nhat ky moi binh thuong. Tim trong NOTES_CACHE (da tai san
@@ -836,8 +852,8 @@ async function oj(logId,presetTaskId,presetNoteId){
         form.elements.evidence.value=draft.evidence||'';
         if(draft.selfComplexity)form.elements.selfComplexity.value=draft.selfComplexity;
         if(draft.selfQuality)form.elements.selfQuality.value=draft.selfQuality;
-        if(draft.workDate)form.elements.workDate.value=draft.workDate;
-        if(draft.rangeStartDate)form.elements.rangeStartDate.value=draft.rangeStartDate;
+        if(draft.workDate)$('journalWorkDateField').innerHTML=dateOnlyFieldHtml('journalWorkDate',draft.workDate);
+        if(draft.rangeStartDate)$('journalRangeStartDateField').innerHTML=dateOnlyFieldHtml('journalRangeStartDate',draft.rangeStartDate);
         showToast('Đã khôi phục nội dung nháp trước đó.');
       }
     }
@@ -868,10 +884,10 @@ function saveJournalDraft(){
   if(EDITING_ID)return;
   var f=$('journalForm');if(!f)return;
   var draft={
-    workDate:f.elements.workDate.value,category:f.elements.category.value,title:f.elements.title.value,
+    workDate:readDateOnly('journalWorkDate',null)||'',category:f.elements.category.value,title:f.elements.title.value,
     result:f.elements.result.value,workRole:f.elements.workRole.value,duration:f.elements.duration.value,
     evidence:f.elements.evidence.value,selfComplexity:f.elements.selfComplexity.value,selfQuality:f.elements.selfQuality.value,
-    rangeStartDate:f.elements.rangeStartDate.value
+    rangeStartDate:readDateOnly('journalRangeStartDate',null)||''
   };
   if(!draft.title&&!draft.result){clearJournalDraft();return}
   try{localStorage.setItem(JOURNAL_DRAFT_KEY,JSON.stringify(draft))}catch(e){}
@@ -1006,14 +1022,13 @@ function toggleJournalRangeField(){
   if(!field||!select)return;
   var isMultiDay=select.value==='nhieu_ngay';
   field.hidden=!isMultiDay;
-  if(!isMultiDay){$('journalForm').elements.rangeStartDate.value='';$('journalRangePreview').textContent=''}
+  if(!isMultiDay){$('journalRangeStartDateField').innerHTML=dateOnlyFieldHtml('journalRangeStartDate',null);$('journalRangePreview').textContent=''}
   else updateJournalRangePreview();
 }
 
 function updateJournalRangePreview(){
   var preview=$('journalRangePreview');if(!preview)return;
-  var form=$('journalForm');
-  var startStr=form.elements.rangeStartDate.value,endStr=form.elements.workDate.value;
+  var startStr=readDateOnly('journalRangeStartDate',null)||'',endStr=readDateOnly('journalWorkDate',null)||'';
   if(!startStr||!endStr){preview.textContent='Chọn đủ "Bắt đầu từ ngày" và "Ngày thực hiện" để xem trước.';return}
   var days=weekdayDatesBetween(startStr,endStr);
   if(!days.length){preview.textContent='Khoảng ngày không hợp lệ (ngày bắt đầu phải trước hoặc bằng ngày thực hiện).';return}
@@ -1041,9 +1056,8 @@ function updateSelfScoreGuide(kind,value){
 }
 
 function checkJournalDateWarning(){
-  var input=$('journalForm').elements.workDate;
   var warning=$('journalDateWarning');
-  var value=input.value;
+  var value=readDateOnly('journalWorkDate',null)||'';
   if(!value){warning.hidden=true;return}
   var today=new Date();
   var todayStr=ymdStr(today.getFullYear(),today.getMonth(),today.getDate());
@@ -1093,14 +1107,19 @@ async function sj(e){
   // Doc truc tiep tu DOM (khong qua FormData) vi o nay co the bi disable
   // khi khoa theo viec duoc giao - truong "disabled" bi FormData bo qua.
   var submittedToId=form.elements.submittedToId.value||null;
+  var workDate=readDateOnly('journalWorkDate','ngày thực hiện');
+  if(workDate===undefined)return; // da chon 1 phan, readDateOnly da bao loi
+  if(!workDate){showToast('Vui lòng chọn ngày thực hiện.');return}
   var isMultiDay=f.get('duration')==='nhieu_ngay';
-  var rangeStartDate=isMultiDay?(f.get('rangeStartDate')||null):null;
+  var rangeStartDate=null;
   if(isMultiDay){
+    rangeStartDate=readDateOnly('journalRangeStartDate','bắt đầu từ ngày');
+    if(rangeStartDate===undefined)return;
     if(!rangeStartDate){showToast('Vui lòng chọn "Bắt đầu từ ngày" cho công việc nhiều ngày.');return}
-    if(rangeStartDate>f.get('workDate')){showToast('"Bắt đầu từ ngày" phải trước hoặc bằng "Ngày thực hiện".');return}
+    if(rangeStartDate>workDate){showToast('"Bắt đầu từ ngày" phải trước hoặc bằng "Ngày thực hiện".');return}
   }
   var payload={
-    log_date:f.get('workDate'),
+    log_date:workDate,
     category_id:f.get('category'),
     title:(f.get('title')||'').trim(),
     result:(f.get('result')||'').trim(),
@@ -1176,8 +1195,7 @@ async function sj(e){
 // ============================================
 function updateLeaveRangePreview(){
   var preview=$('leaveRangePreview');if(!preview)return;
-  var form=$('leaveForm');
-  var startStr=form.elements.leaveStartDate.value,endStr=form.elements.leaveEndDate.value;
+  var startStr=readDateOnly('leaveStartDate',null)||'',endStr=readDateOnly('leaveEndDate',null)||'';
   if(!startStr||!endStr){preview.textContent='Chọn đủ "Từ ngày" và "Đến ngày" để xem trước.';return}
   if(startStr>endStr){preview.textContent='"Từ ngày" phải trước hoặc bằng "Đến ngày".';return}
   var days=weekdayDatesBetween(startStr,endStr);
@@ -1188,10 +1206,12 @@ function updateLeaveRangePreview(){
 async function ol(){
   if(!requireActive())return;
   var form=$('leaveForm');form.reset();
+  $('leaveStartDateField').innerHTML=dateOnlyFieldHtml('leaveStartDate',null);
+  $('leaveEndDateField').innerHTML=dateOnlyFieldHtml('leaveEndDate',null);
   $('leaveRangePreview').textContent='';
   await refreshSubmitToOptions('leaveSubmitToSelect',null);
   $('leaveModal').hidden=false;document.body.style.overflow='hidden';
-  form.elements.leaveStartDate.focus();
+  $('leaveStartDateDay').focus();
 }
 function cl(){$('leaveModal').hidden=true;document.body.style.overflow=''}
 
@@ -1201,7 +1221,11 @@ async function sl(e){
   var form=e.currentTarget;
   var f=new FormData(form);
   var submittedToId=form.elements.submittedToId.value||null;
-  var startStr=f.get('leaveStartDate'),endStr=f.get('leaveEndDate');
+  var startStr=readDateOnly('leaveStartDate','từ ngày');
+  if(startStr===undefined)return;
+  var endStr=readDateOnly('leaveEndDate','đến ngày');
+  if(endStr===undefined)return;
+  if(!startStr||!endStr){showToast('Vui lòng chọn đủ "Từ ngày" và "Đến ngày".');return}
   if(startStr>endStr){showToast('"Từ ngày" phải trước hoặc bằng "Đến ngày".');return}
   var diffDays=Math.round((new Date(endStr+'T00:00:00')-new Date(startStr+'T00:00:00'))/86400000);
   if(diffDays>60){showToast('Khoảng nghỉ phép quá dài (tối đa 60 ngày cho 1 lần ghi).');return}
@@ -1347,8 +1371,69 @@ function minuteOptionsHtml(){
   for(var i=0;i<60;i+=5){var v=String(i).padStart(2,'0');h+='<option value="'+v+'">'+v+'</option>'}
   return h;
 }
-// idPrefix+"Date"/"Hour"/"Minute" la id cua 3 o; isoValue (neu co) dung
-// gio DIA PHUONG de dien san (khong dung
+// Chon NGAY (Ngay/Thang/Nam) bang 3 o rieng, thay cho input[type=date] -
+// CUNG 1 nguyen nhan voi gio o tren: trinh duyet HIEN THI ngay theo NGON
+// NGU TRINH DUYET (kieu My la thang/ngay/nam, kieu Viet la ngay/thang/
+// nam) - GIA TRI luu lai van dung (luon la yyyy-mm-dd), nhung de tranh
+// nguoi dung doc/nhap NHAM thu tu, luon dung 3 o rieng hien DUNG thu tu
+// Ngay/Thang/Nam quen thuoc, khong phu thuoc trinh duyet nua.
+function dayOptionsHtml(){
+  var h='<option value="">Ngày</option>';
+  for(var i=1;i<=31;i++){var v=String(i).padStart(2,'0');h+='<option value="'+v+'">'+v+'</option>'}
+  return h;
+}
+function monthOptionsHtml(){
+  var h='<option value="">Tháng</option>';
+  for(var i=1;i<=12;i++){var v=String(i).padStart(2,'0');h+='<option value="'+v+'">'+v+'</option>'}
+  return h;
+}
+// Danh sach nam luon gom nam hien tai +/- vai nam, va CA nam dang co san
+// (neu sua 1 gia tri cu nam ngoai khoang mac dinh).
+function yearOptionsHtml(includeYear){
+  var nowY=new Date().getFullYear();
+  var lo=nowY-2,hi=nowY+3;
+  if(includeYear){if(includeYear<lo)lo=includeYear;if(includeYear>hi)hi=includeYear}
+  var h='<option value="">Năm</option>';
+  for(var y=lo;y<=hi;y++){h+='<option value="'+y+'">'+y+'</option>'}
+  return h;
+}
+// idPrefix+"Day"/"Month"/"Year" la id cua 3 o; isoDate (neu co, dang
+// "yyyy-mm-dd") dung de dien san.
+function dateOnlyFieldHtml(idPrefix,isoDate){
+  var dayVal='',monthVal='',yearVal=null;
+  if(isoDate){
+    var parts=isoDate.split('-');
+    if(parts.length===3){yearVal=Number(parts[0]);monthVal=parts[1];dayVal=parts[2]}
+  }
+  var dayOpts=dayOptionsHtml().replace('value="'+dayVal+'"','value="'+dayVal+'" selected');
+  var monthOpts=monthOptionsHtml().replace('value="'+monthVal+'"','value="'+monthVal+'" selected');
+  var yearOpts=yearOptionsHtml(yearVal).replace('value="'+(yearVal||'')+'"','value="'+(yearVal||'')+'" selected');
+  return '<span class="date-only-picker">'
+    +'<select id="'+idPrefix+'Day">'+dayOpts+'</select>'
+    +'<span class="due-datetime-sep">/</span>'
+    +'<select id="'+idPrefix+'Month">'+monthOpts+'</select>'
+    +'<span class="due-datetime-sep">/</span>'
+    +'<select id="'+idPrefix+'Year">'+yearOpts+'</select>'
+    +'</span>';
+}
+// Doc lai 3 o thanh chuoi "yyyy-mm-dd" - null neu CHUA chon gi (con rong
+// het), tra ve undefined (khac null) neu chon THIEU (1-2 o). Chi bao
+// showToast khi co fieldLabel (bo trong o nhung noi doc "tham" nhu tu luu
+// nhap dang go, tranh hien loi vo ly luc nguoi dung con dang chon dang
+// do).
+function readDateOnly(idPrefix,fieldLabel){
+  var dayEl=$(idPrefix+'Day'),monthEl=$(idPrefix+'Month'),yearEl=$(idPrefix+'Year');
+  if(!dayEl)return null;
+  var d=dayEl.value,m=monthEl.value,y=yearEl.value;
+  if(!d&&!m&&!y)return null;
+  if(!d||!m||!y){
+    if(fieldLabel)showToast('Vui lòng chọn đủ ngày, tháng, năm cho '+fieldLabel+'.');
+    return undefined;
+  }
+  return y+'-'+m+'-'+d;
+}
+// idPrefix+"Date"+"Day/Month/Year" va idPrefix+"Hour"/"Minute" la id cua
+// 5 o; isoValue (neu co) dung gio DIA PHUONG de dien san (khong dung
 // toISOString() la UTC, se lech gio hien thi).
 function dueDateTimeFieldHtml(idPrefix,isoValue){
   var dateVal='',hourVal='',minuteVal='';
@@ -1364,24 +1449,26 @@ function dueDateTimeFieldHtml(idPrefix,isoValue){
   var hourOpts=hourOptionsHtml().replace('value="'+hourVal+'"','value="'+hourVal+'" selected');
   var minuteOpts=minuteOptionsHtml().replace('value="'+minuteVal+'"','value="'+minuteVal+'" selected');
   return '<div class="due-datetime-picker">'
-    +'<input type="date" id="'+idPrefix+'Date" value="'+dateVal+'">'
+    +dateOnlyFieldHtml(idPrefix+'Date',dateVal||null)
     +'<span class="due-datetime-sep">lúc</span>'
     +'<select id="'+idPrefix+'Hour">'+hourOpts+'</select>'
     +'<span class="due-datetime-colon">:</span>'
     +'<select id="'+idPrefix+'Minute">'+minuteOpts+'</select>'
     +'</div>';
 }
-// Doc lai 3 o thanh 1 chuoi ISO (gio dia phuong) - tra ve null neu chua
-// chon ngay; bao showToast va tra ve undefined (khac null) neu da chon
-// ngay nhung thieu gio/phut, de noi goi kiem tra duoc ca 2 truong hop.
+// Doc lai ca 5 o thanh 1 chuoi ISO (gio dia phuong) - tra ve null neu
+// chua chon ngay; bao showToast va tra ve undefined (khac null) neu chon
+// thieu (ngay hoac gio/phut), de noi goi kiem tra duoc ca 2 truong hop.
 function readDueDateTime(idPrefix,fieldLabel){
-  var dateEl=$(idPrefix+'Date'),hourEl=$(idPrefix+'Hour'),minuteEl=$(idPrefix+'Minute');
-  if(!dateEl||!dateEl.value)return null;
+  var dateStr=readDateOnly(idPrefix+'Date',fieldLabel);
+  if(dateStr===undefined)return undefined; // readDateOnly da bao loi
+  if(!dateStr)return null;
+  var hourEl=$(idPrefix+'Hour'),minuteEl=$(idPrefix+'Minute');
   if(!hourEl.value||!minuteEl.value){
     showToast('Vui lòng chọn đủ giờ và phút cho '+fieldLabel+'.');
     return undefined;
   }
-  var parts=dateEl.value.split('-').map(Number);
+  var parts=dateStr.split('-').map(Number);
   var d=new Date(parts[0],parts[1]-1,parts[2],Number(hourEl.value),Number(minuteEl.value),0);
   return d.toISOString();
 }
@@ -1815,7 +1902,7 @@ function openNoteModal(dateStr,noteId){
   $('noteModalTitle').textContent=note?'Sửa ghi chú công việc':'Thêm ghi chú công việc';
   $('noteSubmitButton').textContent=note?'Lưu thay đổi':'Lưu ghi chú';
   form.dataset.editingNoteId=note?note.id:'';
-  form.elements.noteDate.value=note?note.note_date:(dateStr||NOTES_SELECTED_DATE);
+  $('noteDateField').innerHTML=dateOnlyFieldHtml('noteDate',note?note.note_date:(dateStr||NOTES_SELECTED_DATE));
   form.elements.title.value=note?note.title:'';
   form.elements.content.value=note?(note.content||''):'';
   // Tach "HH:MM:SS" thanh 2 o rieng (Gio/Phut) - xem ly do o
@@ -1834,7 +1921,8 @@ async function submitNote(e){
   e.preventDefault();
   var f=new FormData($('noteForm'));
   var editingId=$('noteForm').dataset.editingNoteId;
-  var noteDate=f.get('noteDate');
+  var noteDate=readDateOnly('noteDate','ngày');
+  if(noteDate===undefined)return;
   var title=(f.get('title')||'').trim();
   var content=(f.get('content')||'').trim();
   var dueTimeHour=f.get('dueTimeHour'),dueTimeMinute=f.get('dueTimeMinute');
@@ -2060,7 +2148,17 @@ async function saveAccountRole(id){
     }
 
     showToast('Đã cập nhật vai trò và đơn vị.');
-    ro();
+    // Giu lai cac nhom <details> dang mo + vi tri cuon man hinh khi ve lai
+    // bang - truoc day ro() ve lai TOAN BO trang tu dau, dong het cac nhom
+    // va nhay cuon ve dau trang, cam giac nhu trang bi tai lai ("reload").
+    var openGroups=Array.from(document.querySelectorAll('[data-role-group]')).filter(function(d){return d.open}).map(function(d){var s=d.querySelector('summary strong');return s?s.textContent:null}).filter(Boolean);
+    var scrollY=window.scrollY;
+    await ro();
+    document.querySelectorAll('[data-role-group]').forEach(function(d){
+      var s=d.querySelector('summary strong');
+      if(s&&openGroups.indexOf(s.textContent)>=0)d.open=true;
+    });
+    window.scrollTo(0,scrollY);
     refreshPendingBadge();
   }catch(e){showToast('Lỗi: '+e.message)}
 }
@@ -2694,7 +2792,7 @@ function renderUnitJournalShell(){
     +recentPeriods().map(function(p){return '<option value="'+p+'" '+(UJ_PERIOD===p?'selected':'')+'>'+esc(periodLabel(p))+'</option>'}).join('')
     +'</select></label>';
   var searchHtml=(UJ_MODE==='person'&&!UJ_SELECTED_PERSON_ID)?'<label class="field"><span>Tìm theo tên</span><input type="text" id="ujSearchInput" value="'+esc(UJ_SEARCH)+'" placeholder="Nhập tên..."></label>':'';
-  var dayFilterHtml=(UJ_MODE==='day')?'<label class="filter-field"><span>Ngày</span><input type="date" id="ujDayFilter" value="'+esc(UJ_DAY_SELECTED)+'" min="'+ujPeriodStart()+'" max="'+ujPeriodEnd()+'"></label>':'';
+  var dayFilterHtml=(UJ_MODE==='day')?'<label class="filter-field"><span>Ngày</span>'+dateOnlyFieldHtml('ujDayFilter',UJ_DAY_SELECTED)+'</label>':'';
   var h='<div class="toolbar uj-toolbar">'
     +'<div class="uj-mode-toggle">'
     +'<button type="button" class="uj-mode-btn '+(UJ_MODE==='person'?'is-active':'')+'" data-uj-mode="person">Theo người</button>'
@@ -2714,8 +2812,20 @@ function renderUnitJournalShell(){
     renderUnitJournalContent();
     var ni=$('ujSearchInput');if(ni){ni.focus();ni.setSelectionRange(caret,caret)}
   });
-  var dayInput=$('ujDayFilter');
-  if(dayInput)dayInput.addEventListener('change',function(e){UJ_DAY_SELECTED=e.target.value;renderUnitJournalContent()});
+  // 3 o Ngay/Thang/Nam rieng (xem dateOnlyFieldHtml) thay cho input[type=
+  // date] - doi gia tri xong thi tu ep lai trong khoang ky dang xem
+  // (truoc day dung thuoc tinh min/max cua input goc).
+  ['Day','Month','Year'].forEach(function(suf){
+    var el=$('ujDayFilter'+suf);
+    if(el)el.addEventListener('change',function(){
+      var v=readDateOnly('ujDayFilter',null);
+      if(!v)return; // chua chon du ca 3 o
+      var start=ujPeriodStart(),end=ujPeriodEnd();
+      if(v<start)v=start;else if(v>end)v=end;
+      UJ_DAY_SELECTED=v;
+      renderUnitJournalContent();
+    });
+  });
 }
 
 function renderUnitJournalContent(){
@@ -3093,8 +3203,10 @@ async function rsa(){
   SA_SCOPE_PEOPLE=scopePeople.filter(function(p){return p.id!==U.id&&canApproveMonthly(p)});
   var rows=[];
   try{
-    // RLS tu gioi han dung pham vi (chinh minh HOAC nguoi minh co quyen
-    // duyet xep loai thang) - khong can loc them o client.
+    // RLS tu gioi han dung pham vi (chinh minh, HOAC nguoi minh co quyen
+    // duyet xep loai thang, HOAC - rieng Pho phong - ca don vi minh de XEM
+    // du chua duoc uy quyen, xem migration 00068) - khong can loc them o
+    // client.
     var r=await fetch(API+'score_adjustments?period=eq.'+SA_PERIOD+'&select=id,user_id,delta,reason,created_at,person:user_id(full_name,title,unit_id),created_by:created_by(full_name)&order=created_at.desc',{headers:authHeaders()});
     rows=r.ok?await r.json():[];
   }catch(e){}
@@ -3121,11 +3233,17 @@ function renderSaShell(){
   var peopleCount=Array.from(new Set(SA_ROWS.map(function(a){return a.user_id}))).length;
   var jumpSelected=SA_JUMP_PERSON_ID&&SA_SCOPE_PEOPLE.some(function(p){return p.id===SA_JUMP_PERSON_ID})?SA_JUMP_PERSON_ID:'';
   SA_JUMP_PERSON_ID=null;
+  // O tim theo ten: hien bat ky khi nao thay DU LIEU CUA NHIEU NGUOI (vd
+  // Pho phong xem duoc ca don vi tu migration 00068 nhung khong tu THEM
+  // duoc dieu chinh cho ai) - khong con gan voi rieng quyen "quan ly"
+  // (canManage) nua, tranh an mat o tim can thiet o nhung tai khoan chi
+  // xem.
+  var canSearch=canManage||peopleCount>1;
 
   var h='<div class="toolbar"><label class="filter-field"><span>Kỳ</span><select id="saPeriodSelect">'
     +recentPeriods().map(function(p){return '<option value="'+p+'" '+(p===SA_PERIOD?'selected':'')+'>'+esc(periodLabel(p))+'</option>'}).join('')
     +'</select></label>'
-    +(canManage?'<label class="field"><span>Tìm theo tên</span><input type="text" id="saSearchInput" value="'+esc(SA_SEARCH)+'" placeholder="Nhập tên..."></label>':'')
+    +(canSearch?'<label class="field"><span>Tìm theo tên</span><input type="text" id="saSearchInput" value="'+esc(SA_SEARCH)+'" placeholder="Nhập tên..."></label>':'')
     +'</div>';
 
   h+='<div class="metric-grid">'
@@ -3966,11 +4084,10 @@ function delegationGrantFormHtml(people,delegations){
     return '<div class="empty-state compact-empty"><strong>Bạn đang có 1 ủy quyền còn hiệu lực</strong><span>Thu hồi ủy quyền hiện tại ở bảng bên dưới trước khi cấp ủy quyền mới.</span></div>';
   }
   var options=deputies.map(function(d){return '<option value="'+d.id+'">'+esc(d.full_name)+' · '+esc(unitShort(d.unit_id))+'</option>'}).join('');
-  var todayStr=new Date().toISOString().slice(0,10);
   return '<div class="form-grid compact-form">'
     +'<label class="field field-wide"><span>'+deputyLabel+'</span><select id="delegationDeputy">'+options+'</select></label>'
-    +'<label class="field"><span>Từ ngày</span><input type="date" id="delegationStart" value="'+todayStr+'"></label>'
-    +'<label class="field"><span>Đến ngày</span><input type="date" id="delegationEnd"></label>'
+    +'<div class="field"><span>Từ ngày</span>'+dateOnlyFieldHtml('delegationStart',todayStr())+'</div>'
+    +'<div class="field"><span>Đến ngày</span>'+dateOnlyFieldHtml('delegationEnd',null)+'</div>'
     +'<p class="metric-context field-wide">'+scopeNote+'</p>'
     +'</div><div class="review-actions"><button class="button button-primary" id="grantDelegation">Cấp ủy quyền</button></div>';
 }
@@ -3997,8 +4114,10 @@ function bindDelegationForm(){
 async function grantDelegationClick(){
   if(!requireActive())return;
   var deputyId=$('delegationDeputy').value;
-  var startsAt=$('delegationStart').value;
-  var endsAt=$('delegationEnd').value;
+  var startsAt=readDateOnly('delegationStart','ngày bắt đầu ủy quyền');
+  if(startsAt===undefined)return;
+  var endsAt=readDateOnly('delegationEnd','ngày kết thúc ủy quyền');
+  if(endsAt===undefined)return;
   if(!deputyId||!startsAt||!endsAt){showToast('Vui lòng chọn đầy đủ Phó phòng và khoảng thời gian.');return}
   if(endsAt<startsAt){showToast('Ngày kết thúc phải sau ngày bắt đầu.');return}
   var btn=$('grantDelegation');btn.disabled=true;
@@ -4176,17 +4295,29 @@ document.addEventListener('DOMContentLoaded',function(){
   document.querySelectorAll('[data-close-modal]').forEach(function(b){b.addEventListener('click',cj)});
   $('journalModal').addEventListener('click',function(e){if(e.target.id==='journalModal')cj()});
   $('journalForm').addEventListener('submit',sj);
-  $('journalForm').elements.workDate.addEventListener('change',function(){checkJournalDateWarning();updateJournalRangePreview()});
+  // journalWorkDateField/journalRangeStartDateField duoc DUNG LAI (innerHTML)
+  // moi lan mo modal/doi "Thoi gian thuc hien" - gan su kien theo kieu uy
+  // quyen (delegation) tren chinh journalForm (khong doi) thay vi tren tung
+  // o <select> (se mat tac dung sau moi lan dung lai).
+  $('journalForm').addEventListener('change',function(e){
+    var id=e.target.id;
+    if(id==='journalWorkDateDay'||id==='journalWorkDateMonth'||id==='journalWorkDateYear'){checkJournalDateWarning();updateJournalRangePreview()}
+    else if(id==='journalRangeStartDateDay'||id==='journalRangeStartDateMonth'||id==='journalRangeStartDateYear'){updateJournalRangePreview()}
+  });
   $('journalForm').elements.duration.addEventListener('change',toggleJournalRangeField);
-  $('journalForm').elements.rangeStartDate.addEventListener('change',updateJournalRangePreview);
   $('journalForm').elements.selfComplexity.addEventListener('input',function(e){updateSelfScoreGuide('Complexity',e.target.value)});
   $('journalForm').elements.selfQuality.addEventListener('input',function(e){updateSelfScoreGuide('Quality',e.target.value)});
   $('journalTaskSelect').addEventListener('change',applyTaskLinkToSubmitTo);
   document.querySelectorAll('[data-close-leave-modal]').forEach(function(b){b.addEventListener('click',cl)});
   $('leaveModal').addEventListener('click',function(e){if(e.target.id==='leaveModal')cl()});
   $('leaveForm').addEventListener('submit',sl);
-  $('leaveForm').elements.leaveStartDate.addEventListener('change',updateLeaveRangePreview);
-  $('leaveForm').elements.leaveEndDate.addEventListener('change',updateLeaveRangePreview);
+  // leaveStartDateField/leaveEndDateField duoc dung lai (innerHTML) moi lan
+  // mo modal - gan su kien theo kieu uy quyen tren leaveForm (khong doi),
+  // giong journalForm o tren.
+  $('leaveForm').addEventListener('change',function(e){
+    var id=e.target.id;
+    if(id.indexOf('leaveStartDate')===0||id.indexOf('leaveEndDate')===0)updateLeaveRangePreview();
+  });
   $('toggleCopyJournal').addEventListener('click',function(){
     var panel=$('copyJournalPanel');
     panel.hidden=!panel.hidden;

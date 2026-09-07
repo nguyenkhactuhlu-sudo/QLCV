@@ -202,11 +202,11 @@
             <option value="phoi_hop">Phối hợp</option>
           </select>
         </label>
-        <label class="field">
+        <div class="field">
           <span>Ngày thực hiện</span>
-          <input type="date" name="workDate" required>
+          <div id="journalWorkDateField"></div>
           <small class="field-warning" id="journalDateWarning" hidden></small>
-        </label>
+        </div>
         <label class="field">
           <span>Thời gian thực hiện</span>
           <select name="duration" required>
@@ -216,11 +216,11 @@
             <option value="nhieu_ngay">Nhiều ngày</option>
           </select>
         </label>
-        <label class="field" id="journalRangeStartField" hidden>
+        <div class="field" id="journalRangeStartField" hidden>
           <span>Bắt đầu từ ngày</span>
-          <input type="date" name="rangeStartDate">
+          <div id="journalRangeStartDateField"></div>
           <small class="field-hint" id="journalRangePreview"></small>
-        </label>
+        </div>
         <label class="field field-wide">
           <span>Mã hồ sơ/tài liệu minh chứng <em>(không bắt buộc)</em></span>
           <input type="text" name="evidence" placeholder="Ví dụ: HS-2026-018 hoặc đường dẫn nội bộ">
@@ -251,14 +251,14 @@
           <span>Nộp cho lãnh đạo</span>
           <select name="submittedToId" id="leaveSubmitToSelect" required></select>
         </label>
-        <label class="field">
+        <div class="field">
           <span>Từ ngày</span>
-          <input type="date" name="leaveStartDate" required>
-        </label>
-        <label class="field">
+          <div id="leaveStartDateField"></div>
+        </div>
+        <div class="field">
           <span>Đến ngày</span>
-          <input type="date" name="leaveEndDate" required>
-        </label>
+          <div id="leaveEndDateField"></div>
+        </div>
         <label class="field field-wide">
           <span>Lý do <em>(không bắt buộc)</em></span>
           <input type="text" name="leaveReason" placeholder="Ví dụ: Nghỉ phép năm, nghỉ ốm...">
@@ -282,7 +282,7 @@
         <button class="icon-button" data-close-note aria-label="Đóng">×</button>
       </div>
       <form id="noteForm" class="form-grid">
-        <label class="field"><span>Ngày</span><input type="date" name="noteDate" required></label>
+        <div class="field"><span>Ngày</span><div id="noteDateField"></div></div>
         <label class="field"><span>Giờ hạn chót <em>(không bắt buộc)</em></span>
           <div class="due-datetime-picker">
             <select name="dueTimeHour" id="noteDueTimeHour">

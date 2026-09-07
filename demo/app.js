@@ -596,17 +596,29 @@ function initialize() {
     if (event.target.id === "journalModal") closeJournalModal();
   });
   document.getElementById("journalForm").addEventListener("submit", submitJournal);
-  document.getElementById("journalForm").elements.workDate.addEventListener("change", () => { checkJournalDateWarning(); updateJournalRangePreview(); });
+  // journalWorkDateField/journalRangeStartDateField duoc DUNG LAI (innerHTML)
+  // moi lan mo modal/doi "Thoi gian thuc hien" - gan su kien theo kieu uy
+  // quyen (delegation) tren chinh journalForm (khong doi) thay vi tren tung
+  // o <select> (se mat tac dung sau moi lan dung lai).
+  document.getElementById("journalForm").addEventListener("change", event => {
+    const id = event.target.id;
+    if (id === "journalWorkDateDay" || id === "journalWorkDateMonth" || id === "journalWorkDateYear") { checkJournalDateWarning(); updateJournalRangePreview(); }
+    else if (id === "journalRangeStartDateDay" || id === "journalRangeStartDateMonth" || id === "journalRangeStartDateYear") updateJournalRangePreview();
+  });
   document.getElementById("journalForm").elements.duration.addEventListener("change", toggleJournalRangeField);
-  document.getElementById("journalForm").elements.rangeStartDate.addEventListener("change", updateJournalRangePreview);
   document.getElementById("journalForm").elements.selfComplexity.addEventListener("input", event => updateSelfScoreGuide("Complexity", event.target.value));
   document.getElementById("journalForm").elements.selfQuality.addEventListener("input", event => updateSelfScoreGuide("Quality", event.target.value));
   document.getElementById("journalTaskSelect").addEventListener("change", applyTaskLinkToSubmitTo);
   document.querySelectorAll("[data-close-leave-modal]").forEach(button => button.addEventListener("click", closeLeaveModal));
   document.getElementById("leaveModal").addEventListener("click", event => { if (event.target.id === "leaveModal") closeLeaveModal(); });
   document.getElementById("leaveForm").addEventListener("submit", submitLeave);
-  document.getElementById("leaveForm").elements.leaveStartDate.addEventListener("change", updateLeaveRangePreview);
-  document.getElementById("leaveForm").elements.leaveEndDate.addEventListener("change", updateLeaveRangePreview);
+  // leaveStartDateField/leaveEndDateField duoc dung lai (innerHTML) moi lan
+  // mo modal - gan su kien theo kieu uy quyen tren leaveForm, giong
+  // journalForm o tren.
+  document.getElementById("leaveForm").addEventListener("change", event => {
+    const id = event.target.id;
+    if (id.startsWith("leaveStartDate") || id.startsWith("leaveEndDate")) updateLeaveRangePreview();
+  });
   document.getElementById("toggleCopyJournal").addEventListener("click", () => {
     const panel = document.getElementById("copyJournalPanel");
     panel.hidden = !panel.hidden;
@@ -992,10 +1004,10 @@ function renderDashboard() {
       ${availableUnits.map(unit => `<option value="${unit.id}" ${state.dashboardUnit === unit.id ? "selected" : ""}>${unit.short}</option>`).join("")}
     </select></label>` : "";
 
-  const grouping = provinceScope ? aggregateByUnit(approved) : aggregateByUser(approved, user.unitId);
+  const grouping = provinceScope ? aggregateByUnit(approved, scope) : aggregateByUser(approved, user.unitId, scope);
   const comparisonMode = provinceScope ? state.dashboardComparisonMode : "person";
   const personUnitId = state.dashboardPersonUnit === "all" ? null : state.dashboardPersonUnit;
-  const personalGrouping = aggregateVisibleUsers(approved, personUnitId);
+  const personalGrouping = aggregateVisibleUsers(approved, personUnitId, scope);
   const comparisonGrouping = comparisonMode === "person" ? personalGrouping : grouping;
   const tableTitle = provinceScope ? "Kết quả theo đơn vị" : "Kết quả theo cán bộ";
 
@@ -1171,37 +1183,46 @@ function groupedUnitComparisonChart(rows) {
   return `<div class="unit-comparison-grid ${groups.length === 1 ? "is-single" : ""}" role="group" aria-label="So sánh chất lượng giữa các đơn vị">${groups.map(group => `<section class="unit-comparison-group ${group.tone}"><div class="unit-group-header"><div><span class="unit-group-stripe"></span><h3>${group.title}</h3></div><strong>${group.rows.length} đơn vị</strong></div><div class="unit-column-labels"><span>Đơn vị</span><span>Chất lượng</span><span>Điểm</span><span>Phức tạp</span></div><div class="unit-compare-list">${group.rows.map(renderRow).join("")}</div></section>`).join("")}</div><div class="chart-legend"><span><i class="legend-swatch swatch-green"></i>Chất lượng từ 8</span><span><i class="legend-swatch swatch-blue"></i>Từ 6,5 đến dưới 8</span><span><i class="legend-swatch swatch-gold"></i>Dưới 6,5</span><span>PT = độ phức tạp bình quân</span></div>`;
 }
 
-function aggregateByUnit(items) {
+// scope (khong bat buoc): TOAN BO nhat ky da nop trong ky (moi trang
+// thai) - dung lam mau so tinh "Ty le da cham diem".
+function aggregateByUnit(items, scope) {
   return units.filter(unit => unit.id !== "province" && visibleUnitIds().includes(unit.id)).map(unit => {
     const subset = items.filter(item => item.unitId === unit.id);
-    return aggregateRow(unit.id, unit.short, subset, users.filter(user => user.unitId === unit.id).length);
+    const totalCount = scope ? scope.filter(item => item.unitId === unit.id).length : undefined;
+    return aggregateRow(unit.id, unit.short, subset, users.filter(user => user.unitId === unit.id).length, "", totalCount);
   }).filter(row => row.count > 0);
 }
 
-function aggregateByUser(items, unitId) {
+function aggregateByUser(items, unitId, scope) {
   const viewer = currentUser();
   return users.filter(user => user.unitId === unitId && isVisibleInUnitScope(user, viewer)).map(user => {
     const subset = items.filter(item => item.authorId === user.id);
-    return aggregateRow(user.id, user.name, subset, 1, user.title);
+    const totalCount = scope ? scope.filter(item => item.authorId === user.id).length : undefined;
+    return aggregateRow(user.id, user.name, subset, 1, user.title, totalCount);
   }).filter(row => row.count > 0);
 }
 
-function aggregateVisibleUsers(items, unitId = null) {
+function aggregateVisibleUsers(items, unitId = null, scope) {
   const viewer = currentUser();
   const visibleUnits = visibleUnitIds(viewer);
   return users.filter(user => visibleUnits.includes(user.unitId) && (!unitId || user.unitId === unitId) && isVisibleInUnitScope(user, viewer)).map(user => {
     const subset = items.filter(item => item.authorId === user.id);
-    return aggregateRow(user.id, user.name, subset, 1, `${user.title} · ${unitById(user.unitId).short}`);
+    const totalCount = scope ? scope.filter(item => item.authorId === user.id).length : undefined;
+    return aggregateRow(user.id, user.name, subset, 1, `${user.title} · ${unitById(user.unitId).short}`, totalCount);
   }).filter(row => row.count > 0);
 }
 
-function aggregateRow(id, label, items, people, sublabel = "") {
+// totalCount (so nhat ky da NOP trong ky, moi trang thai) dung de tinh
+// "Ty le da cham diem" = count(da duyet)/totalCount - khac "Ty le >= 8"
+// (chi xet trong so da duyet). Khong truyen thi mac dinh = count (100%).
+function aggregateRow(id, label, items, people, sublabel = "", totalCount) {
+  const total = totalCount || items.length;
   return {
     id, label, sublabel, people, count: items.length,
-    complexityTotal: items.reduce((sum, item) => sum + (item.complexity || 0), 0),
     complexityAvg: average(items.map(item => item.complexity).filter(Number.isFinite)),
     quality: weightedQuality(items),
-    highQuality: items.filter(item => item.quality >= 8).length
+    highQuality: items.filter(item => item.quality >= 8).length,
+    reviewedRate: total ? (items.length / total * 100) : 0
   };
 }
 
@@ -1276,9 +1297,9 @@ function summaryTable(rows, isUnit) {
     return `<th class="numeric sortable-column" aria-sort="${ariaSort}"><button type="button" class="sort-button ${active ? "is-active" : ""}" data-summary-sort="${sortKey}" title="${hint}"><span>${label}</span><span class="sort-indicator" aria-hidden="true">${symbol}</span></button></th>`;
   };
   const clickable = isLeader();
-  return `<div class="table-sort-help">Chọn tên cột để sắp xếp · nhấn lần nữa để đổi chiều${clickable ? " · Nhấn 1 dòng để xem nhật ký công tác" : ""}</div><div class="table-wrap"><table><thead><tr><th>${isUnit ? "Đơn vị" : "Cán bộ"}</th>${sortableHeader("Kết quả", "count")}${sortableHeader("Tổng phức tạp", "complexityTotal")}${sortableHeader("Phức tạp BQ", "complexityAvg")}${sortableHeader("Chất lượng", "quality")}${sortableHeader("Tỷ lệ ≥ 8", "highQualityRate")}</tr></thead><tbody>${sortedRows.map(row => {
+  return `<div class="table-sort-help">Chọn tên cột để sắp xếp · nhấn lần nữa để đổi chiều${clickable ? " · Nhấn 1 dòng để xem nhật ký công tác" : ""}</div><div class="table-wrap"><table><thead><tr><th>${isUnit ? "Đơn vị" : "Cán bộ"}</th>${sortableHeader("Kết quả", "count")}${sortableHeader("Tỷ lệ đã chấm điểm", "reviewedRate")}${sortableHeader("Phức tạp BQ", "complexityAvg")}${sortableHeader("Chất lượng", "quality")}${sortableHeader("Tỷ lệ ≥ 8", "highQualityRate")}</tr></thead><tbody>${sortedRows.map(row => {
     const rowAttr = clickable ? (isUnit ? ` class="summary-row-clickable" data-summary-unit="${row.id}"` : ` class="summary-row-clickable" data-summary-person="${row.id}"`) : "";
-    return `<tr${rowAttr}><td>${isUnit ? `<strong>${row.label}</strong><br><span class="metric-context">${row.people} người</span>` : `<div class="person-cell"><span class="mini-avatar">${userById(row.id).initials}</span><div><strong>${row.label}</strong><span>${row.sublabel}</span></div></div>`}</td><td class="numeric">${row.count}</td><td class="numeric">${row.complexityTotal}</td><td class="numeric">${row.complexityAvg.toFixed(1)}</td><td class="numeric"><span class="score-pill ${scoreClass(row.quality)}">${row.quality.toFixed(1)}</span></td><td class="numeric">${(row.highQuality / row.count * 100).toFixed(0)}%</td></tr>`;
+    return `<tr${rowAttr}><td>${isUnit ? `<strong>${row.label}</strong><br><span class="metric-context">${row.people} người</span>` : `<div class="person-cell"><span class="mini-avatar">${userById(row.id).initials}</span><div><strong>${row.label}</strong><span>${row.sublabel}</span></div></div>`}</td><td class="numeric">${row.count}</td><td class="numeric">${row.reviewedRate.toFixed(0)}%</td><td class="numeric">${row.complexityAvg.toFixed(1)}</td><td class="numeric"><span class="score-pill ${scoreClass(row.quality)}">${row.quality.toFixed(1)}</span></td><td class="numeric">${(row.highQuality / row.count * 100).toFixed(0)}%</td></tr>`;
   }).join("")}</tbody></table></div>`;
 }
 
@@ -1557,7 +1578,7 @@ function openNoteModal(dateStr, noteId = null) {
   document.getElementById("noteModalTitle").textContent = note ? "Sửa ghi chú công việc" : "Thêm ghi chú công việc";
   document.getElementById("noteSubmitButton").textContent = note ? "Lưu thay đổi" : "Lưu ghi chú";
   form.dataset.editingNoteId = note ? note.id : "";
-  form.elements.noteDate.value = note ? note.noteDate : (dateStr || state.notesSelectedDate);
+  document.getElementById("noteDateField").innerHTML = dateOnlyFieldHtml("noteDate", note ? note.noteDate : (dateStr || state.notesSelectedDate));
   form.elements.title.value = note ? note.title : "";
   form.elements.content.value = note ? note.content || "" : "";
   const dueTimeParts = (note && note.dueTime) ? note.dueTime.split(":") : ["", ""];
@@ -1577,7 +1598,8 @@ function submitNote(event) {
   const form = event.currentTarget;
   const data = new FormData(form);
   const editingId = form.dataset.editingNoteId;
-  const noteDate = data.get("noteDate");
+  const noteDate = readDateOnly("noteDate", "ngày");
+  if (noteDate === undefined) return;
   const title = String(data.get("title") || "").trim();
   const content = String(data.get("content") || "").trim();
   const dueTimeHour = data.get("dueTimeHour"), dueTimeMinute = data.get("dueTimeMinute");
@@ -2123,7 +2145,7 @@ function renderUnitJournal() {
   const unitFilterHtml = availableUnits.length > 1 ? `<label class="filter-field"><span>Đơn vị</span><select id="ujUnitFilter"><option value="all">Tất cả đơn vị</option>${availableUnits.map(u => `<option value="${u.id}" ${state.ujUnitFilter === u.id ? "selected" : ""}>${u.short}</option>`).join("")}</select></label>` : "";
   const periodFilterHtml = `<label class="filter-field"><span>Kỳ</span><select id="ujPeriodFilter">${recentPeriods().map(p => `<option value="${p}" ${state.ujPeriod === p ? "selected" : ""}>${periodLabel(p)}</option>`).join("")}</select></label>`;
   const searchHtml = (state.ujMode === "person" && !state.ujSelectedPersonId) ? `<label class="field"><span>Tìm theo tên</span><input type="text" id="ujSearchInput" value="${state.ujSearch}" placeholder="Nhập tên..."></label>` : "";
-  const dayFilterHtml = (state.ujMode === "day") ? `<label class="filter-field"><span>Ngày</span><input type="date" id="ujDayFilter" value="${state.ujDaySelected}" min="${ujPeriodStart()}" max="${ujPeriodEnd()}"></label>` : "";
+  const dayFilterHtml = (state.ujMode === "day") ? `<label class="filter-field"><span>Ngày</span>${dateOnlyFieldHtml("ujDayFilter", state.ujDaySelected)}</label>` : "";
   document.getElementById("appView").innerHTML = `
     <div class="toolbar uj-toolbar">
       <div class="uj-mode-toggle">
@@ -2146,8 +2168,20 @@ function renderUnitJournal() {
     const ni = document.getElementById("ujSearchInput");
     if (ni) { ni.focus(); ni.setSelectionRange(caret, caret); }
   });
-  const dayInput = document.getElementById("ujDayFilter");
-  if (dayInput) dayInput.addEventListener("change", e => { state.ujDaySelected = e.target.value; renderUnitJournalContent(); });
+  // 3 o Ngay/Thang/Nam rieng (xem dateOnlyFieldHtml) thay cho input[type=
+  // date] - doi gia tri xong thi tu ep lai trong khoang ky dang xem
+  // (truoc day dung thuoc tinh min/max cua input goc).
+  ["Day", "Month", "Year"].forEach(suf => {
+    const el = document.getElementById(`ujDayFilter${suf}`);
+    if (el) el.addEventListener("change", () => {
+      let v = readDateOnly("ujDayFilter", null);
+      if (!v) return; // chua chon du ca 3 o
+      const start = ujPeriodStart(), end = ujPeriodEnd();
+      if (v < start) v = start; else if (v > end) v = end;
+      state.ujDaySelected = v;
+      renderUnitJournalContent();
+    });
+  });
 }
 
 function renderUnitJournalContent() {
@@ -3086,7 +3120,18 @@ function saveAccountRole(id) {
   localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(auditEvents));
   showToast("Đã cập nhật vai trò và đơn vị.");
   updateNav();
+  // Giu lai cac nhom <details> dang mo + vi tri cuon man hinh khi ve lai
+  // bang - truoc day renderOrganization() ve lai TOAN BO trang tu dau,
+  // dong het cac nhom va nhay cuon ve dau trang, cam giac nhu trang bi
+  // tai lai ("reload").
+  const openGroups = Array.from(document.querySelectorAll("[data-role-group]")).filter(d => d.open).map(d => d.querySelector("summary strong")?.textContent).filter(Boolean);
+  const scrollY = window.scrollY;
   renderOrganization();
+  document.querySelectorAll("[data-role-group]").forEach(d => {
+    const s = d.querySelector("summary strong");
+    if (s && openGroups.includes(s.textContent)) d.open = true;
+  });
+  window.scrollTo(0, scrollY);
 }
 
 function toggleAccountActive(id) {
@@ -3131,7 +3176,7 @@ function renderAdministration() {
         <div class="form-grid compact-form">
           <label class="field field-wide"><span>Nhân sự</span><select id="adminPerson">${movableUsers.map(person => `<option value="${person.id}">${person.name} · ${person.title} · ${unitById(person.unitId).short}</option>`).join("")}</select></label>
           <label class="field"><span>Đơn vị mới</span><select id="adminTargetUnit">${units.filter(unit => unit.id !== "province").map(unit => `<option value="${unit.id}">${unit.short}</option>`).join("")}</select></label>
-          <label class="field"><span>Ngày hiệu lực</span><input id="adminEffectiveDate" type="date" value="2026-09-01"></label>
+          <div class="field"><span>Ngày hiệu lực</span>${dateOnlyFieldHtml("adminEffectiveDate", "2026-09-01")}</div>
         </div><div class="review-actions"><button class="button button-primary" id="applyTransfer">Mô phỏng điều chuyển</button></div>
       </section>`;
   html += `<section class="panel panel-wide"><div class="panel-header"><div><h2>Ủy quyền có thời hạn</h2><p>Chỉ định cụ thể Phó phòng/Phó Viện trưởng KV được chấm điểm thay cho những ai, trong khoảng thời gian nào${fullAccess ? "" : " (trong đơn vị của bạn)"}</p></div></div>
@@ -3149,7 +3194,8 @@ function renderAdministration() {
 function applyPersonnelTransfer() {
   const person = userById(document.getElementById("adminPerson").value);
   const targetUnit = document.getElementById("adminTargetUnit").value;
-  const effectiveDate = document.getElementById("adminEffectiveDate").value;
+  const effectiveDate = readDateOnly("adminEffectiveDate", "ngày hiệu lực");
+  if (effectiveDate === undefined) return;
   if (!person || !targetUnit || !effectiveDate) return showToast("Vui lòng chọn đủ thông tin điều chuyển.");
   if (person.unitId === targetUnit) return showToast("Đơn vị mới phải khác đơn vị hiện tại.");
   const oldUnit = unitById(person.unitId).short;
@@ -3196,8 +3242,8 @@ function delegationGrantFormHtml() {
   }
   return `<div class="form-grid compact-form">
     <label class="field field-wide"><span>${deputyLabel}</span><select id="delegationDeputy">${deputies.map(d => `<option value="${d.id}">${d.name} · ${unitById(d.unitId).short}</option>`).join("")}</select></label>
-    <label class="field"><span>Từ ngày</span><input type="date" id="delegationStart" value="${DEMO_TODAY}"></label>
-    <label class="field"><span>Đến ngày</span><input type="date" id="delegationEnd"></label>
+    <div class="field"><span>Từ ngày</span>${dateOnlyFieldHtml("delegationStart", DEMO_TODAY)}</div>
+    <div class="field"><span>Đến ngày</span>${dateOnlyFieldHtml("delegationEnd", null)}</div>
     <p class="metric-context field-wide">${scopeNote}</p>
   </div><div class="review-actions"><button class="button button-primary" id="grantDelegation">Cấp ủy quyền</button></div>`;
 }
@@ -3225,8 +3271,10 @@ function bindDelegationForm() {
 
 function grantDelegation() {
   const deputy = userById(document.getElementById("delegationDeputy").value);
-  const startsAt = document.getElementById("delegationStart").value;
-  const endsAt = document.getElementById("delegationEnd").value;
+  const startsAt = readDateOnly("delegationStart", "ngày bắt đầu ủy quyền");
+  if (startsAt === undefined) return;
+  const endsAt = readDateOnly("delegationEnd", "ngày kết thúc ủy quyền");
+  if (endsAt === undefined) return;
   if (!deputy || !startsAt || !endsAt) return showToast("Vui lòng chọn đầy đủ Phó phòng và khoảng thời gian.");
   if (endsAt < startsAt) return showToast("Ngày kết thúc phải sau ngày bắt đầu.");
   // Nguoi cap uy quyen luon la CHINH nguoi dang dang nhap (Vien truong
@@ -3395,9 +3443,69 @@ function minuteOptionsHtml() {
   for (let i = 0; i < 60; i += 5) { const v = String(i).padStart(2, "0"); h += `<option value="${v}">${v}</option>`; }
   return h;
 }
-// idPrefix+"Date"/"Hour"/"Minute" la id cua 3 o; isoValue (neu co) dung
-// gio DIA PHUONG de dien san (khong dung toISOString() la UTC, se lech
-// gio hien thi so voi luc nguoi dung da chon).
+// Chon NGAY (Ngay/Thang/Nam) bang 3 o rieng, thay cho input[type=date] -
+// CUNG 1 nguyen nhan voi gio o tren: trinh duyet HIEN THI ngay theo NGON
+// NGU TRINH DUYET (kieu My la thang/ngay/nam, kieu Viet la ngay/thang/
+// nam) - GIA TRI luu lai van dung, nhung de tranh nguoi dung doc/nhap
+// NHAM thu tu, luon dung 3 o rieng hien DUNG thu tu Ngay/Thang/Nam quen
+// thuoc, khong phu thuoc trinh duyet nua.
+function dayOptionsHtml() {
+  let h = `<option value="">Ngày</option>`;
+  for (let i = 1; i <= 31; i++) { const v = String(i).padStart(2, "0"); h += `<option value="${v}">${v}</option>`; }
+  return h;
+}
+function monthOptionsHtml() {
+  let h = `<option value="">Tháng</option>`;
+  for (let i = 1; i <= 12; i++) { const v = String(i).padStart(2, "0"); h += `<option value="${v}">${v}</option>`; }
+  return h;
+}
+// Danh sach nam luon gom nam hien tai +/- vai nam, va CA nam dang co san
+// (neu sua 1 gia tri cu nam ngoai khoang mac dinh).
+function yearOptionsHtml(includeYear) {
+  const nowY = new Date().getFullYear();
+  let lo = nowY - 2, hi = nowY + 3;
+  if (includeYear) { if (includeYear < lo) lo = includeYear; if (includeYear > hi) hi = includeYear; }
+  let h = `<option value="">Năm</option>`;
+  for (let y = lo; y <= hi; y++) h += `<option value="${y}">${y}</option>`;
+  return h;
+}
+// idPrefix+"Day"/"Month"/"Year" la id cua 3 o; isoDate (neu co, dang
+// "yyyy-mm-dd") dung de dien san.
+function dateOnlyFieldHtml(idPrefix, isoDate) {
+  let dayVal = "", monthVal = "", yearVal = null;
+  if (isoDate) {
+    const parts = isoDate.split("-");
+    if (parts.length === 3) { yearVal = Number(parts[0]); monthVal = parts[1]; dayVal = parts[2]; }
+  }
+  const dayOpts = dayOptionsHtml().replace(`value="${dayVal}"`, `value="${dayVal}" selected`);
+  const monthOpts = monthOptionsHtml().replace(`value="${monthVal}"`, `value="${monthVal}" selected`);
+  const yearOpts = yearOptionsHtml(yearVal).replace(`value="${yearVal || ""}"`, `value="${yearVal || ""}" selected`);
+  return `<span class="date-only-picker">
+    <select id="${idPrefix}Day">${dayOpts}</select>
+    <span class="due-datetime-sep">/</span>
+    <select id="${idPrefix}Month">${monthOpts}</select>
+    <span class="due-datetime-sep">/</span>
+    <select id="${idPrefix}Year">${yearOpts}</select>
+  </span>`;
+}
+// Doc lai 3 o thanh chuoi "yyyy-mm-dd" - null neu CHUA chon gi (con rong
+// het), tra ve undefined (khac null) neu chon THIEU (1-2 o). Chi bao
+// showToast khi co fieldLabel (bo trong o nhung noi doc "tham" nhu tu luu
+// nhap dang go, tranh hien loi vo ly luc nguoi dung con dang chon dang do).
+function readDateOnly(idPrefix, fieldLabel) {
+  const dayEl = document.getElementById(`${idPrefix}Day`), monthEl = document.getElementById(`${idPrefix}Month`), yearEl = document.getElementById(`${idPrefix}Year`);
+  if (!dayEl) return null;
+  const d = dayEl.value, m = monthEl.value, y = yearEl.value;
+  if (!d && !m && !y) return null;
+  if (!d || !m || !y) {
+    if (fieldLabel) showToast(`Vui lòng chọn đủ ngày, tháng, năm cho ${fieldLabel}.`);
+    return undefined;
+  }
+  return `${y}-${m}-${d}`;
+}
+// idPrefix+"Date"+"Day/Month/Year" va idPrefix+"Hour"/"Minute" la id cua 5
+// o; isoValue (neu co) dung gio DIA PHUONG de dien san (khong dung
+// toISOString() la UTC, se lech gio hien thi so voi luc nguoi dung da chon).
 function dueDateTimeFieldHtml(idPrefix, isoValue) {
   let dateVal = "", hourVal = "", minuteVal = "";
   if (isoValue) {
@@ -3412,24 +3520,26 @@ function dueDateTimeFieldHtml(idPrefix, isoValue) {
   const hourOpts = hourOptionsHtml().replace(`value="${hourVal}"`, `value="${hourVal}" selected`);
   const minuteOpts = minuteOptionsHtml().replace(`value="${minuteVal}"`, `value="${minuteVal}" selected`);
   return `<div class="due-datetime-picker">
-    <input type="date" id="${idPrefix}Date" value="${dateVal}">
+    ${dateOnlyFieldHtml(idPrefix + "Date", dateVal || null)}
     <span class="due-datetime-sep">lúc</span>
     <select id="${idPrefix}Hour">${hourOpts}</select>
     <span class="due-datetime-colon">:</span>
     <select id="${idPrefix}Minute">${minuteOpts}</select>
   </div>`;
 }
-// Doc lai 3 o thanh 1 chuoi ISO (gio dia phuong) - tra ve null neu chua
-// chon ngay; bao showToast va tra ve undefined (khac null) neu da chon
-// ngay nhung thieu gio/phut.
+// Doc lai ca 5 o thanh 1 chuoi ISO (gio dia phuong) - tra ve null neu chua
+// chon ngay; bao showToast va tra ve undefined (khac null) neu chon thieu
+// (ngay hoac gio/phut), de noi goi kiem tra duoc ca 2 truong hop.
 function readDueDateTime(idPrefix, fieldLabel) {
-  const dateEl = document.getElementById(`${idPrefix}Date`), hourEl = document.getElementById(`${idPrefix}Hour`), minuteEl = document.getElementById(`${idPrefix}Minute`);
-  if (!dateEl || !dateEl.value) return null;
+  const dateStr = readDateOnly(`${idPrefix}Date`, fieldLabel);
+  if (dateStr === undefined) return undefined; // readDateOnly da bao loi
+  if (!dateStr) return null;
+  const hourEl = document.getElementById(`${idPrefix}Hour`), minuteEl = document.getElementById(`${idPrefix}Minute`);
   if (!hourEl.value || !minuteEl.value) {
     showToast(`Vui lòng chọn đủ giờ và phút cho ${fieldLabel}.`);
     return undefined;
   }
-  const [y, m, d] = dateEl.value.split("-").map(Number);
+  const [y, m, d] = dateStr.split("-").map(Number);
   return new Date(y, m - 1, d, Number(hourEl.value), Number(minuteEl.value), 0).toISOString();
 }
 
@@ -3681,7 +3791,7 @@ function openJournalModal(logId = null, presetTaskId = null, presetNoteId = null
   notice.hidden = !isRevision;
   document.getElementById("journalRevisionComment").textContent = isRevision ? log.comment : "";
   if (canEdit) {
-    form.elements.workDate.value = log.date;
+    document.getElementById("journalWorkDateField").innerHTML = dateOnlyFieldHtml("journalWorkDate", log.date);
     form.elements.category.value = log.category;
     form.elements.title.value = log.title;
     form.elements.result.value = log.result;
@@ -3690,9 +3800,10 @@ function openJournalModal(logId = null, presetTaskId = null, presetNoteId = null
     form.elements.evidence.value = log.evidence || "";
     form.elements.selfComplexity.value = log.selfComplexity || "";
     form.elements.selfQuality.value = log.selfQuality || "";
-    form.elements.rangeStartDate.value = log.rangeStartDate || "";
+    document.getElementById("journalRangeStartDateField").innerHTML = dateOnlyFieldHtml("journalRangeStartDate", log.rangeStartDate || null);
   } else {
-    form.elements.workDate.value = DEMO_TODAY;
+    document.getElementById("journalWorkDateField").innerHTML = dateOnlyFieldHtml("journalWorkDate", DEMO_TODAY);
+    document.getElementById("journalRangeStartDateField").innerHTML = dateOnlyFieldHtml("journalRangeStartDate", null);
     // Mo tu 1 ghi chu ca nhan ("Ghi nhat ky cho viec nay") - dien san Noi
     // dung/Ket qua tu tieu de/noi dung ghi chu, cac muc con lai de trong
     // nhu ghi nhat ky moi binh thuong.
@@ -3718,8 +3829,8 @@ function openJournalModal(logId = null, presetTaskId = null, presetNoteId = null
         form.elements.evidence.value = draft.evidence || "";
         if (draft.selfComplexity) form.elements.selfComplexity.value = draft.selfComplexity;
         if (draft.selfQuality) form.elements.selfQuality.value = draft.selfQuality;
-        if (draft.workDate) form.elements.workDate.value = draft.workDate;
-        if (draft.rangeStartDate) form.elements.rangeStartDate.value = draft.rangeStartDate;
+        if (draft.workDate) document.getElementById("journalWorkDateField").innerHTML = dateOnlyFieldHtml("journalWorkDate", draft.workDate);
+        if (draft.rangeStartDate) document.getElementById("journalRangeStartDateField").innerHTML = dateOnlyFieldHtml("journalRangeStartDate", draft.rangeStartDate);
         showToast("Đã khôi phục nội dung nháp trước đó.");
       }
     }
@@ -3752,10 +3863,10 @@ function saveJournalDraft() {
   const f = document.getElementById("journalForm");
   if (!f) return;
   const draft = {
-    workDate: f.elements.workDate.value, category: f.elements.category.value, title: f.elements.title.value,
+    workDate: readDateOnly("journalWorkDate", null) || "", category: f.elements.category.value, title: f.elements.title.value,
     result: f.elements.result.value, workRole: f.elements.workRole.value, duration: f.elements.duration.value,
     evidence: f.elements.evidence.value, selfComplexity: f.elements.selfComplexity.value, selfQuality: f.elements.selfQuality.value,
-    rangeStartDate: f.elements.rangeStartDate.value
+    rangeStartDate: readDateOnly("journalRangeStartDate", null) || ""
   };
   if (!draft.title && !draft.result) { clearJournalDraft(); return; }
   localStorage.setItem(JOURNAL_DRAFT_KEY, JSON.stringify(draft));
@@ -3890,7 +4001,7 @@ function toggleJournalRangeField() {
   const isMultiDay = select.value === "Nhiều ngày";
   field.hidden = !isMultiDay;
   if (!isMultiDay) {
-    document.getElementById("journalForm").elements.rangeStartDate.value = "";
+    document.getElementById("journalRangeStartDateField").innerHTML = dateOnlyFieldHtml("journalRangeStartDate", null);
     document.getElementById("journalRangePreview").textContent = "";
   } else {
     updateJournalRangePreview();
@@ -3900,8 +4011,7 @@ function toggleJournalRangeField() {
 function updateJournalRangePreview() {
   const preview = document.getElementById("journalRangePreview");
   if (!preview) return;
-  const form = document.getElementById("journalForm");
-  const startStr = form.elements.rangeStartDate.value, endStr = form.elements.workDate.value;
+  const startStr = readDateOnly("journalRangeStartDate", null) || "", endStr = readDateOnly("journalWorkDate", null) || "";
   if (!startStr || !endStr) { preview.textContent = "Chọn đủ \"Bắt đầu từ ngày\" và \"Ngày thực hiện\" để xem trước."; return; }
   const days = weekdayDatesBetween(startStr, endStr);
   if (!days.length) { preview.textContent = "Khoảng ngày không hợp lệ (ngày bắt đầu phải trước hoặc bằng ngày thực hiện)."; return; }
@@ -3932,9 +4042,8 @@ function updateSelfScoreGuide(kind, value) {
 // Cho phep nhap lui ngay (khong khoa qua khu), chi canh bao nhe khi chon
 // ngay qua xa - khong chan gui.
 function checkJournalDateWarning() {
-  const input = document.getElementById("journalForm").elements.workDate;
   const warning = document.getElementById("journalDateWarning");
-  const value = input.value;
+  const value = readDateOnly("journalWorkDate", null) || "";
   if (!value) { warning.hidden = true; return; }
   const diffDays = Math.round((new Date(`${DEMO_TODAY}T00:00:00`) - new Date(`${value}T00:00:00`)) / 86400000);
   if (diffDays > 14) {
@@ -3986,11 +4095,16 @@ function submitJournal(event) {
   // Doc truc tiep tu DOM (khong qua FormData) vi o nay co the bi disable
   // khi khoa theo viec duoc giao - truong "disabled" bi FormData bo qua.
   const submittedToId = event.currentTarget.elements.submittedToId.value || null;
+  const workDate = readDateOnly("journalWorkDate", "ngày thực hiện");
+  if (workDate === undefined) return; // da chon 1 phan, readDateOnly da bao loi
+  if (!workDate) { showToast("Vui lòng chọn ngày thực hiện."); return; }
   const isMultiDay = data.get("duration") === "Nhiều ngày";
-  const rangeStartDate = isMultiDay ? (data.get("rangeStartDate") || null) : null;
+  let rangeStartDate = null;
   if (isMultiDay) {
+    rangeStartDate = readDateOnly("journalRangeStartDate", "bắt đầu từ ngày");
+    if (rangeStartDate === undefined) return;
     if (!rangeStartDate) { showToast('Vui lòng chọn "Bắt đầu từ ngày" cho công việc nhiều ngày.'); return; }
-    if (rangeStartDate > data.get("workDate")) { showToast('"Bắt đầu từ ngày" phải trước hoặc bằng "Ngày thực hiện".'); return; }
+    if (rangeStartDate > workDate) { showToast('"Bắt đầu từ ngày" phải trước hoặc bằng "Ngày thực hiện".'); return; }
   }
   const editingLog = state.editingJournalId ? logs.find(log => log.id === state.editingJournalId) : null;
   if (editingLog) {
@@ -4017,7 +4131,7 @@ function submitJournal(event) {
       resubmittedAt: now
     }] : (editingLog.reviewHistory || []);
     Object.assign(editingLog, {
-      date: data.get("workDate"), category: data.get("category"), title: data.get("title"), result: data.get("result"),
+      date: workDate, category: data.get("category"), title: data.get("title"), result: data.get("result"),
       workRole: data.get("workRole"), duration: data.get("duration"), evidence: data.get("evidence"),
       selfComplexity: Number(data.get("selfComplexity")), selfQuality: Number(data.get("selfQuality")),
       submittedToId: submittedToId || editingLog.submittedToId,
@@ -4046,7 +4160,7 @@ function submitJournal(event) {
   // viec do (khong tin o "Nop cho lanh dao" - da bi khoa o giao dien,
   // nhung van tinh toan lai o day cho chac chan, phong khi bi can thiep).
   logs.push({
-    id: nextId, authorId: user.id, unitId: user.unitId, date: data.get("workDate"), category: data.get("category"),
+    id: nextId, authorId: user.id, unitId: user.unitId, date: workDate, category: data.get("category"),
     title: data.get("title"), result: data.get("result"), workRole: data.get("workRole"), duration: data.get("duration"), evidence: data.get("evidence"),
     selfComplexity: Number(data.get("selfComplexity")), selfQuality: Number(data.get("selfQuality")),
     submittedToId: linkedTask ? linkedTask.assignerId : submittedToId,
@@ -4077,8 +4191,7 @@ function submitJournal(event) {
 function updateLeaveRangePreview() {
   const preview = document.getElementById("leaveRangePreview");
   if (!preview) return;
-  const form = document.getElementById("leaveForm");
-  const startStr = form.elements.leaveStartDate.value, endStr = form.elements.leaveEndDate.value;
+  const startStr = readDateOnly("leaveStartDate", null) || "", endStr = readDateOnly("leaveEndDate", null) || "";
   if (!startStr || !endStr) { preview.textContent = 'Chọn đủ "Từ ngày" và "Đến ngày" để xem trước.'; return; }
   if (startStr > endStr) { preview.textContent = '"Từ ngày" phải trước hoặc bằng "Đến ngày".'; return; }
   const days = weekdayDatesBetween(startStr, endStr);
@@ -4089,10 +4202,12 @@ function updateLeaveRangePreview() {
 function openLeaveModal() {
   const form = document.getElementById("leaveForm");
   form.reset();
+  document.getElementById("leaveStartDateField").innerHTML = dateOnlyFieldHtml("leaveStartDate", null);
+  document.getElementById("leaveEndDateField").innerHTML = dateOnlyFieldHtml("leaveEndDate", null);
   document.getElementById("leaveRangePreview").textContent = "";
   refreshSubmitToOptions("leaveSubmitToSelect", null);
   document.getElementById("leaveModal").hidden = false;
-  form.elements.leaveStartDate.focus();
+  document.getElementById("leaveStartDateDay").focus();
 }
 function closeLeaveModal() {
   document.getElementById("leaveModal").hidden = true;
@@ -4103,7 +4218,11 @@ function submitLeave(event) {
   const data = new FormData(event.currentTarget);
   const user = currentUser();
   const submittedToId = event.currentTarget.elements.submittedToId.value || null;
-  const startStr = data.get("leaveStartDate"), endStr = data.get("leaveEndDate");
+  const startStr = readDateOnly("leaveStartDate", "từ ngày");
+  if (startStr === undefined) return;
+  const endStr = readDateOnly("leaveEndDate", "đến ngày");
+  if (endStr === undefined) return;
+  if (!startStr || !endStr) { showToast('Vui lòng chọn đủ "Từ ngày" và "Đến ngày".'); return; }
   if (startStr > endStr) { showToast('"Từ ngày" phải trước hoặc bằng "Đến ngày".'); return; }
   const diffDays = Math.round((new Date(`${endStr}T00:00:00`) - new Date(`${startStr}T00:00:00`)) / 86400000);
   if (diffDays > 60) { showToast("Khoảng nghỉ phép quá dài (tối đa 60 ngày cho 1 lần ghi)."); return; }
