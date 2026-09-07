@@ -854,7 +854,7 @@ details.uj-day-card .uj-day-card-logs .journal-card:first-child { margin-top: 12
    1 khoi go tay gon (xem .date-field-wrap/.time-field-input ben duoi) -
    thay cho input[type=datetime-local] cua trinh duyet (hien 12h
    sang/chieu hay 24h tuy ngon ngu trinh duyet, ngoai tam kiem soat). */
-.due-datetime-picker { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.due-datetime-picker { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
 .due-datetime-sep, .due-datetime-colon { color: var(--muted); font-size: 12px; }
 .time-field-input { width: 74px; flex: 0 0 auto; text-align: center; letter-spacing: .04em; }
 /* O ngay go tay dang "dd/mm/yyyy" (tu nhay dau / khi go so) + nut lich

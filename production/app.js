@@ -1366,12 +1366,13 @@ async function rt(){
   // sach, khong con ke ca form giao viec dai ben trong nua - truoc day
   // phai cuon qua het form moi thay duoc danh sach, gay kho tra cuu),
   // phai la "Cong viec duoc giao" (giu nguyen). Form giao viec gom vao
-  // modal rieng (assignTaskModal), mo tu 2 nut o dau khung ben trai.
+  // modal rieng (assignTaskModal), mo tu 1 nut "+ Giao viec moi" o dau
+  // khung ben trai - modal do co san 2 nut "Giao viec"/"Giao viec va ghi
+  // nhat ky" (xem taskAssignFormHtml), khong tach thanh 2 nut mo modal.
   var h='<div class="admin-grid '+(canAssign&&canReceive?'':'is-single')+'">';
   if(canAssign){
     var assignActions=TASK_CANDIDATES.length?('<div class="panel-header-actions">'
-      +'<button type="button" class="button button-secondary button-small" id="openAssignTaskBtn">+ Giao việc mới</button>'
-      +'<button type="button" class="button button-primary button-small" id="openAssignTaskWithLogBtn">+ Giao việc và ghi nhật ký</button>'
+      +'<button type="button" class="button button-primary button-small" id="openAssignTaskBtn">+ Giao việc mới</button>'
       +'</div>'):'';
     h+='<section class="panel"><div class="panel-header"><div><h2>Công việc đã giao</h2><p>'+groupsByMe.length+' việc</p></div>'+assignActions+'</div>'
       +(TASK_CANDIDATES.length?'':'<p class="metric-context">Bạn chưa có cán bộ/đơn vị nào thuộc phạm vi được phép giao việc.</p>')
@@ -1386,23 +1387,19 @@ async function rt(){
   document.querySelectorAll('[data-report-task]').forEach(function(b){b.addEventListener('click',function(){oj(null,b.dataset.reportTask)})});
   document.querySelectorAll('[data-edit-task-group]').forEach(function(b){b.addEventListener('click',function(){openEditTaskModal(b.dataset.editTaskGroup)})});
   document.querySelectorAll('[data-delete-task-group]').forEach(function(b){b.addEventListener('click',function(){deleteTaskGroup(b.dataset.deleteTaskGroup)})});
-  var openAssignBtn=$('openAssignTaskBtn');if(openAssignBtn)openAssignBtn.addEventListener('click',function(){openAssignTaskModal(false)});
-  var openAssignWithLogBtn=$('openAssignTaskWithLogBtn');if(openAssignWithLogBtn)openAssignWithLogBtn.addEventListener('click',function(){openAssignTaskModal(true)});
+  var openAssignBtn=$('openAssignTaskBtn');if(openAssignBtn)openAssignBtn.addEventListener('click',openAssignTaskModal);
 }
 
 // Modal "Giao viec moi" - truoc day form nay nam co dinh, dai, ben tren
 // danh sach "Viec da giao" trong CUNG 1 cot, phai cuon qua het form moi
 // thay duoc danh sach - nay gom vao modal rieng, mo tu nut o dau khung.
-var ASSIGN_TASK_WITH_LOG=false;
-function openAssignTaskModal(withLog){
-  ASSIGN_TASK_WITH_LOG=!!withLog;
-  $('assignTaskModalTitle').textContent=withLog?'Giao việc và ghi nhật ký':'Giao việc mới';
+function openAssignTaskModal(){
   $('assignTaskModalBody').innerHTML=taskAssignFormHtml();
   var form=$('taskAssignForm');
   if(form){form.addEventListener('submit',submitTaskAssignment);bindTaskAssignExtras()}
   $('assignTaskModal').hidden=false;document.body.style.overflow='hidden';
 }
-function closeAssignTaskModal(){$('assignTaskModal').hidden=true;document.body.style.overflow='';ASSIGN_TASK_WITH_LOG=false}
+function closeAssignTaskModal(){$('assignTaskModal').hidden=true;document.body.style.overflow=''}
 
 // Chon NGAY bang 1 o chu duy nhat "dd/mm/yyyy" (go tay, tu nhay dau "/"-
 // xem binding input o DOMContentLoaded) KEM nut lich bam chon cho nguoi
@@ -1547,10 +1544,12 @@ function calendarGridHtml(y,m,selectedIso){
 
 // Chia danh sach "nguoi phoi hop" theo nhom vai tro - trong da so truong
 // hop chi can chon 1 lanh dao chu tri + nhieu KSV phoi hop, gom nhom giup
-// don vi dong nguoi (30-70 nguoi) de tim hon la 1 danh sach dai dang.
+// don vi dong nguoi (30-70 nguoi) de tim hon la 1 danh sach dai dang. Ca
+// 3 nhom mac dinh THU GON - chi mo khi lanh dao chu dong bam vao (truoc
+// day nhom "Can bo, KSV" mo san, nguoi dung phan anh la roi mat bo cuc).
 var TASK_SUPPORT_GROUP_DEFS=[
   {label:'Lãnh đạo dưới quyền',roles:['unit_deputy','unit_head','province_deputy'],openByDefault:false},
-  {label:'Cán bộ, Kiểm sát viên',roles:['staff'],openByDefault:true},
+  {label:'Cán bộ, Kiểm sát viên',roles:['staff'],openByDefault:false},
   {label:'Người lao động',roles:['support_staff'],openByDefault:false}
 ];
 function taskSupportPickerHtml(){
@@ -1576,13 +1575,19 @@ function taskSupportPickerHtml(){
 
 function taskAssignFormHtml(){
   var options=TASK_CANDIDATES.map(function(p){return '<option value="'+p.id+'">'+esc(p.full_name)+' · '+esc(unitShort(p.unit_id))+'</option>'}).join('');
-  return '<form class="form-grid compact-form" id="taskAssignForm">'
+  // Bo "compact-form" (dung khi form nam trong 1 panel da co san padding
+  // rieng) - form nay gio nam truc tiep trong modal, can padding cua
+  // chinh ".form-grid" de khong bi sat le.
+  return '<form class="form-grid" id="taskAssignForm">'
     +'<label class="field field-wide"><span>Người chủ trì</span><select name="leadId" required>'+options+'</select></label>'
     +'<div class="field field-wide"><span>Người phối hợp (không bắt buộc)</span>'+taskSupportPickerHtml()+'</div>'
     +'<label class="field field-wide"><span>Tên công việc</span><input type="text" name="title" required maxlength="200"></label>'
     +'<label class="field field-wide"><span>Mô tả / yêu cầu</span><textarea name="description" rows="5" placeholder="Có thể ghi chi tiết yêu cầu, phạm vi công việc..."></textarea></label>'
     +'<div class="field field-wide"><span>Hạn gợi ý (không bắt buộc)</span>'+dueDateTimeFieldHtml('taskSuggestedDue',null)+'</div>'
-    +'<div class="review-actions"><button type="submit" class="button button-primary">Giao việc</button></div>'
+    +'<div class="review-actions field-wide">'
+    +'<button type="submit" class="button button-primary">Giao việc</button>'
+    +'<button type="submit" class="button button-secondary" data-with-log="1">Giao việc và ghi nhật ký</button>'
+    +'</div>'
     +'</form>';
 }
 
@@ -1630,6 +1635,10 @@ async function submitTaskAssignment(e){
   if(!requireActive())return;
   if(!canAssignTasks()){showToast('Tài khoản này chỉ được nhận công việc.');return}
   var form=e.currentTarget;
+  // e.submitter: nut THAT SU duoc bam (form co 2 nut submit - "Giao viec"
+  // va "Giao viec va ghi nhat ky", xem taskAssignFormHtml) - chuan
+  // SubmitEvent.submitter, cac trinh duyet hien dai deu ho tro.
+  var withLog=Boolean(e.submitter&&e.submitter.dataset.withLog==='1');
   var f=new FormData(form);
   var leadId=f.get('leadId');
   var title=(f.get('title')||'').trim();
@@ -1639,13 +1648,12 @@ async function submitTaskAssignment(e){
   var suggestedDueDate=readDueDateTime('taskSuggestedDue','hạn gợi ý');
   if(suggestedDueDate===undefined)return; // da chon ngay nhung thieu gio/phut, readDueDateTime da bao loi
   var description=(f.get('description')||'').trim();
-  var btn=form.querySelector('button[type="submit"]');btn.disabled=true;
+  var submitBtns=form.querySelectorAll('button[type="submit"]');submitBtns.forEach(function(b){b.disabled=true});
   try{
     var r=await fetch(API+'rpc/create_task_assignment',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_lead_assignee_id:leadId,p_support_assignee_ids:supportIds,p_title:title,p_description:description||null,p_suggested_due_date:suggestedDueDate})});
     var data=await r.json();
-    if(!r.ok||data.success===false){showToast('Lỗi: '+(data.error||'HTTP '+r.status));btn.disabled=false;return}
+    if(!r.ok||data.success===false){showToast('Lỗi: '+(data.error||'HTTP '+r.status));submitBtns.forEach(function(b){b.disabled=false});return}
     showToast('Đã giao việc cho '+(1+supportIds.length)+' người.');
-    var withLog=ASSIGN_TASK_WITH_LOG;
     closeAssignTaskModal();
     rt();
     // "Giao viec va ghi nhat ky": mo san form Ghi nhat ky moi, dien san
@@ -1660,7 +1668,7 @@ async function submitTaskAssignment(e){
       var resultText='Đã giao việc "'+title+'" cho '+leadName+' (chủ trì)'+(supportNames.length?(', phối hợp: '+supportNames.join(', ')):'')+'.'+(description?(' Yêu cầu: '+description):'');
       await oj(null,null,null,{categoryId:mgmtCat?mgmtCat.id:'',title:'Giao việc: '+title,result:resultText});
     }
-  }catch(err){showToast('Lỗi: '+err.message);btn.disabled=false}
+  }catch(err){showToast('Lỗi: '+err.message);submitBtns.forEach(function(b){b.disabled=false})}
 }
 
 // Sua/xoa 1 nhom viec da giao - CHI tac gia giao viec (assigner) moi lam

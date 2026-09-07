@@ -3457,10 +3457,11 @@ function renderTasks() {
   // sach, khong con ke ca form giao viec dai ben trong nua - truoc day
   // phai cuon qua het form moi thay duoc danh sach), phai la "Cong viec
   // duoc giao" (giu nguyen). Form giao viec gom vao modal rieng
-  // (assignTaskModal), mo tu 2 nut o dau khung ben trai.
+  // (assignTaskModal), mo tu 1 nut "+ Giao viec moi" o dau khung ben
+  // trai - modal do co san 2 nut "Giao viec"/"Giao viec va ghi nhat ky"
+  // (xem taskAssignFormHtml), khong tach thanh 2 nut mo modal.
   const assignActions = candidates.length ? `<div class="panel-header-actions">
-      <button type="button" class="button button-secondary button-small" id="openAssignTaskBtn">+ Giao việc mới</button>
-      <button type="button" class="button button-primary button-small" id="openAssignTaskWithLogBtn">+ Giao việc và ghi nhật ký</button>
+      <button type="button" class="button button-primary button-small" id="openAssignTaskBtn">+ Giao việc mới</button>
     </div>` : "";
   document.getElementById("appView").innerHTML = `<div class="admin-grid ${canAssign && canReceive ? "" : "is-single"}">
     ${canAssign ? `<section class="panel"><div class="panel-header"><div><h2>Công việc đã giao</h2><p>${groupsByMe.length} việc</p></div>${assignActions}</div>
@@ -3476,18 +3477,13 @@ function renderTasks() {
   document.querySelectorAll("[data-edit-task-group]").forEach(button => button.addEventListener("click", () => openEditTaskModal(button.dataset.editTaskGroup)));
   document.querySelectorAll("[data-delete-task-group]").forEach(button => button.addEventListener("click", () => deleteTaskGroup(button.dataset.deleteTaskGroup)));
   const openAssignBtn = document.getElementById("openAssignTaskBtn");
-  if (openAssignBtn) openAssignBtn.addEventListener("click", () => openAssignTaskModal(false));
-  const openAssignWithLogBtn = document.getElementById("openAssignTaskWithLogBtn");
-  if (openAssignWithLogBtn) openAssignWithLogBtn.addEventListener("click", () => openAssignTaskModal(true));
+  if (openAssignBtn) openAssignBtn.addEventListener("click", openAssignTaskModal);
 }
 
 // Modal "Giao viec moi" - truoc day form nay nam co dinh, dai, ben tren
 // danh sach "Viec da giao" trong CUNG 1 cot, phai cuon qua het form moi
 // thay duoc danh sach - nay gom vao modal rieng, mo tu nut o dau khung.
-let assignTaskWithLog = false;
-function openAssignTaskModal(withLog) {
-  assignTaskWithLog = Boolean(withLog);
-  document.getElementById("assignTaskModalTitle").textContent = withLog ? "Giao việc và ghi nhật ký" : "Giao việc mới";
+function openAssignTaskModal() {
   document.getElementById("assignTaskModalBody").innerHTML = taskAssignFormHtml(assignableUsers(currentUser()));
   bindTaskAssignForm();
   document.getElementById("assignTaskModal").hidden = false;
@@ -3496,15 +3492,16 @@ function openAssignTaskModal(withLog) {
 function closeAssignTaskModal() {
   document.getElementById("assignTaskModal").hidden = true;
   document.body.style.overflow = "";
-  assignTaskWithLog = false;
 }
 
 // Chia danh sach "nguoi phoi hop" theo nhom vai tro - trong da so truong
 // hop chi can chon 1 lanh dao chu tri + nhieu KSV phoi hop, gom nhom giup
-// don vi dong nguoi (30-70 nguoi) de tim hon la 1 danh sach dai dang.
+// don vi dong nguoi (30-70 nguoi) de tim hon la 1 danh sach dai dang. Ca
+// 3 nhom mac dinh THU GON - chi mo khi lanh dao chu dong bam vao (truoc
+// day nhom "Can bo, KSV" mo san, nguoi dung phan anh la roi mat bo cuc).
 const TASK_SUPPORT_GROUP_DEFS = [
   { label: "Lãnh đạo dưới quyền", roles: ["unit_deputy", "unit_head", "province_deputy"], openByDefault: false },
-  { label: "Cán bộ, Kiểm sát viên", roles: ["staff"], openByDefault: true },
+  { label: "Cán bộ, Kiểm sát viên", roles: ["staff"], openByDefault: false },
   { label: "Người lao động", roles: ["support_staff"], openByDefault: false }
 ];
 // Chon NGAY bang 1 o chu duy nhat "dd/mm/yyyy" (go tay, tu nhay dau "/" -
@@ -3665,13 +3662,19 @@ function taskSupportPickerHtml(candidates) {
 
 function taskAssignFormHtml(candidates) {
   const options = candidates.map(person => `<option value="${person.id}">${person.name} · ${unitById(person.unitId).short}</option>`).join("");
-  return `<form class="form-grid compact-form" id="taskAssignForm">
+  // Bo "compact-form" (dung khi form nam trong 1 panel da co san padding
+  // rieng) - form nay gio nam truc tiep trong modal, can padding cua
+  // chinh ".form-grid" de khong bi sat le.
+  return `<form class="form-grid" id="taskAssignForm">
     <label class="field field-wide"><span>Người chủ trì</span><select name="leadId" required>${options}</select></label>
     <div class="field field-wide"><span>Người phối hợp (không bắt buộc)</span>${taskSupportPickerHtml(candidates)}</div>
     <label class="field field-wide"><span>Tên công việc</span><input type="text" name="title" required maxlength="200"></label>
     <label class="field field-wide"><span>Mô tả / yêu cầu</span><textarea name="description" rows="5" placeholder="Có thể ghi chi tiết yêu cầu, phạm vi công việc..."></textarea></label>
     <div class="field field-wide"><span>Hạn gợi ý (không bắt buộc)</span>${dueDateTimeFieldHtml("taskSuggestedDue", null)}</div>
-    <div class="review-actions"><button type="submit" class="button button-primary">Giao việc</button></div>
+    <div class="review-actions field-wide">
+      <button type="submit" class="button button-primary">Giao việc</button>
+      <button type="submit" class="button button-secondary" data-with-log="1">Giao việc và ghi nhật ký</button>
+    </div>
   </form>`;
 }
 
@@ -3720,6 +3723,10 @@ function bindTaskAssignForm() {
   form.addEventListener("submit", event => {
     event.preventDefault();
     if (!canAssignTasks()) { showToast("Tài khoản này chỉ được nhận công việc."); return; }
+    // event.submitter: nut THAT SU duoc bam (form co 2 nut submit -
+    // "Giao viec" va "Giao viec va ghi nhat ky", xem taskAssignFormHtml) -
+    // chuan SubmitEvent.submitter, cac trinh duyet hien dai deu ho tro.
+    const withLog = Boolean(event.submitter && event.submitter.dataset.withLog === "1");
     const data = new FormData(form);
     const lead = userById(data.get("leadId"));
     if (!lead) { showToast("Vui lòng chọn người chủ trì."); return; }
@@ -3744,7 +3751,6 @@ function bindTaskAssignForm() {
     });
     saveTaskAssignments();
     showToast(`Đã giao việc cho ${1 + supportUsers.length} người.`);
-    const withLog = assignTaskWithLog;
     closeAssignTaskModal();
     renderTasks();
     // "Giao viec va ghi nhat ky": mo san form Ghi nhat ky moi, dien san
