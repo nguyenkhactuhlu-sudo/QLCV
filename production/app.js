@@ -81,6 +81,7 @@ var STATUS_CLASS={pending:'status-pending',approved:'status-approved',revision:'
 // mang nay.
 // ============================================
 var CHANGELOG=[
+  {date:'2026-09-07',type:'fix',text:'Sửa lỗi không sửa được nhật ký đang "Chờ đánh giá" (chưa ai chấm điểm) - trước đây chỉ sửa được nhật ký bị trả lại "Cần bổ sung", muốn sửa nhật ký còn đang chờ duyệt phải xoá rồi ghi lại từ đầu. Nay bấm "Sửa" là chỉnh sửa được luôn.'},
   {date:'2026-09-06',type:'feature',text:'Thêm mục riêng "Điểm cộng/trừ đột xuất" (khen thưởng/kỷ luật phát hiện sau khi tháng đã chấm xong) - có thống kê tổng lượt/tổng điểm riêng, ghi thành từng dòng, không bao giờ mất, luôn áp dụng cho tháng hiện tại (không sửa lại điểm tháng đã chốt), người bị/được áp dụng xem được lý do. Có link nhảy nhanh từ "Chấm điểm tháng" sang.'},
   {date:'2026-09-06',type:'feature',text:'Nhật ký công tác của đơn vị: thêm cách xem "Theo ngày" - chọn 1 ngày cụ thể là thấy ngay ai đã nộp việc, ai đang nghỉ phép, ai chưa nộp trong ngày đó, giúp lãnh đạo đôn đốc kịp thời.'},
   {date:'2026-09-06',type:'fix',text:'Sửa lỗi Trưởng phòng/Viện trưởng khu vực có thể duyệt nhầm nhật ký mà KSV đã nộp đích danh cho 1 Phó - nay tách riêng thành 2 khu "Nộp cho tôi" và "Đang chờ người khác xử lý" trong màn Duyệt & chấm điểm.'},
@@ -740,7 +741,12 @@ function metricCard(label,value,context,tone){return '<article class="metric-car
 
 function journalCardHtml(log,opts){
   opts=opts||{};
-  var canEdit=log.status==='revision'&&!opts.readOnly;
+  // Sua duoc ca khi "Cho danh gia" (chua ai cham) lan "Can bo sung" (bi
+  // tra lai) - khop dung pham vi RLS UPDATE da cho phep san o server
+  // (work_logs_update_own: status IN ('pending','revision')), truoc day
+  // client chi cho sua khi "Can bo sung", nguoi dung muon sua 1 nhat ky
+  // con dang cho duyet phai xoa roi ghi lai tu dau - khong can thiet.
+  var canEdit=(log.status==='revision'||log.status==='pending')&&!opts.readOnly;
   // Tu xoa: chi chinh tac gia, chi khi con "cho duyet"/"can bo sung" (da
   // duyet roi coi la du lieu chinh thuc, phai qua lanh dao). Lanh dao xoa
   // ho cap duoi (opts.canDelete, tinh o ujDateGroupHtml theo dung pham vi
@@ -767,7 +773,7 @@ function journalCardHtml(log,opts){
     +'<div class="journal-body"><h3>'+esc(log.title)+'</h3><p>'+esc(log.result)+'</p>'+revisionFeedback+leaderComment
     +'<div class="journal-meta">'+authorTag+'<span class="meta-tag">'+esc(catName(log.category_id))+'</span><span class="meta-tag">'+esc(WORK_ROLE_LABEL[log.work_role]||log.work_role)+'</span><span class="meta-tag">'+esc(DURATION_LABEL[log.duration]||log.duration)+'</span>'+submittedToTag+cloneTag+resubmission+overriddenTag+'<span class="status-pill '+(STATUS_CLASS[log.status]||'')+'">'+(STATUS_LABEL[log.status]||log.status)+'</span></div></div>'
     +'<div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>'+(log.complexity_score==null?'—':log.complexity_score)+'</strong></div><div class="score-box"><span>Chất lượng</span><strong>'+(log.quality_score==null?'—':log.quality_score)+'</strong></div></div>'
-    +(canEdit?'<button type="button" class="button button-primary button-small" data-edit-journal="'+log.id+'">Sửa và trình lại</button>':'')
+    +(canEdit?'<button type="button" class="button button-primary button-small" data-edit-journal="'+log.id+'">'+(log.status==='revision'?'Sửa và trình lại':'Sửa')+'</button>':'')
     +(opts.canOverride?'<button type="button" class="button button-secondary button-small" data-override-score="'+log.id+'">Điều chỉnh điểm</button>':'')
     +(canDelete?'<button type="button" class="button button-danger button-small" data-delete-log="'+log.id+'" data-delete-self="'+(canDeleteSelf&&!opts.canDelete?'1':'0')+'">Xoá</button>':'')+'</div></article>';
 }
@@ -777,13 +783,17 @@ async function oj(logId,presetTaskId,presetNoteId){
   var form=$('journalForm');form.reset();
   JOURNAL_SOURCE_NOTE_ID=null;
   var log=logId?LOGS.find(function(l){return l.id===logId}):null;
-  var canEdit=Boolean(log&&log.status==='revision');
+  // Sua duoc ca khi con "Cho danh gia" (chua ai cham) lan "Can bo sung"
+  // (bi tra lai) - xem chu thich o journalCardHtml. isRevision rieng vi
+  // chi trang thai nay moi thuc su co "yeu cau cua lanh dao" de hien.
+  var canEdit=Boolean(log&&(log.status==='revision'||log.status==='pending'));
+  var isRevision=Boolean(log&&log.status==='revision');
   EDITING_ID=canEdit?log.id:null;
-  $('journalModalTitle').textContent=canEdit?'Chỉnh sửa và trình lại kết quả':'Ghi nhận kết quả công việc';
-  $('journalSubmitButton').textContent=canEdit?'Lưu và trình lại':'Gửi nhật ký';
+  $('journalModalTitle').textContent=isRevision?'Chỉnh sửa và trình lại kết quả':(canEdit?'Chỉnh sửa nhật ký':'Ghi nhận kết quả công việc');
+  $('journalSubmitButton').textContent=isRevision?'Lưu và trình lại':(canEdit?'Lưu thay đổi':'Gửi nhật ký');
   var notice=$('journalRevisionNotice');
-  notice.hidden=!canEdit;
-  $('journalRevisionComment').textContent=canEdit?(log.review_comment||''):'';
+  notice.hidden=!isRevision;
+  $('journalRevisionComment').textContent=isRevision?(log.review_comment||''):'';
   populateCategorySelect();
   if(canEdit){
     form.elements.workDate.value=log.log_date;
@@ -1104,10 +1114,17 @@ async function sj(e){
   try{
     if(EDITING_ID){
       var existing=LOGS.find(function(l){return l.id===EDITING_ID});
+      // Chi coi la "trinh lai" (tang revision_count, xoa vet lan cham
+      // truoc) khi nhat ky THUC SU dang o trang thai "Can bo sung" - sua 1
+      // nhat ky con "Cho danh gia" (chua ai cham) chi la sua binh thuong,
+      // khong phai trinh lai sau khi bi tra ve.
+      var wasRevision=existing&&existing.status==='revision';
       payload.status='pending';
       payload.submitted_to_id=submittedToId||(existing?existing.submitted_to_id:null);
-      payload.reviewer_id=null;payload.reviewed_at=null;payload.review_comment=null;
-      payload.revision_count=(existing?existing.revision_count:0)+1;
+      if(wasRevision){
+        payload.reviewer_id=null;payload.reviewed_at=null;payload.review_comment=null;
+        payload.revision_count=(existing?existing.revision_count:0)+1;
+      }
       var r=await fetch(API+'work_logs?id=eq.'+EDITING_ID,{method:'PATCH',headers:authHeaders({'Content-Type':'application/json','Prefer':'return=minimal'}),body:JSON.stringify(payload)});
       if(!r.ok)throw new Error('HTTP '+r.status);
       // Trinh lai nhat ky gan voi 1 viec duoc giao: dua task ve "reported"
@@ -1115,7 +1132,7 @@ async function sj(e){
       if(existing&&existing.task_assignment_id){
         try{await fetch(API+'rpc/link_task_to_log',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_task_id:existing.task_assignment_id,p_log_id:EDITING_ID})})}catch(e){}
       }
-      showToast('Đã chỉnh sửa và trình lại lãnh đạo chấm điểm.');
+      showToast(wasRevision?'Đã chỉnh sửa và trình lại lãnh đạo chấm điểm.':'Đã lưu thay đổi nhật ký.');
     }else{
       payload.author_id=U.id;payload.unit_id=U.uid;payload.status='pending';
       payload.submitted_to_id=submittedToId;

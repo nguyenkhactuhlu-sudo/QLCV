@@ -1328,7 +1328,10 @@ function renderJournal() {
 }
 
 function journalCard(log, opts = {}) {
-  const canEdit = log.status === "revision" && log.authorId === currentUser().id && !opts.readOnly;
+  // Sua duoc ca khi "Cho danh gia" (chua ai cham) lan "Can bo sung" (bi
+  // tra lai) - truoc day chi cho sua khi "Can bo sung", muon sua 1 nhat
+  // ky con dang cho duyet phai xoa roi ghi lai tu dau, khong can thiet.
+  const canEdit = (log.status === "revision" || log.status === "pending") && log.authorId === currentUser().id && !opts.readOnly;
   // "Cap tren" cua nguoi DA CHAM (khong phai tac gia) - cau hoi thu bac
   // chung, dung canManagePerson (khong phu thuoc submitted_to_id cua
   // rieng nhat ky nay, khac canReviewLog).
@@ -1352,7 +1355,7 @@ function journalCard(log, opts = {}) {
   const leaderComment = (log.status === "approved" && log.comment) ? `<div class="leader-comment"><strong>Nhận xét của lãnh đạo${reviewer ? " · " + reviewer.name : ""}</strong><span>${log.comment}</span></div>` : "";
   const authorTag = opts.authorName ? (opts.authorId ? `<button type="button" class="meta-tag journal-author-tag" data-uj-jump-person="${opts.authorId}">${opts.authorName}</button>` : `<span class="meta-tag journal-author-tag">${opts.authorName}</span>`) : "";
   const cloneTag = log.isClone ? `<span class="meta-tag">Tự động ghi nhận (công việc nhiều ngày)</span>` : "";
-  return `<article class="journal-card ${log.status === "revision" ? "is-revision" : ""}"><div class="journal-date"><strong>${shortDate(log.date)}</strong>${log.date.slice(0,4)}</div><div class="journal-body"><h3>${log.title}</h3><p>${log.result}</p>${revisionFeedback}${leaderComment}<div class="journal-meta">${authorTag}<span class="meta-tag">${log.category}</span><span class="meta-tag">${log.workRole}</span><span class="meta-tag">${log.duration}</span>${submittedToTag}${cloneTag}${resubmission}${overriddenTag}<span class="status-pill ${statusClass(log.status)}">${statusLabel(log.status)}</span></div></div><div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>${log.complexity ?? "—"}</strong></div><div class="score-box"><span>Chất lượng</span><strong>${log.quality ?? "—"}</strong></div></div>${canEdit ? `<button type="button" class="button button-primary button-small" data-edit-journal="${log.id}">Sửa và trình lại</button>` : ""}${canOverride ? `<button type="button" class="button button-secondary button-small" data-override-score="${log.id}">Điều chỉnh điểm</button>` : ""}${canDelete ? `<button type="button" class="button button-danger button-small" data-delete-log="${log.id}" data-delete-self="${canDeleteSelf ? "1" : "0"}">Xoá</button>` : ""}</div></article>`;
+  return `<article class="journal-card ${log.status === "revision" ? "is-revision" : ""}"><div class="journal-date"><strong>${shortDate(log.date)}</strong>${log.date.slice(0,4)}</div><div class="journal-body"><h3>${log.title}</h3><p>${log.result}</p>${revisionFeedback}${leaderComment}<div class="journal-meta">${authorTag}<span class="meta-tag">${log.category}</span><span class="meta-tag">${log.workRole}</span><span class="meta-tag">${log.duration}</span>${submittedToTag}${cloneTag}${resubmission}${overriddenTag}<span class="status-pill ${statusClass(log.status)}">${statusLabel(log.status)}</span></div></div><div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>${log.complexity ?? "—"}</strong></div><div class="score-box"><span>Chất lượng</span><strong>${log.quality ?? "—"}</strong></div></div>${canEdit ? `<button type="button" class="button button-primary button-small" data-edit-journal="${log.id}">${log.status === "revision" ? "Sửa và trình lại" : "Sửa"}</button>` : ""}${canOverride ? `<button type="button" class="button button-secondary button-small" data-override-score="${log.id}">Điều chỉnh điểm</button>` : ""}${canDelete ? `<button type="button" class="button button-danger button-small" data-delete-log="${log.id}" data-delete-self="${canDeleteSelf ? "1" : "0"}">Xoá</button>` : ""}</div></article>`;
 }
 
 // Gom danh sach cho duyet theo tung tac gia (KSV), xep theo lan nop gan
@@ -3544,13 +3547,17 @@ function openJournalModal(logId = null, presetTaskId = null, presetNoteId = null
   form.reset();
   state.journalSourceNoteId = null;
   const log = typeof logId === "string" ? logs.find(item => item.id === logId) : null;
-  const canEdit = log && log.authorId === currentUser().id && log.status === "revision";
+  // Sua duoc ca khi "Cho danh gia" (chua ai cham) lan "Can bo sung" (bi
+  // tra lai) - isRevision rieng vi chi trang thai nay moi thuc su co
+  // "yeu cau cua lanh dao" de hien.
+  const canEdit = log && log.authorId === currentUser().id && (log.status === "revision" || log.status === "pending");
+  const isRevision = Boolean(log && log.status === "revision");
   state.editingJournalId = canEdit ? log.id : null;
-  document.getElementById("journalModalTitle").textContent = canEdit ? "Chỉnh sửa và trình lại kết quả" : "Ghi nhận kết quả công việc";
-  document.getElementById("journalSubmitButton").textContent = canEdit ? "Lưu và trình lại" : "Gửi nhật ký";
+  document.getElementById("journalModalTitle").textContent = isRevision ? "Chỉnh sửa và trình lại kết quả" : (canEdit ? "Chỉnh sửa nhật ký" : "Ghi nhận kết quả công việc");
+  document.getElementById("journalSubmitButton").textContent = isRevision ? "Lưu và trình lại" : (canEdit ? "Lưu thay đổi" : "Gửi nhật ký");
   const notice = document.getElementById("journalRevisionNotice");
-  notice.hidden = !canEdit;
-  document.getElementById("journalRevisionComment").textContent = canEdit ? log.comment : "";
+  notice.hidden = !isRevision;
+  document.getElementById("journalRevisionComment").textContent = isRevision ? log.comment : "";
   if (canEdit) {
     form.elements.workDate.value = log.date;
     form.elements.category.value = log.category;
@@ -3865,14 +3872,18 @@ function submitJournal(event) {
   }
   const editingLog = state.editingJournalId ? logs.find(log => log.id === state.editingJournalId) : null;
   if (editingLog) {
-    if (editingLog.authorId !== user.id || editingLog.status !== "revision") {
+    if (editingLog.authorId !== user.id || (editingLog.status !== "revision" && editingLog.status !== "pending")) {
       showToast("Nhật ký này không còn ở trạng thái được phép chỉnh sửa.");
       closeJournalModal();
       renderJournal();
       return;
     }
+    // Chi coi la "trinh lai" (tang revisionCount, ghi lich su, xoa vet
+    // lan cham truoc) khi nhat ky THUC SU dang "Can bo sung" - sua 1 nhat
+    // ky con "Cho danh gia" (chua ai cham) chi la sua binh thuong.
+    const wasRevision = editingLog.status === "revision";
     const now = new Date().toISOString();
-    const reviewHistory = [...(editingLog.reviewHistory || []), {
+    const reviewHistory = wasRevision ? [...(editingLog.reviewHistory || []), {
       status: "revision",
       reviewerId: editingLog.reviewerId,
       reviewedAt: editingLog.reviewedAt,
@@ -3882,16 +3893,18 @@ function submitJournal(event) {
       previousTitle: editingLog.title,
       previousResult: editingLog.result,
       resubmittedAt: now
-    }];
+    }] : (editingLog.reviewHistory || []);
     Object.assign(editingLog, {
       date: data.get("workDate"), category: data.get("category"), title: data.get("title"), result: data.get("result"),
       workRole: data.get("workRole"), duration: data.get("duration"), evidence: data.get("evidence"),
       selfComplexity: Number(data.get("selfComplexity")), selfQuality: Number(data.get("selfQuality")),
       submittedToId: submittedToId || editingLog.submittedToId,
       rangeStartDate,
-      status: "pending", complexity: null, quality: null, reviewerId: null, comment: "", reviewedAt: null,
-      updatedAt: now, resubmittedAt: now, revisionCount: reviewHistory.length, reviewHistory
+      status: "pending", updatedAt: now
     });
+    if (wasRevision) {
+      Object.assign(editingLog, { complexity: null, quality: null, reviewerId: null, comment: "", reviewedAt: null, resubmittedAt: now, revisionCount: reviewHistory.length, reviewHistory });
+    }
     saveLogs();
     // Neu nhat ky nay gan voi 1 viec duoc giao, trinh lai cung dua task
     // ve "reported" (truoc do bi applyReview dua ve "pending" khi tra lai).
@@ -3900,7 +3913,7 @@ function submitJournal(event) {
       if (task) { task.status = "reported"; saveTaskAssignments(); }
     }
     closeJournalModal();
-    showToast("Đã chỉnh sửa và trình lại lãnh đạo chấm điểm.");
+    showToast(wasRevision ? "Đã chỉnh sửa và trình lại lãnh đạo chấm điểm." : "Đã lưu thay đổi nhật ký.");
     renderJournal();
     return;
   }
