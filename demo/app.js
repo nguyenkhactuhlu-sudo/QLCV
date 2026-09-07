@@ -642,6 +642,14 @@ function initialize() {
       });
     });
   }).observe(document.body, { childList: true, subtree: true });
+  // "Ten cong viec" (va tuong tu) doi tu <input> sang <textarea rows="1">
+  // de tu xuong dong/dan cao khi het be ngang (xem .title-grow-input) -
+  // nhung van la 1 dong LOGIC duy nhat nhu input cu, nen chan phim Enter
+  // tao xuong dong thu cong (khac voi cac textarea nhieu dong binh thuong
+  // nhu "Mo ta"/"Ket qua" - o do Enter van xuong dong binh thuong).
+  document.addEventListener("keydown", event => {
+    if (event.key === "Enter" && event.target.classList && event.target.classList.contains("title-grow-input")) event.preventDefault();
+  });
   document.addEventListener("click", event => {
     const toggleBtn = event.target.closest("[data-date-field-toggle]");
     if (toggleBtn) { event.preventDefault(); toggleDateFieldCalendar(toggleBtn.dataset.dateFieldToggle); return; }
@@ -3805,7 +3813,7 @@ function taskAssignFormHtml(candidates, opts = {}) {
   return `<form class="form-grid" id="taskAssignForm">
     <label class="field field-wide"><span>Người chủ trì</span><select name="leadId" required>${options}</select></label>
     <div class="field field-wide"><span>Người phối hợp (không bắt buộc)</span>${taskSupportPickerHtml(candidates, opts.supportIds)}</div>
-    <label class="field field-wide"><span>Tên công việc</span><input type="text" name="title" required maxlength="200" value="${opts.title || ""}"></label>
+    <label class="field field-wide"><span>Tên công việc</span><textarea name="title" required maxlength="200" rows="1" class="title-grow-input">${opts.title || ""}</textarea></label>
     <label class="field field-wide"><span>Mô tả / yêu cầu</span><textarea name="description" rows="5" placeholder="Có thể ghi chi tiết yêu cầu, phạm vi công việc...">${opts.description || ""}</textarea></label>
     <div class="field field-wide"><span>Hạn gợi ý (không bắt buộc)</span>${dueDateTimeFieldHtml("taskSuggestedDue", opts.suggestedDueDate || null)}</div>
     <div class="review-actions field-wide">${actionsHtml}</div>

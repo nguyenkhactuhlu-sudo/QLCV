@@ -110,6 +110,7 @@ var CHANGELOG=[
   {date:'2026-09-07',type:'feature',text:'Giao việc: thêm nút "Ghi nhật ký cho việc này" ngay trên thẻ việc đã giao (cạnh "Sửa"/"Xóa") - dùng khi lãnh đạo lỡ quên ghi nhật ký lúc giao việc, bấm vào là mở sẵn form nhật ký điền trước nội dung, chỉ cần xem lại và gửi.'},
   {date:'2026-09-07',type:'improve',text:'Thanh điều hướng bên trái: rút ngắn khoảng cách thừa giữa thẻ tên người đăng nhập và nút "Tổng quan", bằng đúng khoảng cách giữa các nút khác cho gọn gàng.'},
   {date:'2026-09-07',type:'improve',text:'Các ô nhập nội dung dài (Kết quả/sản phẩm đầu ra, Mô tả, Nhận xét của lãnh đạo, Lý do...) nay tự động giãn cao theo đúng lượng chữ đã gõ, không còn phải cuộn lên xuống trong 1 ô nhỏ.'},
+  {date:'2026-09-07',type:'improve',text:'Giao việc: ô "Tên công việc" nay tự xuống dòng và giãn cao khi hết bề ngang, không còn bị cố định trong 1 dòng phải cuộn ngang mới đọc hết.'},
   {date:'2026-09-06',type:'feature',text:'Thêm mục riêng "Điểm cộng/trừ đột xuất" (khen thưởng/kỷ luật phát hiện sau khi tháng đã chấm xong) - có thống kê tổng lượt/tổng điểm riêng, ghi thành từng dòng, không bao giờ mất, luôn áp dụng cho tháng hiện tại (không sửa lại điểm tháng đã chốt), người bị/được áp dụng xem được lý do. Có link nhảy nhanh từ "Chấm điểm tháng" sang.'},
   {date:'2026-09-06',type:'feature',text:'Nhật ký công tác của đơn vị: thêm cách xem "Theo ngày" - chọn 1 ngày cụ thể là thấy ngay ai đã nộp việc, ai đang nghỉ phép, ai chưa nộp trong ngày đó, giúp lãnh đạo đôn đốc kịp thời.'},
   {date:'2026-09-06',type:'fix',text:'Sửa lỗi Trưởng phòng/Viện trưởng khu vực có thể duyệt nhầm nhật ký mà KSV đã nộp đích danh cho 1 Phó - nay tách riêng thành 2 khu "Nộp cho tôi" và "Đang chờ người khác xử lý" trong màn Duyệt & chấm điểm.'},
@@ -1712,7 +1713,7 @@ function taskAssignFormHtml(opts){
   return '<form class="form-grid" id="taskAssignForm">'
     +'<label class="field field-wide"><span>Người chủ trì</span><select name="leadId" required>'+options+'</select></label>'
     +'<div class="field field-wide"><span>Người phối hợp (không bắt buộc)</span>'+taskSupportPickerHtml(opts.supportIds)+'</div>'
-    +'<label class="field field-wide"><span>Tên công việc</span><input type="text" name="title" required maxlength="200" value="'+esc(opts.title||'')+'"></label>'
+    +'<label class="field field-wide"><span>Tên công việc</span><textarea name="title" required maxlength="200" rows="1" class="title-grow-input">'+esc(opts.title||'')+'</textarea></label>'
     +'<label class="field field-wide"><span>Mô tả / yêu cầu</span><textarea name="description" rows="5" placeholder="Có thể ghi chi tiết yêu cầu, phạm vi công việc...">'+esc(opts.description||'')+'</textarea></label>'
     +'<div class="field field-wide"><span>Hạn gợi ý (không bắt buộc)</span>'+dueDateTimeFieldHtml('taskSuggestedDue',opts.suggestedDueDate||null)+'</div>'
     +'<div class="review-actions field-wide">'+actionsHtml+'</div>'
@@ -4641,6 +4642,14 @@ document.addEventListener('DOMContentLoaded',function(){
       });
     });
   }).observe(document.body,{childList:true,subtree:true});
+  // "Ten cong viec" (va tuong tu) doi tu <input> sang <textarea rows="1">
+  // de tu xuong dong/dan cao khi het be ngang (xem .title-grow-input) -
+  // nhung van la 1 dong LOGIC duy nhat nhu input cu, nen chan phim Enter
+  // tao xuong dong thu cong (khac voi cac textarea nhieu dong binh thuong
+  // nhu "Mo ta"/"Ket qua" - o do Enter van xuong dong binh thuong).
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Enter'&&e.target.classList&&e.target.classList.contains('title-grow-input'))e.preventDefault();
+  });
   document.addEventListener('click',function(e){
     var toggleBtn=e.target.closest('[data-date-field-toggle]');
     if(toggleBtn){e.preventDefault();toggleDateFieldCalendar(toggleBtn.dataset.dateFieldToggle);return}
