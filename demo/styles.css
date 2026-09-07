@@ -853,17 +853,26 @@ details.uj-day-card .uj-day-card-logs .journal-card:first-child { margin-top: 12
 /* O ngay/gio "Han goi y", "Dat han"... ghep 1 o Ngay + 1 o Gio, moi o la
    1 khoi go tay gon (xem .date-field-wrap/.time-field-input ben duoi) -
    thay cho input[type=datetime-local] cua trinh duyet (hien 12h
-   sang/chieu hay 24h tuy ngon ngu trinh duyet, ngoai tam kiem soat). */
-.due-datetime-picker { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
-.due-datetime-sep, .due-datetime-colon { color: var(--muted); font-size: 12px; }
-.time-field-input { width: 74px; flex: 0 0 auto; text-align: center; letter-spacing: .04em; }
+   sang/chieu hay 24h tuy ngon ngu trinh duyet, ngoai tam kiem soat).
+   Dung "!important" cho width vi ".field input" (dinh nghia ben duoi, o
+   sau file) co do dac ta (specificity) CAO HON 1 class don (.field +
+   input = 2 phan tu > 1 class) nen se ghi de mat kich thuoc rieng neu
+   khong co !important - day chinh la nguyen nhan o Gio/Ngay bi "kich
+   nhau" (bi keo ve 100% chieu rong, danh nhau trong 1 hang khong xuong
+   dong) truoc khi sua. */
+.due-datetime-picker { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; }
+.due-datetime-sep, .due-datetime-colon { color: var(--muted); font-size: 12px; flex: 0 0 auto; }
+/* O Gio va o Ngay dung CHUNG 1 kich thuoc (khong con lech nhau - o Gio
+   truoc day nho hon han o Ngay, hoac bi keo rong 100% de "kich" vao
+   nhau) - moi o chiem 1 nua khu vuc chon ngay/gio cho can doi. */
+.time-field-input { width: 140px !important; flex: 0 0 auto; text-align: center; letter-spacing: .04em; }
 /* O ngay go tay dang "dd/mm/yyyy" (tu nhay dau / khi go so) + nut lich
    bam chon cho nguoi khong quen go tay - thay cho input[type=date] cua
    trinh duyet (hien thi sai thu tu ngay/thang tuy ngon ngu trinh duyet,
    khong sua duoc bang thuoc tinh "lang" cua trang). Ca 2 cach nhap deu
    luon ra dung dd/mm/yyyy. */
 .date-field-wrap { position: relative; display: inline-flex; align-items: center; gap: 4px; }
-.date-field-input { width: 118px; flex: 0 0 auto; letter-spacing: .02em; }
+.date-field-input { width: 140px !important; flex: 0 0 auto; letter-spacing: .02em; }
 .date-field-cal-btn { flex: 0 0 auto; width: 34px; height: 34px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 15px; line-height: 1; cursor: pointer; }
 .date-field-cal-btn:hover { background: var(--primary-light); border-color: #9bc4e5; }
 .date-field-popup { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; width: 240px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: 0 10px 28px rgba(15, 30, 50, .16); }
