@@ -847,6 +847,15 @@ details.uj-day-card .uj-day-card-logs .journal-card:first-child { margin-top: 12
 .field { display: grid; gap: 6px; }
 .field > span { font-size: 12px; font-weight: 650; }
 .field em { color: var(--muted); font-weight: 400; }
+.field-label { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 650; }
+/* Chon ngay + gio theo dung khung 24h (3 o rieng: Ngay/Gio/Phut) - thay
+   cho input[type=datetime-local], vi trinh duyet native hien 12h
+   (sang/chieu) hay 24h la tuy ngon ngu trinh duyet cua nguoi dung, ngoai
+   tam kiem soat cua trang web (Giao viec: Han goi y, Han hoan thanh). */
+.due-datetime-picker { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.due-datetime-picker input[type="date"] { flex: 1 1 140px; min-width: 130px; width: auto; }
+.due-datetime-picker select { width: auto; min-width: 62px; padding: 10px 8px; }
+.due-datetime-sep, .due-datetime-colon { color: var(--muted); font-size: 12px; }
 .field input, .field select, .field textarea {
   width: 100%;
   padding: 10px 11px;

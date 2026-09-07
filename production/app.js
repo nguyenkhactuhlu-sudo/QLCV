@@ -81,6 +81,7 @@ var STATUS_CLASS={pending:'status-pending',approved:'status-approved',revision:'
 // mang nay.
 // ============================================
 var CHANGELOG=[
+  {date:'2026-09-07',type:'improve',text:'Giao việc/Ghi chú công việc: đổi ô chọn giờ hạn (hạn gợi ý, đặt hạn, giờ hạn chót) sang đúng khung 24 giờ (00-23 giờ), không còn phụ thuộc vào việc trình duyệt hiển thị kiểu sáng/chiều (AM/PM) hay không.'},
   {date:'2026-09-07',type:'fix',text:'Sửa lỗi không sửa được nhật ký đang "Chờ đánh giá" (chưa ai chấm điểm) - trước đây chỉ sửa được nhật ký bị trả lại "Cần bổ sung", muốn sửa nhật ký còn đang chờ duyệt phải xoá rồi ghi lại từ đầu. Nay bấm "Sửa" là chỉnh sửa được luôn.'},
   {date:'2026-09-06',type:'feature',text:'Thêm mục riêng "Điểm cộng/trừ đột xuất" (khen thưởng/kỷ luật phát hiện sau khi tháng đã chấm xong) - có thống kê tổng lượt/tổng điểm riêng, ghi thành từng dòng, không bao giờ mất, luôn áp dụng cho tháng hiện tại (không sửa lại điểm tháng đã chốt), người bị/được áp dụng xem được lý do. Có link nhảy nhanh từ "Chấm điểm tháng" sang.'},
   {date:'2026-09-06',type:'feature',text:'Nhật ký công tác của đơn vị: thêm cách xem "Theo ngày" - chọn 1 ngày cụ thể là thấy ngay ai đã nộp việc, ai đang nghỉ phép, ai chưa nộp trong ngày đó, giúp lãnh đạo đôn đốc kịp thời.'},
@@ -1325,6 +1326,62 @@ async function rt(){
   document.querySelectorAll('[data-report-task]').forEach(function(b){b.addEventListener('click',function(){oj(null,b.dataset.reportTask)})});
 }
 
+// Chon ngay+gio theo dung khung 24h, thay cho input[type=datetime-local]
+// - trinh duyet native hien 12h (sang/chieu, AM/PM) hay 24h la tuy theo
+// NGON NGU TRINH DUYET cua nguoi dung (khong phai theo he dieu hanh, va
+// khong sua duoc bang thuoc tinh "lang" cua trang) - nhieu may van de
+// trinh duyet o tieng Anh nen hien AM/PM du May/Windows la tieng Viet.
+// Tach rieng 3 o (Ngay/Gio/Phut) de LUON hien dung so 00-23, khong phu
+// thuoc ngon ngu trinh duyet nua.
+function hourOptionsHtml(){
+  var h='<option value="">Giờ</option>';
+  for(var i=0;i<24;i++){var v=String(i).padStart(2,'0');h+='<option value="'+v+'">'+v+'</option>'}
+  return h;
+}
+function minuteOptionsHtml(){
+  var h='<option value="">Phút</option>';
+  for(var i=0;i<60;i+=5){var v=String(i).padStart(2,'0');h+='<option value="'+v+'">'+v+'</option>'}
+  return h;
+}
+// idPrefix+"Date"/"Hour"/"Minute" la id cua 3 o; isoValue (neu co) dung
+// gio DIA PHUONG de dien san (khong dung
+// toISOString() la UTC, se lech gio hien thi).
+function dueDateTimeFieldHtml(idPrefix,isoValue){
+  var dateVal='',hourVal='',minuteVal='';
+  if(isoValue){
+    var d=new Date(isoValue);
+    if(!isNaN(d.getTime())){
+      var p2=function(n){return String(n).padStart(2,'0')};
+      dateVal=d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());
+      hourVal=p2(d.getHours());
+      minuteVal=p2(Math.floor(d.getMinutes()/5)*5);
+    }
+  }
+  var hourOpts=hourOptionsHtml().replace('value="'+hourVal+'"','value="'+hourVal+'" selected');
+  var minuteOpts=minuteOptionsHtml().replace('value="'+minuteVal+'"','value="'+minuteVal+'" selected');
+  return '<div class="due-datetime-picker">'
+    +'<input type="date" id="'+idPrefix+'Date" value="'+dateVal+'">'
+    +'<span class="due-datetime-sep">lúc</span>'
+    +'<select id="'+idPrefix+'Hour">'+hourOpts+'</select>'
+    +'<span class="due-datetime-colon">:</span>'
+    +'<select id="'+idPrefix+'Minute">'+minuteOpts+'</select>'
+    +'</div>';
+}
+// Doc lai 3 o thanh 1 chuoi ISO (gio dia phuong) - tra ve null neu chua
+// chon ngay; bao showToast va tra ve undefined (khac null) neu da chon
+// ngay nhung thieu gio/phut, de noi goi kiem tra duoc ca 2 truong hop.
+function readDueDateTime(idPrefix,fieldLabel){
+  var dateEl=$(idPrefix+'Date'),hourEl=$(idPrefix+'Hour'),minuteEl=$(idPrefix+'Minute');
+  if(!dateEl||!dateEl.value)return null;
+  if(!hourEl.value||!minuteEl.value){
+    showToast('Vui lòng chọn đủ giờ và phút cho '+fieldLabel+'.');
+    return undefined;
+  }
+  var parts=dateEl.value.split('-').map(Number);
+  var d=new Date(parts[0],parts[1]-1,parts[2],Number(hourEl.value),Number(minuteEl.value),0);
+  return d.toISOString();
+}
+
 // Chia danh sach "nguoi phoi hop" theo nhom vai tro - trong da so truong
 // hop chi can chon 1 lanh dao chu tri + nhieu KSV phoi hop, gom nhom giup
 // don vi dong nguoi (30-70 nguoi) de tim hon la 1 danh sach dai dang.
@@ -1361,7 +1418,7 @@ function taskAssignFormHtml(){
     +'<div class="field field-wide"><span>Người phối hợp (không bắt buộc)</span>'+taskSupportPickerHtml()+'</div>'
     +'<label class="field field-wide"><span>Tên công việc</span><input type="text" name="title" required maxlength="200"></label>'
     +'<label class="field field-wide"><span>Mô tả / yêu cầu</span><textarea name="description" rows="5" placeholder="Có thể ghi chi tiết yêu cầu, phạm vi công việc..."></textarea></label>'
-    +'<label class="field"><span>Hạn gợi ý (không bắt buộc)</span><input type="datetime-local" name="suggestedDueDate"></label>'
+    +'<div class="field field-wide"><span>Hạn gợi ý (không bắt buộc)</span>'+dueDateTimeFieldHtml('taskSuggestedDue',null)+'</div>'
     +'<div class="review-actions"><button type="submit" class="button button-primary">Giao việc</button></div>'
     +'</form>';
 }
@@ -1416,7 +1473,8 @@ async function submitTaskAssignment(e){
   if(!leadId){showToast('Vui lòng chọn người chủ trì.');return}
   if(!title){showToast('Vui lòng nhập tên công việc.');return}
   var supportIds=Array.from(form.querySelectorAll('input[name="supportIds"]:checked')).map(function(cb){return cb.value}).filter(function(id){return id!==leadId});
-  var suggestedDueDate=f.get('suggestedDueDate')?new Date(f.get('suggestedDueDate')).toISOString():null;
+  var suggestedDueDate=readDueDateTime('taskSuggestedDue','hạn gợi ý');
+  if(suggestedDueDate===undefined)return; // da chon ngay nhung thieu gio/phut, readDueDateTime da bao loi
   var btn=form.querySelector('button[type="submit"]');btn.disabled=true;
   try{
     var r=await fetch(API+'rpc/create_task_assignment',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_lead_assignee_id:leadId,p_support_assignee_ids:supportIds,p_title:title,p_description:(f.get('description')||'').trim()||null,p_suggested_due_date:suggestedDueDate})});
@@ -1454,7 +1512,7 @@ function taskCardHtml(task,perspective){
     ?TASK_GROUP_MEMBERS.filter(function(m){return m.task_group_id===task.task_group_id&&m.id!==task.id})
     :[];
   var dueSetter=(perspective==='assignee'&&task.status!=='done')
-    ?('<form class="task-due-form" data-set-due-form="'+task.id+'"><label><span>Hạn hoàn thành</span><input type="datetime-local" name="dueDate" value="'+(task.actual_due_date?toDatetimeLocalValue(task.actual_due_date):'')+'"></label><button type="submit" class="button button-secondary button-small">Đặt hạn</button></form>')
+    ?('<form class="task-due-form" data-set-due-form="'+task.id+'"><span class="field-label">Hạn hoàn thành</span>'+dueDateTimeFieldHtml('taskActualDue_'+task.id,task.actual_due_date)+'<button type="submit" class="button button-secondary button-small">Đặt hạn</button></form>')
     :'';
   var reportButton=(perspective==='assignee'&&task.status==='pending')
     ?('<button type="button" class="button button-primary button-small" data-report-task="'+task.id+'">Ghi nhật ký cho việc này</button>')
@@ -1471,25 +1529,17 @@ function taskCardHtml(task,perspective){
     +'</div>'+dueSetter+reportButton+'</article>';
 }
 
-// Chuyen 1 timestamp ISO ve dung dinh dang "YYYY-MM-DDTHH:mm" theo GIO DIA
-// PHUONG de gan lam value cho input[type=datetime-local] (khac
-// toISOString() la UTC, se lech gio hien thi so voi luc nguoi dung da chon).
-function toDatetimeLocalValue(iso){
-  var d=new Date(iso);
-  if(isNaN(d.getTime()))return '';
-  var p2=function(n){return String(n).padStart(2,'0')};
-  return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())+'T'+p2(d.getHours())+':'+p2(d.getMinutes());
-}
 
 async function submitTaskDueDate(e){
   e.preventDefault();
   if(!requireActive())return;
   var form=e.currentTarget;
   var taskId=form.dataset.setDueForm;
-  var value=form.elements.dueDate.value;
+  var value=readDueDateTime('taskActualDue_'+taskId,'hạn hoàn thành');
+  if(value===undefined)return; // da chon ngay nhung thieu gio/phut, readDueDateTime da bao loi
   if(!value){showToast('Vui lòng chọn thời điểm hoàn thành.');return}
   try{
-    var r=await fetch(API+'rpc/set_task_due_date',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_task_id:taskId,p_due_date:new Date(value).toISOString()})});
+    var r=await fetch(API+'rpc/set_task_due_date',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_task_id:taskId,p_due_date:value})});
     var data=await r.json();
     if(!r.ok||data.success===false){showToast('Lỗi: '+(data.error||'HTTP '+r.status));return}
     showToast('Đã đặt hạn hoàn thành.');
@@ -1713,7 +1763,12 @@ function openNoteModal(dateStr,noteId){
   form.elements.noteDate.value=note?note.note_date:(dateStr||NOTES_SELECTED_DATE);
   form.elements.title.value=note?note.title:'';
   form.elements.content.value=note?(note.content||''):'';
-  form.elements.dueTime.value=note&&note.due_time?note.due_time.slice(0,5):'';
+  // Tach "HH:MM:SS" thanh 2 o rieng (Gio/Phut) - xem ly do o
+  // dueDateTimeFieldHtml() cua man Giao viec (trinh duyet hien 12h hay
+  // 24h tuy ngon ngu trinh duyet, ngoai tam kiem soat cua trang web).
+  var dueTimeParts=(note&&note.due_time)?note.due_time.split(':'):['',''];
+  form.elements.dueTimeHour.value=dueTimeParts[0]||'';
+  form.elements.dueTimeMinute.value=dueTimeParts[1]||'';
   form.elements.remindBeforeMinutes.value=note&&note.remind_before_minutes!=null?String(note.remind_before_minutes):'';
   $('noteModal').hidden=false;
   form.elements.title.focus();
@@ -1727,7 +1782,8 @@ async function submitNote(e){
   var noteDate=f.get('noteDate');
   var title=(f.get('title')||'').trim();
   var content=(f.get('content')||'').trim();
-  var dueTime=f.get('dueTime')||null;
+  var dueTimeHour=f.get('dueTimeHour'),dueTimeMinute=f.get('dueTimeMinute');
+  var dueTime=(dueTimeHour&&dueTimeMinute)?(dueTimeHour+':'+dueTimeMinute):null;
   var remindRaw=f.get('remindBeforeMinutes');
   var remindBeforeMinutes=remindRaw?Number(remindRaw):null;
   if(!noteDate||!title)return;

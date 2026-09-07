@@ -1554,7 +1554,9 @@ function openNoteModal(dateStr, noteId = null) {
   form.elements.noteDate.value = note ? note.noteDate : (dateStr || state.notesSelectedDate);
   form.elements.title.value = note ? note.title : "";
   form.elements.content.value = note ? note.content || "" : "";
-  form.elements.dueTime.value = note && note.dueTime ? note.dueTime : "";
+  const dueTimeParts = (note && note.dueTime) ? note.dueTime.split(":") : ["", ""];
+  form.elements.dueTimeHour.value = dueTimeParts[0] || "";
+  form.elements.dueTimeMinute.value = dueTimeParts[1] || "";
   form.elements.remindBeforeMinutes.value = note && note.remindBeforeMinutes != null ? String(note.remindBeforeMinutes) : "";
   document.getElementById("noteModal").hidden = false;
   form.elements.title.focus();
@@ -1572,7 +1574,8 @@ function submitNote(event) {
   const noteDate = data.get("noteDate");
   const title = String(data.get("title") || "").trim();
   const content = String(data.get("content") || "").trim();
-  const dueTime = data.get("dueTime") || null;
+  const dueTimeHour = data.get("dueTimeHour"), dueTimeMinute = data.get("dueTimeMinute");
+  const dueTime = (dueTimeHour && dueTimeMinute) ? `${dueTimeHour}:${dueTimeMinute}` : null;
   const remindRaw = data.get("remindBeforeMinutes");
   const remindBeforeMinutes = remindRaw ? Number(remindRaw) : null;
   if (!noteDate || !title) return;
@@ -3368,6 +3371,60 @@ const TASK_SUPPORT_GROUP_DEFS = [
   { label: "Cán bộ, Kiểm sát viên", roles: ["staff"], openByDefault: true },
   { label: "Người lao động", roles: ["support_staff"], openByDefault: false }
 ];
+// Chon ngay+gio theo dung khung 24h, thay cho input[type=datetime-local]
+// - trinh duyet native hien 12h (sang/chieu, AM/PM) hay 24h la tuy theo
+// NGON NGU TRINH DUYET cua nguoi dung (khong phai he dieu hanh, khong
+// sua duoc bang thuoc tinh "lang" cua trang) - nhieu may van de trinh
+// duyet o tieng Anh nen hien AM/PM du may/Windows la tieng Viet. Tach
+// rieng 3 o (Ngay/Gio/Phut) de LUON hien dung so 00-23.
+function hourOptionsHtml() {
+  let h = `<option value="">Giờ</option>`;
+  for (let i = 0; i < 24; i++) { const v = String(i).padStart(2, "0"); h += `<option value="${v}">${v}</option>`; }
+  return h;
+}
+function minuteOptionsHtml() {
+  let h = `<option value="">Phút</option>`;
+  for (let i = 0; i < 60; i += 5) { const v = String(i).padStart(2, "0"); h += `<option value="${v}">${v}</option>`; }
+  return h;
+}
+// idPrefix+"Date"/"Hour"/"Minute" la id cua 3 o; isoValue (neu co) dung
+// gio DIA PHUONG de dien san (khong dung toISOString() la UTC, se lech
+// gio hien thi so voi luc nguoi dung da chon).
+function dueDateTimeFieldHtml(idPrefix, isoValue) {
+  let dateVal = "", hourVal = "", minuteVal = "";
+  if (isoValue) {
+    const d = new Date(isoValue);
+    if (!isNaN(d.getTime())) {
+      const p2 = n => String(n).padStart(2, "0");
+      dateVal = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+      hourVal = p2(d.getHours());
+      minuteVal = p2(Math.floor(d.getMinutes() / 5) * 5);
+    }
+  }
+  const hourOpts = hourOptionsHtml().replace(`value="${hourVal}"`, `value="${hourVal}" selected`);
+  const minuteOpts = minuteOptionsHtml().replace(`value="${minuteVal}"`, `value="${minuteVal}" selected`);
+  return `<div class="due-datetime-picker">
+    <input type="date" id="${idPrefix}Date" value="${dateVal}">
+    <span class="due-datetime-sep">lúc</span>
+    <select id="${idPrefix}Hour">${hourOpts}</select>
+    <span class="due-datetime-colon">:</span>
+    <select id="${idPrefix}Minute">${minuteOpts}</select>
+  </div>`;
+}
+// Doc lai 3 o thanh 1 chuoi ISO (gio dia phuong) - tra ve null neu chua
+// chon ngay; bao showToast va tra ve undefined (khac null) neu da chon
+// ngay nhung thieu gio/phut.
+function readDueDateTime(idPrefix, fieldLabel) {
+  const dateEl = document.getElementById(`${idPrefix}Date`), hourEl = document.getElementById(`${idPrefix}Hour`), minuteEl = document.getElementById(`${idPrefix}Minute`);
+  if (!dateEl || !dateEl.value) return null;
+  if (!hourEl.value || !minuteEl.value) {
+    showToast(`Vui lòng chọn đủ giờ và phút cho ${fieldLabel}.`);
+    return undefined;
+  }
+  const [y, m, d] = dateEl.value.split("-").map(Number);
+  return new Date(y, m - 1, d, Number(hourEl.value), Number(minuteEl.value), 0).toISOString();
+}
+
 function taskSupportPickerHtml(candidates) {
   const covered = new Set(TASK_SUPPORT_GROUP_DEFS.flatMap(def => def.roles));
   const groups = TASK_SUPPORT_GROUP_DEFS.map(def => ({ def, people: candidates.filter(p => def.roles.includes(p.role)) }));
@@ -3391,7 +3448,7 @@ function taskAssignFormHtml(candidates) {
     <div class="field field-wide"><span>Người phối hợp (không bắt buộc)</span>${taskSupportPickerHtml(candidates)}</div>
     <label class="field field-wide"><span>Tên công việc</span><input type="text" name="title" required maxlength="200"></label>
     <label class="field field-wide"><span>Mô tả / yêu cầu</span><textarea name="description" rows="5" placeholder="Có thể ghi chi tiết yêu cầu, phạm vi công việc..."></textarea></label>
-    <label class="field"><span>Hạn gợi ý (không bắt buộc)</span><input type="datetime-local" name="suggestedDueDate"></label>
+    <div class="field field-wide"><span>Hạn gợi ý (không bắt buộc)</span>${dueDateTimeFieldHtml("taskSuggestedDue", null)}</div>
     <div class="review-actions"><button type="submit" class="button button-primary">Giao việc</button></div>
   </form>`;
 }
@@ -3449,7 +3506,8 @@ function bindTaskAssignForm() {
     const supportUsers = Array.from(form.querySelectorAll('input[name="supportIds"]:checked'))
       .map(checkbox => checkbox.value).filter(id => id !== lead.id).map(userById).filter(Boolean);
     const description = String(data.get("description") || "").trim();
-    const suggestedDueDate = data.get("suggestedDueDate") || null;
+    const suggestedDueDate = readDueDateTime("taskSuggestedDue", "hạn gợi ý");
+    if (suggestedDueDate === undefined) return; // da chon ngay nhung thieu gio/phut
     const groupId = `TG-${Date.now()}`;
     const createdAt = new Date().toISOString();
     taskAssignments.push({
@@ -3499,7 +3557,7 @@ function taskCardHtml(task, perspective) {
     ? taskAssignments.filter(item => item.taskGroupId === task.taskGroupId && item.id !== task.id).map(item => userById(item.assigneeId)?.name).filter(Boolean)
     : [];
   const dueSetter = perspective === "assignee" && task.status !== "done"
-    ? `<form class="task-due-form" data-set-due-form="${task.id}"><label><span>Hạn hoàn thành</span><input type="datetime-local" name="dueDate" value="${task.actualDueDate || ""}"></label><button type="submit" class="button button-secondary button-small">Đặt hạn</button></form>`
+    ? `<form class="task-due-form" data-set-due-form="${task.id}"><span class="field-label">Hạn hoàn thành</span>${dueDateTimeFieldHtml("taskActualDue_" + task.id, task.actualDueDate)}<button type="submit" class="button button-secondary button-small">Đặt hạn</button></form>`
     : "";
   const reportButton = perspective === "assignee" && task.status === "pending"
     ? `<button type="button" class="button button-primary button-small" data-report-task="${task.id}">Ghi nhật ký cho việc này</button>` : "";
@@ -3523,7 +3581,8 @@ function submitTaskDueDate(event) {
   const form = event.currentTarget;
   const task = taskAssignments.find(item => item.id === form.dataset.setDueForm);
   if (!task) return;
-  const value = form.elements.dueDate.value;
+  const value = readDueDateTime("taskActualDue_" + task.id, "hạn hoàn thành");
+  if (value === undefined) return; // da chon ngay nhung thieu gio/phut
   if (!value) { showToast("Vui lòng chọn thời điểm hoàn thành."); return; }
   task.actualDueDate = value;
   saveTaskAssignments();
