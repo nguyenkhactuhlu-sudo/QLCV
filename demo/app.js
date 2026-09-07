@@ -1364,7 +1364,10 @@ function journalCard(log, opts = {}) {
   // rieng nhat ky nay, khac canReviewLog).
   const canOverride = log.status === "approved" && log.reviewerId && !isLeaveCategoryName(log.category) && canManagePerson(userById(log.reviewerId), currentUser());
   const overridden = (log.scoringHistory || []).length >= 2;
-  const submittedToTag = log.submittedToId ? `<span class="meta-tag">Nộp cho: ${userById(log.submittedToId)?.name || "—"}</span>` : "";
+  // Kem theo THOI DIEM nop (gio:phut that) de lanh dao biet nop luc nao,
+  // khong chi nop cho ai - dung chung submittedAtOf() voi man Duyet & cham
+  // diem.
+  const submittedToTag = log.submittedToId ? `<span class="meta-tag">Nộp cho: ${userById(log.submittedToId)?.name || "—"} · ${shortDateTime(submittedAtOf(log))}</span>` : "";
   // Tu xoa: chi chinh tac gia, chi khi con "cho duyet"/"can bo sung" (da
   // duyet roi coi la du lieu chinh thuc, phai qua lanh dao). Lanh dao xoa
   // ho cap duoi: dung dung pham vi da co san trong canReviewLog, khong gioi
@@ -1373,12 +1376,17 @@ function journalCard(log, opts = {}) {
   const canDeleteSelf = !opts.readOnly && isSelf && (log.status === "pending" || log.status === "revision");
   const canDeleteAsLeader = !isSelf && canReviewLog(log, currentUser());
   const canDelete = canDeleteSelf || canDeleteAsLeader;
-  const revisionFeedback = log.status === "revision" ? `<div class="revision-feedback"><strong>Lãnh đạo yêu cầu bổ sung</strong><span>${log.comment || "Cần chỉnh sửa, làm rõ kết quả công tác."}</span></div>` : "";
+  // Ten lanh dao da/dang xu ly (neu co) - dung chung cho ca "Yeu cau bo
+  // sung" (revision) lan "Nhan xet cua lanh dao" (approved), khong con chi
+  // tinh khi da duyet nua.
+  const reviewer = log.reviewerId ? userById(log.reviewerId) : null;
+  // Ghi ro AI da yeu cau bo sung (truoc day chi hien noi dung, khong biet
+  // lanh dao nao).
+  const revisionFeedback = log.status === "revision" ? `<div class="revision-feedback"><strong>Lãnh đạo yêu cầu bổ sung${reviewer ? " · " + reviewer.name : ""}</strong><span>${log.comment || "Cần chỉnh sửa, làm rõ kết quả công tác."}</span></div>` : "";
   const resubmission = log.revisionCount ? `<span class="meta-tag">Đã trình lại ${log.revisionCount} lần</span>` : "";
   const overriddenTag = overridden ? `<span class="meta-tag meta-tag-warning">Điểm đã được lãnh đạo cấp trên điều chỉnh</span>` : "";
   // Nhan xet cua lanh dao (neu co) hien luon kem nhat ky da xac nhan + cham
   // diem - khong chi rieng khi bi dieu chinh lai.
-  const reviewer = log.status === "approved" ? userById(log.reviewerId) : null;
   const leaderComment = (log.status === "approved" && log.comment) ? `<div class="leader-comment"><strong>Nhận xét của lãnh đạo${reviewer ? " · " + reviewer.name : ""}</strong><span>${log.comment}</span></div>` : "";
   const authorTag = opts.authorName ? (opts.authorId ? `<button type="button" class="meta-tag journal-author-tag" data-uj-jump-person="${opts.authorId}">${opts.authorName}</button>` : `<span class="meta-tag journal-author-tag">${opts.authorName}</span>`) : "";
   const cloneTag = log.isClone ? `<span class="meta-tag">Tự động ghi nhận (công việc nhiều ngày)</span>` : "";
@@ -3789,6 +3797,9 @@ function openJournalModal(logId = null, presetTaskId = null, presetNoteId = null
   document.getElementById("journalSubmitButton").textContent = isRevision ? "Lưu và trình lại" : (canEdit ? "Lưu thay đổi" : "Gửi nhật ký");
   const notice = document.getElementById("journalRevisionNotice");
   notice.hidden = !isRevision;
+  // Ghi ro AI (lanh dao nao) da yeu cau bo sung, khong chi hien noi dung.
+  const revisionReviewer = (isRevision && log.reviewerId) ? userById(log.reviewerId) : null;
+  document.getElementById("journalRevisionTitle").textContent = `Yêu cầu của lãnh đạo${revisionReviewer ? " · " + revisionReviewer.name : ""}`;
   document.getElementById("journalRevisionComment").textContent = isRevision ? log.comment : "";
   if (canEdit) {
     document.getElementById("journalWorkDateField").innerHTML = dateOnlyFieldHtml("journalWorkDate", log.date);

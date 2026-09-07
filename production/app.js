@@ -81,6 +81,7 @@ var STATUS_CLASS={pending:'status-pending',approved:'status-approved',revision:'
 // mang nay.
 // ============================================
 var CHANGELOG=[
+  {date:'2026-09-07',type:'fix',text:'Nhật ký công tác của đơn vị (và Nhật ký của tôi): mỗi nhật ký nay ghi rõ nộp cho ai, nộp lúc mấy giờ ngày nào. Nhật ký bị trả về "Cần bổ sung" nay cũng ghi rõ lãnh đạo nào đã yêu cầu, không chỉ hiện nội dung yêu cầu chung chung.'},
   {date:'2026-09-07',type:'improve',text:'Tổng quan: đổi cột "Tổng độ phức tạp" trong bảng "Kết quả theo đơn vị/cán bộ" thành "Tỷ lệ đã chấm điểm" (số nhật ký đã được lãnh đạo chấm điểm / tổng số nhật ký đã nộp trong kỳ) - hữu ích hơn để theo dõi tiến độ chấm điểm.'},
   {date:'2026-09-07',type:'fix',text:'Ô chọn ngày (ghi nhật ký, nghỉ phép, ghi chú, ủy quyền, tra cứu theo ngày...) nay luôn hiển thị đúng thứ tự Ngày/Tháng/Năm quen thuộc, không còn phụ thuộc vào việc trình duyệt hiển thị kiểu ngày/tháng/năm hay tháng/ngày/năm (kiểu Mỹ).'},
   {date:'2026-09-07',type:'improve',text:'Điểm cộng/trừ đột xuất: Phó phòng/Phó Viện trưởng khu vực nay xem được điều chỉnh của cả đơn vị (trước đây chỉ xem được của chính mình nếu chưa được ủy quyền chấm điểm thay).'},
@@ -770,20 +771,30 @@ function journalCardHtml(log,opts){
   // can_review_log) thi khong gioi han trang thai.
   var canDeleteSelf=!opts.readOnly&&(log.status==='pending'||log.status==='revision');
   var canDelete=opts.canDelete||canDeleteSelf;
-  var revisionFeedback=log.status==='revision'?'<div class="revision-feedback"><strong>Lãnh đạo yêu cầu bổ sung</strong><span>'+esc(log.review_comment||'Cần chỉnh sửa, làm rõ kết quả công tác.')+'</span></div>':'';
+  // Ten lanh dao da/dang xu ly (neu co) lay tu opts (ruj - tra cuu qua
+  // UJ_PEOPLE) hoac tu log.reviewer (join san o fetchUnitJournalLogs/rj) -
+  // dung 1 nguon cho ca "Nhat ky cua toi" lan "Nhat ky cong tac cua don
+  // vi". Tinh TRUOC revisionFeedback/leaderComment vi ca 2 deu can dung.
+  var reviewerName=opts.reviewerName||(log.reviewer&&log.reviewer.full_name)||'';
+  // Ghi ro AI da yeu cau bo sung (truoc day chi hien noi dung, khong biet
+  // lanh dao nao) - dung chung 1 nguon reviewerName voi "Nhan xet cua lanh
+  // dao" ben duoi, vi reviewer_id van duoc giu lai tren dong "revision"
+  // (xem reject_work_log, migration 00031).
+  var revisionFeedback=log.status==='revision'?('<div class="revision-feedback"><strong>Lãnh đạo yêu cầu bổ sung'+(reviewerName?(' · '+esc(reviewerName)):'')+'</strong><span>'+esc(log.review_comment||'Cần chỉnh sửa, làm rõ kết quả công tác.')+'</span></div>'):'';
   var resubmission=log.revision_count?'<span class="meta-tag">Đã trình lại '+log.revision_count+' lần</span>':'';
   var isOverridden=log.status==='approved'&&(log._reviewCount||0)>=2;
   var overriddenTag=isOverridden?'<span class="meta-tag meta-tag-warning">Điểm đã được lãnh đạo cấp trên điều chỉnh</span>':'';
   // Nhan xet cua lanh dao (neu co) hien luon kem nhat ky da xac nhan + cham
   // diem - khong chi rieng khi bi dieu chinh lai (truoc day chi hien trong
-  // truong hop do). reviewerName lay tu opts (ruj - tra cuu qua UJ_PEOPLE)
-  // hoac tu log.reviewer (rj - join san qua select) - dung 1 nguon cho ca
-  // "Nhat ky cua toi" lan "Nhat ky cong tac cua don vi".
-  var reviewerName=opts.reviewerName||(log.reviewer&&log.reviewer.full_name)||'';
+  // truong hop do).
   var leaderComment=(log.status==='approved'&&(log.review_comment||'').trim())?'<div class="leader-comment"><strong>Nhận xét của lãnh đạo'+(reviewerName?(' · '+esc(reviewerName)):'')+'</strong><span>'+esc(log.review_comment)+'</span></div>':'';
   var authorTag=opts.authorName?(opts.authorId?'<button type="button" class="meta-tag journal-author-tag" data-uj-jump-person="'+esc(opts.authorId)+'">'+esc(opts.authorName)+'</button>':'<span class="meta-tag journal-author-tag">'+esc(opts.authorName)+'</span>'):'';
   var submittedToName=opts.submittedToName||(log.submitted_to&&log.submitted_to.full_name)||null;
-  var submittedToTag=submittedToName?'<span class="meta-tag">Nộp cho: '+esc(submittedToName)+'</span>':'';
+  // Kem theo THOI DIEM nop (gio:phut that, dung submittedAtOf() - tinh
+  // theo lan trinh lai gan nhat neu co, giong het cach da lam o khu "Dang
+  // cho nguoi khac xu ly" cua man Duyet & cham diem) de lanh dao biet
+  // nop luc nao, khong chi nop cho ai.
+  var submittedToTag=submittedToName?('<span class="meta-tag">Nộp cho: '+esc(submittedToName)+' · '+esc(shortDateTime(submittedAtOf(log)))+'</span>'):'';
   var cloneTag=log.is_clone?'<span class="meta-tag">Tự động ghi nhận (công việc nhiều ngày)</span>':'';
   return '<article class="journal-card '+(log.status==='revision'?'is-revision':'')+'">'
     +'<div class="journal-date"><strong>'+shortDate(log.log_date)+'</strong>'+(log.log_date||'').slice(0,4)+'</div>'
@@ -810,6 +821,10 @@ async function oj(logId,presetTaskId,presetNoteId){
   $('journalSubmitButton').textContent=isRevision?'Lưu và trình lại':(canEdit?'Lưu thay đổi':'Gửi nhật ký');
   var notice=$('journalRevisionNotice');
   notice.hidden=!isRevision;
+  // Ghi ro AI (lanh dao nao) da yeu cau bo sung, khong chi hien noi dung -
+  // dung log.reviewer da join san o fetch LOGS (rj()).
+  var revisionReviewerName=(isRevision&&log.reviewer&&log.reviewer.full_name)||'';
+  $('journalRevisionTitle').textContent='Yêu cầu của lãnh đạo'+(revisionReviewerName?(' · '+revisionReviewerName):'');
   $('journalRevisionComment').textContent=isRevision?(log.review_comment||''):'';
   populateCategorySelect();
   if(canEdit){
@@ -2682,7 +2697,12 @@ async function fetchUnitJournalLogs(period){
   var parts=period.split('-');
   var start=period+'-01';
   var end=ymdStr(Number(parts[0]),Number(parts[1]),1);
-  var sel='id,author_id,unit_id,title,result,work_role,duration,evidence,category_id,created_at,updated_at,log_date,status,complexity_score,quality_score,revision_count,review_comment,reviewer_id';
+  // submitted_to/reviewer JOIN truc tiep (giong het cach "Nhat ky cua toi"
+  // - rj() - da lam) thay vi chi dua vao tim trong UJ_PEOPLE (pham vi chi
+  // gom nguoi CUNG don vi voi nguoi xem) - tranh truong hop nop cho 1
+  // nguoi ngoai pham vi do (vd Truong phong/Vien truong KV nop thang len
+  // cap tinh) khien khong tim thay ten, hien "Nop cho" bi trong.
+  var sel='id,author_id,unit_id,title,result,work_role,duration,evidence,category_id,created_at,updated_at,log_date,status,complexity_score,quality_score,revision_count,review_comment,reviewer_id,submitted_to:submitted_to_id(full_name),reviewer:reviewer_id(full_name)';
   var r=await fetch(API+'work_logs?unit_id=in.('+unitIds.join(',')+')&log_date=gte.'+start+'&log_date=lt.'+end+'&select='+sel+'&order=log_date.desc,created_at.desc',{headers:authHeaders()});
   if(!r.ok)throw new Error('HTTP '+r.status);
   var logsResult=await r.json();
@@ -2887,13 +2907,15 @@ function renderUjTimelineHtml(){
 function ujLogCardOpts(l,showAuthor){
   var opts={readOnly:true};
   if(showAuthor){opts.authorName=ujAuthorName(l.author_id);opts.authorId=l.author_id}
-  if(l.submitted_to_id){var stp=UJ_PEOPLE.find(function(p){return p.id===l.submitted_to_id});if(stp)opts.submittedToName=stp.full_name}
-  if(l.status==='approved'&&l.reviewer_id){
+  // Ten "Nop cho"/"Nguoi cham" lay truc tiep tu log.submitted_to/
+  // log.reviewer (JOIN san o fetchUnitJournalLogs) trong journalCardHtml,
+  // khong can tim trong UJ_PEOPLE nua (pham vi UJ_PEOPLE chi gom nguoi
+  // CUNG don vi, se bo sot khi nop cho nguoi ngoai pham vi do). O day chi
+  // con dung UJ_PEOPLE de tinh QUYEN "Dieu chinh diem" (can biet vai
+  // tro/don vi cua nguoi da cham, khong the lay tu JOIN chi co full_name).
+  if(l.status==='approved'&&l.reviewer_id&&l.reviewer_id!==U.id&&!isLeaveCategory(l.category_id)){
     var curReviewer=UJ_PEOPLE.find(function(p){return p.id===l.reviewer_id});
-    if(curReviewer)opts.reviewerName=curReviewer.full_name;
-    // Dieu chinh diem la kiem tra thu bac voi NGUOI DA CHAM truoc, khong
-    // lien quan toi "nop cho ai" cua log nay - dung canManagePerson.
-    if(l.reviewer_id!==U.id&&curReviewer&&!isLeaveCategory(l.category_id))opts.canOverride=canManagePerson(curReviewer);
+    if(curReviewer)opts.canOverride=canManagePerson(curReviewer);
   }
   var author=UJ_PEOPLE.find(function(p){return p.id===l.author_id});
   if(author)opts.canDelete=canReviewLog(l,author);
