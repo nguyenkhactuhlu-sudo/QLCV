@@ -338,6 +338,28 @@
     </section>
   </div>
 
+  <div class="modal-backdrop" id="editTaskModal" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="editTaskModalTitle">
+      <div class="modal-header">
+        <div>
+          <span class="eyebrow">GIAO VIỆC</span>
+          <h2 id="editTaskModalTitle">Sửa việc đã giao</h2>
+        </div>
+        <button class="icon-button" data-close-edit-task aria-label="Đóng">×</button>
+      </div>
+      <form id="editTaskForm" class="form-grid">
+        <p class="metric-context field-wide">Áp dụng cho tất cả người cùng nhận việc này (chủ trì và phối hợp). Không đổi được danh sách người nhận.</p>
+        <label class="field field-wide"><span>Tên công việc</span><input type="text" name="title" required maxlength="200"></label>
+        <label class="field field-wide"><span>Mô tả / yêu cầu</span><textarea name="description" rows="5"></textarea></label>
+        <div class="field field-wide"><span>Hạn gợi ý (không bắt buộc)</span><div id="editTaskDueField"></div></div>
+        <div class="form-actions field-wide">
+          <button type="button" class="button button-secondary" data-close-edit-task>Hủy</button>
+          <button type="submit" class="button button-primary">Lưu thay đổi</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
   <div class="modal-backdrop" id="overrideScoreModal" hidden>
     <section class="modal" role="dialog" aria-modal="true" aria-labelledby="overrideScoreModalTitle">
       <div class="modal-header">

@@ -286,6 +286,7 @@ const state = {
   reviewQueueOthersCollapsed: true,
   editingJournalId: null,
   journalSourceNoteId: null,
+  editingTaskGroupId: null,
   selectedMonthlyUserId: null,
   dashboardUnit: filterPrefs.dashboardUnit || "all",
   dashboardPeriod: filterPrefs.dashboardPeriod || "2026-08",
@@ -634,6 +635,11 @@ function initialize() {
     if (event.target.id === "deleteLogModal") closeDeleteLogModal();
   });
   document.getElementById("deleteLogForm").addEventListener("submit", submitDeleteLogForm);
+  document.querySelectorAll("[data-close-edit-task]").forEach(button => button.addEventListener("click", closeEditTaskModal));
+  document.getElementById("editTaskModal").addEventListener("click", event => {
+    if (event.target.id === "editTaskModal") closeEditTaskModal();
+  });
+  document.getElementById("editTaskForm").addEventListener("submit", submitEditTaskForm);
   updateNav();
   render();
   document.getElementById("loginUserSelect").focus();
@@ -3361,6 +3367,8 @@ function renderTasks() {
   if (candidates.length) bindTaskAssignForm();
   document.querySelectorAll("[data-set-due-form]").forEach(form => form.addEventListener("submit", submitTaskDueDate));
   document.querySelectorAll("[data-report-task]").forEach(button => button.addEventListener("click", () => openJournalModal(null, button.dataset.reportTask)));
+  document.querySelectorAll("[data-edit-task-group]").forEach(button => button.addEventListener("click", () => openEditTaskModal(button.dataset.editTaskGroup)));
+  document.querySelectorAll("[data-delete-task-group]").forEach(button => button.addEventListener("click", () => deleteTaskGroup(button.dataset.deleteTaskGroup)));
 }
 
 // Chia danh sach "nguoi phoi hop" theo nhom vai tro - trong da so truong
@@ -3543,7 +3551,62 @@ function taskGroupCardHtml(rows) {
       ${lead.suggestedDueDate ? `<span>Hạn gợi ý: ${formatDateTime(lead.suggestedDueDate)}</span>` : ""}
     </div>
     <div class="task-member-list">${memberRow(lead)}${others.map(memberRow).join("")}</div>
+    <div class="task-card-actions">
+      <button type="button" class="button button-secondary button-small" data-edit-task-group="${lead.taskGroupId}">Sửa</button>
+      <button type="button" class="button button-danger button-small" data-delete-task-group="${lead.taskGroupId}">Xóa</button>
+    </div>
   </article>`;
+}
+
+// Sua/xoa 1 nhom viec da giao - CHI tac gia giao viec (assigner) moi lam
+// duoc. Sua ap dung cho CA NHOM (tieu de/mo ta/han goi y dung chung cho
+// moi nguoi cung nhan), khong doi duoc danh sach nguoi nhan.
+function openEditTaskModal(groupId) {
+  const rows = taskAssignments.filter(t => t.taskGroupId === groupId);
+  if (!rows.length) return;
+  const lead = rows.find(row => row.workRole === "chu_tri") || rows[0];
+  state.editingTaskGroupId = groupId;
+  const form = document.getElementById("editTaskForm");
+  form.reset();
+  form.elements.title.value = lead.title;
+  form.elements.description.value = lead.description || "";
+  document.getElementById("editTaskDueField").innerHTML = dueDateTimeFieldHtml("editTaskDue", lead.suggestedDueDate);
+  document.getElementById("editTaskModal").hidden = false;
+}
+function closeEditTaskModal() {
+  state.editingTaskGroupId = null;
+  document.getElementById("editTaskModal").hidden = true;
+}
+function submitEditTaskForm(event) {
+  event.preventDefault();
+  if (!state.editingTaskGroupId) return;
+  const groupId = state.editingTaskGroupId;
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  const title = String(data.get("title") || "").trim();
+  if (!title) { showToast("Vui lòng nhập tên công việc."); return; }
+  const suggestedDueDate = readDueDateTime("editTaskDue", "hạn gợi ý");
+  if (suggestedDueDate === undefined) return; // da chon ngay nhung thieu gio/phut
+  const description = String(data.get("description") || "").trim();
+  taskAssignments.filter(t => t.taskGroupId === groupId && t.assignerId === currentUser().id).forEach(t => {
+    t.title = title;
+    t.description = description;
+    t.suggestedDueDate = suggestedDueDate;
+  });
+  saveTaskAssignments();
+  closeEditTaskModal();
+  showToast("Đã lưu thay đổi việc giao.");
+  renderTasks();
+}
+function deleteTaskGroup(groupId) {
+  if (!confirm("Xóa việc giao này cho tất cả người liên quan? Nhật ký đã báo cáo (nếu có) sẽ không bị xóa, chỉ gỡ liên kết với việc này. Không thể khôi phục lại.")) return;
+  const userId = currentUser().id;
+  taskAssignments.forEach(t => { if (t.linkedLogId) { const log = logs.find(l => l.id === t.linkedLogId); if (log && t.taskGroupId === groupId) log.taskAssignmentId = null; } });
+  taskAssignments = taskAssignments.filter(t => !(t.taskGroupId === groupId && t.assignerId === userId));
+  saveTaskAssignments();
+  saveLogs();
+  showToast("Đã xóa việc giao.");
+  renderTasks();
 }
 
 function taskCardHtml(task, perspective) {
