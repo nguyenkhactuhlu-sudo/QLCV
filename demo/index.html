@@ -186,6 +186,7 @@
             <option>Công tác công nghệ thông tin &amp; chuyển đổi số</option>
             <option>Công tác quản lý án hình sự</option>
             <option>Kế toán</option>
+            <option>Quản lý, chỉ đạo điều hành</option>
           </select>
         </label>
         <label class="field field-wide">
@@ -335,6 +336,19 @@
           <button type="submit" class="button button-primary" id="noteSubmitButton">Lưu ghi chú</button>
         </div>
       </form>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="assignTaskModal" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="assignTaskModalTitle">
+      <div class="modal-header">
+        <div>
+          <span class="eyebrow">GIAO VIỆC</span>
+          <h2 id="assignTaskModalTitle">Giao việc mới</h2>
+        </div>
+        <button class="icon-button" data-close-assign-task aria-label="Đóng">×</button>
+      </div>
+      <div id="assignTaskModalBody"></div>
     </section>
   </div>
 

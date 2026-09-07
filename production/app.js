@@ -81,6 +81,8 @@ var STATUS_CLASS={pending:'status-pending',approved:'status-approved',revision:'
 // mang nay.
 // ============================================
 var CHANGELOG=[
+  {date:'2026-09-07',type:'feature',text:'Giao việc: bố cục lại màn hình - danh sách "Công việc đã giao" hiện ngay đầu trang bên trái (không phải cuộn qua form dài như trước), form giao việc gom vào 2 nút "+ Giao việc mới" ở góc trên. Thêm nút "+ Giao việc và ghi nhật ký" - giao việc xong tự mở sẵn 1 nhật ký cá nhân ghi nhận đã giao việc gì cho ai (vẫn xem lại/sửa và tự bấm Gửi như nhật ký thường, không tự động gửi).'},
+  {date:'2026-09-07',type:'improve',text:'Ô chọn ngày (ghi nhật ký, nghỉ phép, ghi chú, giao việc, ủy quyền, tra cứu theo ngày...) gộp lại thành 1 ô gõ tay "dd/mm/yyyy" kèm nút lịch bấm chọn cho người không quen gõ tay - gọn hơn, vẫn luôn đúng thứ tự ngày/tháng/năm. Ô giờ hạn cũng gộp lại thành 1 ô "hh:mm".'},
   {date:'2026-09-07',type:'fix',text:'Nhật ký công tác của đơn vị (và Nhật ký của tôi): mỗi nhật ký nay ghi rõ nộp cho ai, nộp lúc mấy giờ ngày nào. Nhật ký bị trả về "Cần bổ sung" nay cũng ghi rõ lãnh đạo nào đã yêu cầu, không chỉ hiện nội dung yêu cầu chung chung.'},
   {date:'2026-09-07',type:'improve',text:'Tổng quan: đổi cột "Tổng độ phức tạp" trong bảng "Kết quả theo đơn vị/cán bộ" thành "Tỷ lệ đã chấm điểm" (số nhật ký đã được lãnh đạo chấm điểm / tổng số nhật ký đã nộp trong kỳ) - hữu ích hơn để theo dõi tiến độ chấm điểm.'},
   {date:'2026-09-07',type:'fix',text:'Ô chọn ngày (ghi nhật ký, nghỉ phép, ghi chú, ủy quyền, tra cứu theo ngày...) nay luôn hiển thị đúng thứ tự Ngày/Tháng/Năm quen thuộc, không còn phụ thuộc vào việc trình duyệt hiển thị kiểu ngày/tháng/năm hay tháng/ngày/năm (kiểu Mỹ).'},
@@ -806,7 +808,7 @@ function journalCardHtml(log,opts){
     +(canDelete?'<button type="button" class="button button-danger button-small" data-delete-log="'+log.id+'" data-delete-self="'+(canDeleteSelf&&!opts.canDelete?'1':'0')+'">Xoá</button>':'')+'</div></article>';
 }
 
-async function oj(logId,presetTaskId,presetNoteId){
+async function oj(logId,presetTaskId,presetNoteId,presetContent){
   if(!requireActive())return;
   var form=$('journalForm');form.reset();
   JOURNAL_SOURCE_NOTE_ID=null;
@@ -853,10 +855,18 @@ async function oj(logId,presetTaskId,presetNoteId){
         JOURNAL_SOURCE_NOTE_ID=presetNoteId;
       }
     }
+    // Mo tu "Giao viec va ghi nhat ky" - dien san linh vuc/tieu de/ket qua
+    // the hien vua giao viec gi cho ai, van phai tu xem lai/sua truoc khi
+    // gui (khong khoa, khong tu dong gui).
+    if(presetContent){
+      if(presetContent.categoryId)form.elements.category.value=presetContent.categoryId;
+      if(presetContent.title)form.elements.title.value=presetContent.title;
+      if(presetContent.result)form.elements.result.value=presetContent.result;
+    }
     // Khoi phuc nhap dang go do (neu co) - chi khi tao MOI thuc su (khong
-    // phai dang gan san 1 viec duoc giao hoac 1 ghi chu, tranh de nham noi
-    // dung cu).
-    if(!presetTaskId&&!presetNoteId){
+    // phai dang gan san 1 viec duoc giao, 1 ghi chu, hay 1 lan giao viec,
+    // tranh de nham noi dung cu).
+    if(!presetTaskId&&!presetNoteId&&!presetContent){
       var draft=loadJournalDraft();
       if(draft){
         if(draft.category)form.elements.category.value=draft.category;
@@ -1226,7 +1236,7 @@ async function ol(){
   $('leaveRangePreview').textContent='';
   await refreshSubmitToOptions('leaveSubmitToSelect',null);
   $('leaveModal').hidden=false;document.body.style.overflow='hidden';
-  $('leaveStartDateDay').focus();
+  $('leaveStartDate').focus();
 }
 function cl(){$('leaveModal').hidden=true;document.body.style.overflow=''}
 
@@ -1352,140 +1362,187 @@ async function rt(){
     return;
   }
   var groupsByMe=taskGroupsAssignedByMe();
+  // Bo cuc 2 cot ngang hang: trai la "Cong viec da giao" (chi con danh
+  // sach, khong con ke ca form giao viec dai ben trong nua - truoc day
+  // phai cuon qua het form moi thay duoc danh sach, gay kho tra cuu),
+  // phai la "Cong viec duoc giao" (giu nguyen). Form giao viec gom vao
+  // modal rieng (assignTaskModal), mo tu 2 nut o dau khung ben trai.
   var h='<div class="admin-grid '+(canAssign&&canReceive?'':'is-single')+'">';
-  if(canAssign)h+='<section class="panel"><div class="panel-header"><div><h2>Việc tôi đã giao</h2><p>'+groupsByMe.length+' việc</p></div></div>'
-    +(TASK_CANDIDATES.length?taskAssignFormHtml():'<p class="metric-context">Bạn chưa có cán bộ/đơn vị nào thuộc phạm vi được phép giao việc.</p>')
-    +'<div class="task-list">'+(groupsByMe.length?groupsByMe.map(taskGroupCardHtml).join(''):'<div class="empty-state compact-empty"><strong>Chưa giao việc nào</strong></div>')+'</div></section>';
+  if(canAssign){
+    var assignActions=TASK_CANDIDATES.length?('<div class="panel-header-actions">'
+      +'<button type="button" class="button button-secondary button-small" id="openAssignTaskBtn">+ Giao việc mới</button>'
+      +'<button type="button" class="button button-primary button-small" id="openAssignTaskWithLogBtn">+ Giao việc và ghi nhật ký</button>'
+      +'</div>'):'';
+    h+='<section class="panel"><div class="panel-header"><div><h2>Công việc đã giao</h2><p>'+groupsByMe.length+' việc</p></div>'+assignActions+'</div>'
+      +(TASK_CANDIDATES.length?'':'<p class="metric-context">Bạn chưa có cán bộ/đơn vị nào thuộc phạm vi được phép giao việc.</p>')
+      +'<div class="task-list">'+(groupsByMe.length?groupsByMe.map(taskGroupCardHtml).join(''):'<div class="empty-state compact-empty"><strong>Chưa giao việc nào</strong></div>')+'</div></section>';
+  }
   if(canReceive)h+='<section class="panel"><div class="panel-header"><div><h2>Công việc được giao</h2><p>'+TASKS_TO_ME.length+' việc</p></div></div>'
     +'<div class="task-list">'+(TASKS_TO_ME.length?TASKS_TO_ME.map(function(t){return taskCardHtml(t,'assignee')}).join(''):'<div class="empty-state compact-empty"><strong>Chưa có việc được giao</strong></div>')+'</div></section>';
   h+='</div>';
   $('appView').innerHTML=h;
   updateTaskOverdueBadge(TASKS_BY_ME.concat(TASKS_TO_ME).filter(isTaskOverdue).length);
-  var assignForm=$('taskAssignForm');
-  if(assignForm){assignForm.addEventListener('submit',submitTaskAssignment);bindTaskAssignExtras();}
   document.querySelectorAll('[data-set-due-form]').forEach(function(form){form.addEventListener('submit',submitTaskDueDate)});
   document.querySelectorAll('[data-report-task]').forEach(function(b){b.addEventListener('click',function(){oj(null,b.dataset.reportTask)})});
   document.querySelectorAll('[data-edit-task-group]').forEach(function(b){b.addEventListener('click',function(){openEditTaskModal(b.dataset.editTaskGroup)})});
   document.querySelectorAll('[data-delete-task-group]').forEach(function(b){b.addEventListener('click',function(){deleteTaskGroup(b.dataset.deleteTaskGroup)})});
+  var openAssignBtn=$('openAssignTaskBtn');if(openAssignBtn)openAssignBtn.addEventListener('click',function(){openAssignTaskModal(false)});
+  var openAssignWithLogBtn=$('openAssignTaskWithLogBtn');if(openAssignWithLogBtn)openAssignWithLogBtn.addEventListener('click',function(){openAssignTaskModal(true)});
 }
 
-// Chon ngay+gio theo dung khung 24h, thay cho input[type=datetime-local]
-// - trinh duyet native hien 12h (sang/chieu, AM/PM) hay 24h la tuy theo
-// NGON NGU TRINH DUYET cua nguoi dung (khong phai theo he dieu hanh, va
-// khong sua duoc bang thuoc tinh "lang" cua trang) - nhieu may van de
-// trinh duyet o tieng Anh nen hien AM/PM du May/Windows la tieng Viet.
-// Tach rieng 3 o (Ngay/Gio/Phut) de LUON hien dung so 00-23, khong phu
-// thuoc ngon ngu trinh duyet nua.
-function hourOptionsHtml(){
-  var h='<option value="">Giờ</option>';
-  for(var i=0;i<24;i++){var v=String(i).padStart(2,'0');h+='<option value="'+v+'">'+v+'</option>'}
-  return h;
+// Modal "Giao viec moi" - truoc day form nay nam co dinh, dai, ben tren
+// danh sach "Viec da giao" trong CUNG 1 cot, phai cuon qua het form moi
+// thay duoc danh sach - nay gom vao modal rieng, mo tu nut o dau khung.
+var ASSIGN_TASK_WITH_LOG=false;
+function openAssignTaskModal(withLog){
+  ASSIGN_TASK_WITH_LOG=!!withLog;
+  $('assignTaskModalTitle').textContent=withLog?'Giao việc và ghi nhật ký':'Giao việc mới';
+  $('assignTaskModalBody').innerHTML=taskAssignFormHtml();
+  var form=$('taskAssignForm');
+  if(form){form.addEventListener('submit',submitTaskAssignment);bindTaskAssignExtras()}
+  $('assignTaskModal').hidden=false;document.body.style.overflow='hidden';
 }
-function minuteOptionsHtml(){
-  var h='<option value="">Phút</option>';
-  for(var i=0;i<60;i+=5){var v=String(i).padStart(2,'0');h+='<option value="'+v+'">'+v+'</option>'}
-  return h;
+function closeAssignTaskModal(){$('assignTaskModal').hidden=true;document.body.style.overflow='';ASSIGN_TASK_WITH_LOG=false}
+
+// Chon NGAY bang 1 o chu duy nhat "dd/mm/yyyy" (go tay, tu nhay dau "/"-
+// xem binding input o DOMContentLoaded) KEM nut lich bam chon cho nguoi
+// khong quen go tay - thay cho input[type=date] cua trinh duyet (hien thi
+// sai thu tu tuy ngon ngu trinh duyet, xem lich su cu) va cho 3 o rieng
+// Ngay/Thang/Nam (gon hon nhung nguoi dung phan anh la roi mat, muon gop
+// lai thanh 1 o "nhu truoc"). Ca 2 cach nhap (go tay/bam lich) deu luon
+// ra dung dd/mm/yyyy, khong phu thuoc trinh duyet.
+function isoToDmy(iso){
+  var m=String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m?(m[3]+'/'+m[2]+'/'+m[1]):'';
 }
-// Chon NGAY (Ngay/Thang/Nam) bang 3 o rieng, thay cho input[type=date] -
-// CUNG 1 nguyen nhan voi gio o tren: trinh duyet HIEN THI ngay theo NGON
-// NGU TRINH DUYET (kieu My la thang/ngay/nam, kieu Viet la ngay/thang/
-// nam) - GIA TRI luu lai van dung (luon la yyyy-mm-dd), nhung de tranh
-// nguoi dung doc/nhap NHAM thu tu, luon dung 3 o rieng hien DUNG thu tu
-// Ngay/Thang/Nam quen thuoc, khong phu thuoc trinh duyet nua.
-function dayOptionsHtml(){
-  var h='<option value="">Ngày</option>';
-  for(var i=1;i<=31;i++){var v=String(i).padStart(2,'0');h+='<option value="'+v+'">'+v+'</option>'}
-  return h;
-}
-function monthOptionsHtml(){
-  var h='<option value="">Tháng</option>';
-  for(var i=1;i<=12;i++){var v=String(i).padStart(2,'0');h+='<option value="'+v+'">'+v+'</option>'}
-  return h;
-}
-// Danh sach nam luon gom nam hien tai +/- vai nam, va CA nam dang co san
-// (neu sua 1 gia tri cu nam ngoai khoang mac dinh).
-function yearOptionsHtml(includeYear){
-  var nowY=new Date().getFullYear();
-  var lo=nowY-2,hi=nowY+3;
-  if(includeYear){if(includeYear<lo)lo=includeYear;if(includeYear>hi)hi=includeYear}
-  var h='<option value="">Năm</option>';
-  for(var y=lo;y<=hi;y++){h+='<option value="'+y+'">'+y+'</option>'}
-  return h;
-}
-// idPrefix+"Day"/"Month"/"Year" la id cua 3 o; isoDate (neu co, dang
-// "yyyy-mm-dd") dung de dien san.
+// idPrefix chinh la id cua o (khong con hau to Day/Month/Year nhu truoc).
 function dateOnlyFieldHtml(idPrefix,isoDate){
-  var dayVal='',monthVal='',yearVal=null;
-  if(isoDate){
-    var parts=isoDate.split('-');
-    if(parts.length===3){yearVal=Number(parts[0]);monthVal=parts[1];dayVal=parts[2]}
-  }
-  var dayOpts=dayOptionsHtml().replace('value="'+dayVal+'"','value="'+dayVal+'" selected');
-  var monthOpts=monthOptionsHtml().replace('value="'+monthVal+'"','value="'+monthVal+'" selected');
-  var yearOpts=yearOptionsHtml(yearVal).replace('value="'+(yearVal||'')+'"','value="'+(yearVal||'')+'" selected');
-  return '<span class="date-only-picker">'
-    +'<select id="'+idPrefix+'Day">'+dayOpts+'</select>'
-    +'<span class="due-datetime-sep">/</span>'
-    +'<select id="'+idPrefix+'Month">'+monthOpts+'</select>'
-    +'<span class="due-datetime-sep">/</span>'
-    +'<select id="'+idPrefix+'Year">'+yearOpts+'</select>'
+  var displayVal=isoDate?isoToDmy(isoDate):'';
+  return '<span class="date-field-wrap">'
+    +'<input type="text" class="date-field-input" id="'+idPrefix+'" inputmode="numeric" autocomplete="off" placeholder="dd/mm/yyyy" maxlength="10" value="'+esc(displayVal)+'">'
+    +'<button type="button" class="date-field-cal-btn" data-date-field-toggle="'+idPrefix+'" tabindex="-1" aria-label="Chọn ngày trên lịch">📅</button>'
     +'</span>';
 }
-// Doc lai 3 o thanh chuoi "yyyy-mm-dd" - null neu CHUA chon gi (con rong
-// het), tra ve undefined (khac null) neu chon THIEU (1-2 o). Chi bao
+// Doc lai o thanh chuoi "yyyy-mm-dd" - null neu de trong, tra ve undefined
+// (khac null) neu go sai dinh dang/ngay khong co that (vd 31/02). Chi bao
 // showToast khi co fieldLabel (bo trong o nhung noi doc "tham" nhu tu luu
-// nhap dang go, tranh hien loi vo ly luc nguoi dung con dang chon dang
-// do).
+// nhap dang go).
 function readDateOnly(idPrefix,fieldLabel){
-  var dayEl=$(idPrefix+'Day'),monthEl=$(idPrefix+'Month'),yearEl=$(idPrefix+'Year');
-  if(!dayEl)return null;
-  var d=dayEl.value,m=monthEl.value,y=yearEl.value;
-  if(!d&&!m&&!y)return null;
-  if(!d||!m||!y){
-    if(fieldLabel)showToast('Vui lòng chọn đủ ngày, tháng, năm cho '+fieldLabel+'.');
+  var el=$(idPrefix);
+  if(!el)return null;
+  var v=(el.value||'').trim();
+  if(!v)return null;
+  var m=v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  var d=m?Number(m[1]):0,mo=m?Number(m[2]):0,y=m?Number(m[3]):0;
+  var valid=m&&d>=1&&d<=31&&mo>=1&&mo<=12;
+  if(valid){var dt=new Date(y,mo-1,d);valid=dt.getFullYear()===y&&dt.getMonth()===mo-1&&dt.getDate()===d}
+  if(!valid){
+    if(fieldLabel)showToast('Ngày không hợp lệ cho '+fieldLabel+' - nhập theo dạng dd/mm/yyyy.');
     return undefined;
   }
-  return y+'-'+m+'-'+d;
+  return y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
 }
-// idPrefix+"Date"+"Day/Month/Year" va idPrefix+"Hour"/"Minute" la id cua
-// 5 o; isoValue (neu co) dung gio DIA PHUONG de dien san (khong dung
-// toISOString() la UTC, se lech gio hien thi).
+// Doc lai 1 o "hh:mm" - null neu de trong, undefined neu sai dinh dang/gio
+// khong hop le (>23 hoac phut>59).
+function readTimeField(idPrefix,fieldLabel){
+  var el=$(idPrefix);
+  if(!el)return null;
+  var v=(el.value||'').trim();
+  if(!v)return null;
+  var m=v.match(/^(\d{1,2}):(\d{2})$/);
+  var h=m?Number(m[1]):-1,mi=m?Number(m[2]):-1;
+  if(!m||h>23||mi>59){
+    if(fieldLabel)showToast('Giờ không hợp lệ cho '+fieldLabel+' - nhập theo dạng hh:mm.');
+    return undefined;
+  }
+  return {h:h,m:mi};
+}
+// idPrefix+"Date" va idPrefix+"Time" la id cua 2 o (Ngay/Gio-phut, moi o
+// la 1 khoi go tay gon nhu truoc); isoValue (neu co) dung gio DIA PHUONG
+// de dien san (khong dung toISOString() la UTC, se lech gio hien thi).
 function dueDateTimeFieldHtml(idPrefix,isoValue){
-  var dateVal='',hourVal='',minuteVal='';
+  var dateVal=null,timeVal='';
   if(isoValue){
     var d=new Date(isoValue);
     if(!isNaN(d.getTime())){
       var p2=function(n){return String(n).padStart(2,'0')};
       dateVal=d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());
-      hourVal=p2(d.getHours());
-      minuteVal=p2(Math.floor(d.getMinutes()/5)*5);
+      timeVal=p2(d.getHours())+':'+p2(d.getMinutes());
     }
   }
-  var hourOpts=hourOptionsHtml().replace('value="'+hourVal+'"','value="'+hourVal+'" selected');
-  var minuteOpts=minuteOptionsHtml().replace('value="'+minuteVal+'"','value="'+minuteVal+'" selected');
   return '<div class="due-datetime-picker">'
-    +dateOnlyFieldHtml(idPrefix+'Date',dateVal||null)
+    +dateOnlyFieldHtml(idPrefix+'Date',dateVal)
     +'<span class="due-datetime-sep">lúc</span>'
-    +'<select id="'+idPrefix+'Hour">'+hourOpts+'</select>'
-    +'<span class="due-datetime-colon">:</span>'
-    +'<select id="'+idPrefix+'Minute">'+minuteOpts+'</select>'
+    +'<input type="text" class="time-field-input" id="'+idPrefix+'Time" inputmode="numeric" autocomplete="off" placeholder="hh:mm" maxlength="5" value="'+esc(timeVal)+'">'
     +'</div>';
 }
-// Doc lai ca 5 o thanh 1 chuoi ISO (gio dia phuong) - tra ve null neu
-// chua chon ngay; bao showToast va tra ve undefined (khac null) neu chon
-// thieu (ngay hoac gio/phut), de noi goi kiem tra duoc ca 2 truong hop.
+// Doc lai ca 2 o thanh 1 chuoi ISO (gio dia phuong) - tra ve null neu
+// chua nhap ngay; bao showToast va tra ve undefined (khac null) neu nhap
+// sai dinh dang o ngay hoac gio, de noi goi kiem tra duoc ca 2 truong hop.
 function readDueDateTime(idPrefix,fieldLabel){
   var dateStr=readDateOnly(idPrefix+'Date',fieldLabel);
   if(dateStr===undefined)return undefined; // readDateOnly da bao loi
   if(!dateStr)return null;
-  var hourEl=$(idPrefix+'Hour'),minuteEl=$(idPrefix+'Minute');
-  if(!hourEl.value||!minuteEl.value){
-    showToast('Vui lòng chọn đủ giờ và phút cho '+fieldLabel+'.');
+  var time=readTimeField(idPrefix+'Time',fieldLabel);
+  if(time===undefined)return undefined;
+  if(!time){
+    if(fieldLabel)showToast('Vui lòng nhập giờ cho '+fieldLabel+'.');
     return undefined;
   }
   var parts=dateStr.split('-').map(Number);
-  var d=new Date(parts[0],parts[1]-1,parts[2],Number(hourEl.value),Number(minuteEl.value),0);
+  var d=new Date(parts[0],parts[1]-1,parts[2],time.h,time.m,0);
   return d.toISOString();
+}
+
+// ============================================
+// LICH BAM CHON (calendar popup) cho o ngay o tren - danh cho nguoi
+// khong quen go tay. Tu dung (khong dung thu vien ngoai), gan vao DOM
+// ngay canh o dang mo, dong khi bam ra ngoai/Escape/chon xong 1 ngay.
+// ============================================
+var DATE_FIELD_CAL_STATE=null; // {id, y, m(0-11)} - null = dang dong
+function toggleDateFieldCalendar(id){
+  if(DATE_FIELD_CAL_STATE&&DATE_FIELD_CAL_STATE.id===id){closeDateFieldCalendar();return}
+  closeDateFieldCalendar();
+  var input=$(id);
+  if(!input)return;
+  var current=readDateOnly(id,null);
+  var base=current?new Date(current+'T00:00:00'):new Date();
+  DATE_FIELD_CAL_STATE={id:id,y:base.getFullYear(),m:base.getMonth()};
+  renderDateFieldCalendar();
+}
+function closeDateFieldCalendar(){
+  var popup=document.getElementById('dateFieldCalendarPopup');
+  if(popup)popup.remove();
+  DATE_FIELD_CAL_STATE=null;
+}
+function renderDateFieldCalendar(){
+  var st=DATE_FIELD_CAL_STATE;if(!st)return;
+  var input=$(st.id);if(!input){closeDateFieldCalendar();return}
+  var wrap=input.closest('.date-field-wrap');if(!wrap){closeDateFieldCalendar();return}
+  var old=document.getElementById('dateFieldCalendarPopup');if(old)old.remove();
+  var popup=document.createElement('div');
+  popup.id='dateFieldCalendarPopup';
+  popup.className='date-field-popup';
+  popup.innerHTML=calendarGridHtml(st.y,st.m,readDateOnly(st.id,null));
+  wrap.appendChild(popup);
+}
+function calendarGridHtml(y,m,selectedIso){
+  var first=new Date(y,m,1);
+  var offset=(first.getDay()+6)%7; // Tu Thu Hai (T2) dau tuan
+  var daysInMonth=new Date(y,m+1,0).getDate();
+  var todayIso=todayStr();
+  var cells='';
+  for(var i=0;i<offset;i++)cells+='<span class="cal-cell cal-empty"></span>';
+  for(var d=1;d<=daysInMonth;d++){
+    var iso=y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    var cls='cal-cell';
+    if(iso===todayIso)cls+=' is-today';
+    if(iso===selectedIso)cls+=' is-selected';
+    cells+='<button type="button" class="'+cls+'" data-cal-day="'+iso+'">'+d+'</button>';
+  }
+  return '<div class="cal-header"><button type="button" class="cal-nav" data-cal-prev aria-label="Tháng trước">‹</button><strong>Tháng '+(m+1)+'/'+y+'</strong><button type="button" class="cal-nav" data-cal-next aria-label="Tháng sau">›</button></div>'
+    +'<div class="cal-weekdays"><span>T2</span><span>T3</span><span>T4</span><span>T5</span><span>T6</span><span>T7</span><span>CN</span></div>'
+    +'<div class="cal-grid">'+cells+'</div>';
 }
 
 // Chia danh sach "nguoi phoi hop" theo nhom vai tro - trong da so truong
@@ -1581,13 +1638,28 @@ async function submitTaskAssignment(e){
   var supportIds=Array.from(form.querySelectorAll('input[name="supportIds"]:checked')).map(function(cb){return cb.value}).filter(function(id){return id!==leadId});
   var suggestedDueDate=readDueDateTime('taskSuggestedDue','hạn gợi ý');
   if(suggestedDueDate===undefined)return; // da chon ngay nhung thieu gio/phut, readDueDateTime da bao loi
+  var description=(f.get('description')||'').trim();
   var btn=form.querySelector('button[type="submit"]');btn.disabled=true;
   try{
-    var r=await fetch(API+'rpc/create_task_assignment',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_lead_assignee_id:leadId,p_support_assignee_ids:supportIds,p_title:title,p_description:(f.get('description')||'').trim()||null,p_suggested_due_date:suggestedDueDate})});
+    var r=await fetch(API+'rpc/create_task_assignment',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_lead_assignee_id:leadId,p_support_assignee_ids:supportIds,p_title:title,p_description:description||null,p_suggested_due_date:suggestedDueDate})});
     var data=await r.json();
     if(!r.ok||data.success===false){showToast('Lỗi: '+(data.error||'HTTP '+r.status));btn.disabled=false;return}
     showToast('Đã giao việc cho '+(1+supportIds.length)+' người.');
+    var withLog=ASSIGN_TASK_WITH_LOG;
+    closeAssignTaskModal();
     rt();
+    // "Giao viec va ghi nhat ky": mo san form Ghi nhat ky moi, dien san
+    // noi dung the hien vua giao viec gi cho ai - de Lanh dao co 1 nhat
+    // ky ca nhan ghi nhan cong tac dieu hanh, van phai tu xem lai/cham
+    // diem va bam Gui nhu nhat ky binh thuong (khong tu dong gui).
+    if(withLog){
+      var leadPerson=TASK_CANDIDATES.find(function(p){return p.id===leadId});
+      var leadName=leadPerson?leadPerson.full_name:'';
+      var supportNames=supportIds.map(function(id){var p=TASK_CANDIDATES.find(function(x){return x.id===id});return p?p.full_name:null}).filter(Boolean);
+      var mgmtCat=CATS.find(function(c){return c.name==='Quản lý, chỉ đạo điều hành'});
+      var resultText='Đã giao việc "'+title+'" cho '+leadName+' (chủ trì)'+(supportNames.length?(', phối hợp: '+supportNames.join(', ')):'')+'.'+(description?(' Yêu cầu: '+description):'');
+      await oj(null,null,null,{categoryId:mgmtCat?mgmtCat.id:'',title:'Giao việc: '+title,result:resultText});
+    }
   }catch(err){showToast('Lỗi: '+err.message);btn.disabled=false}
 }
 
@@ -2832,19 +2904,17 @@ function renderUnitJournalShell(){
     renderUnitJournalContent();
     var ni=$('ujSearchInput');if(ni){ni.focus();ni.setSelectionRange(caret,caret)}
   });
-  // 3 o Ngay/Thang/Nam rieng (xem dateOnlyFieldHtml) thay cho input[type=
-  // date] - doi gia tri xong thi tu ep lai trong khoang ky dang xem
-  // (truoc day dung thuoc tinh min/max cua input goc).
-  ['Day','Month','Year'].forEach(function(suf){
-    var el=$('ujDayFilter'+suf);
-    if(el)el.addEventListener('change',function(){
-      var v=readDateOnly('ujDayFilter',null);
-      if(!v)return; // chua chon du ca 3 o
-      var start=ujPeriodStart(),end=ujPeriodEnd();
-      if(v<start)v=start;else if(v>end)v=end;
-      UJ_DAY_SELECTED=v;
-      renderUnitJournalContent();
-    });
+  // O ngay go tay (xem dateOnlyFieldHtml) thay cho input[type=date] - doi
+  // gia tri xong thi tu ep lai trong khoang ky dang xem (truoc day dung
+  // thuoc tinh min/max cua input goc).
+  var ujDayEl=$('ujDayFilter');
+  if(ujDayEl)ujDayEl.addEventListener('change',function(){
+    var v=readDateOnly('ujDayFilter',null);
+    if(!v)return; // chua nhap ngay hop le
+    var start=ujPeriodStart(),end=ujPeriodEnd();
+    if(v<start)v=start;else if(v>end)v=end;
+    UJ_DAY_SELECTED=v;
+    renderUnitJournalContent();
   });
 }
 
@@ -4323,8 +4393,8 @@ document.addEventListener('DOMContentLoaded',function(){
   // o <select> (se mat tac dung sau moi lan dung lai).
   $('journalForm').addEventListener('change',function(e){
     var id=e.target.id;
-    if(id==='journalWorkDateDay'||id==='journalWorkDateMonth'||id==='journalWorkDateYear'){checkJournalDateWarning();updateJournalRangePreview()}
-    else if(id==='journalRangeStartDateDay'||id==='journalRangeStartDateMonth'||id==='journalRangeStartDateYear'){updateJournalRangePreview()}
+    if(id==='journalWorkDate'){checkJournalDateWarning();updateJournalRangePreview()}
+    else if(id==='journalRangeStartDate'){updateJournalRangePreview()}
   });
   $('journalForm').elements.duration.addEventListener('change',toggleJournalRangeField);
   $('journalForm').elements.selfComplexity.addEventListener('input',function(e){updateSelfScoreGuide('Complexity',e.target.value)});
@@ -4363,6 +4433,8 @@ document.addEventListener('DOMContentLoaded',function(){
   document.querySelectorAll('[data-close-edit-task]').forEach(function(b){b.addEventListener('click',closeEditTaskModal)});
   $('editTaskModal').addEventListener('click',function(e){if(e.target.id==='editTaskModal')closeEditTaskModal()});
   $('editTaskForm').addEventListener('submit',submitEditTaskForm);
+  document.querySelectorAll('[data-close-assign-task]').forEach(function(b){b.addEventListener('click',closeAssignTaskModal)});
+  $('assignTaskModal').addEventListener('click',function(e){if(e.target.id==='assignTaskModal')closeAssignTaskModal()});
   $('notificationToggle').addEventListener('click',function(){
     var panel=$('notificationPanel');
     panel.hidden=!panel.hidden;
@@ -4377,6 +4449,48 @@ document.addEventListener('DOMContentLoaded',function(){
     if(e.key==='Escape')closeNotificationPanel();
   });
   $('toggleLoginPassword') && $('toggleLoginPassword').addEventListener('click',function(){togglePasswordField('loginPassword','toggleLoginPassword')});
+
+  // O ngay/gio dang go tay (.date-field-input/.time-field-input) - cac o
+  // nay duoc DUNG LAI (innerHTML) nhieu lan trong nhieu form khac nhau nen
+  // gan su kien theo kieu uy quyen (delegation) tren document, khong tren
+  // tung o rieng (se mat tac dung sau moi lan dung lai).
+  document.addEventListener('input',function(e){
+    var el=e.target;
+    if(!el.classList)return;
+    if(el.classList.contains('date-field-input')){
+      var digits=el.value.replace(/\D/g,'').slice(0,8);
+      var out=digits;
+      if(digits.length>4)out=digits.slice(0,2)+'/'+digits.slice(2,4)+'/'+digits.slice(4);
+      else if(digits.length>2)out=digits.slice(0,2)+'/'+digits.slice(2);
+      el.value=out;
+    }else if(el.classList.contains('time-field-input')){
+      var digits2=el.value.replace(/\D/g,'').slice(0,4);
+      var out2=digits2.length>2?digits2.slice(0,2)+':'+digits2.slice(2):digits2;
+      el.value=out2;
+    }
+  });
+  document.addEventListener('click',function(e){
+    var toggleBtn=e.target.closest('[data-date-field-toggle]');
+    if(toggleBtn){e.preventDefault();toggleDateFieldCalendar(toggleBtn.dataset.dateFieldToggle);return}
+    if(!DATE_FIELD_CAL_STATE)return;
+    var prevBtn=e.target.closest('[data-cal-prev]');
+    var nextBtn=e.target.closest('[data-cal-next]');
+    var dayBtn=e.target.closest('[data-cal-day]');
+    if(prevBtn){DATE_FIELD_CAL_STATE.m--;if(DATE_FIELD_CAL_STATE.m<0){DATE_FIELD_CAL_STATE.m=11;DATE_FIELD_CAL_STATE.y--}renderDateFieldCalendar();return}
+    if(nextBtn){DATE_FIELD_CAL_STATE.m++;if(DATE_FIELD_CAL_STATE.m>11){DATE_FIELD_CAL_STATE.m=0;DATE_FIELD_CAL_STATE.y++}renderDateFieldCalendar();return}
+    if(dayBtn){
+      var input=$(DATE_FIELD_CAL_STATE.id);
+      if(input){input.value=isoToDmy(dayBtn.dataset.calDay);input.dispatchEvent(new Event('change',{bubbles:true}))}
+      closeDateFieldCalendar();
+      return;
+    }
+    var popupEl=document.getElementById('dateFieldCalendarPopup');
+    var wrapEl=popupEl?popupEl.closest('.date-field-wrap'):null;
+    if(!(wrapEl&&wrapEl.contains(e.target)))closeDateFieldCalendar();
+  });
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape'&&DATE_FIELD_CAL_STATE)closeDateFieldCalendar();
+  });
 
   // Khoi phuc phien dang nhap neu con hieu luc (khong bat nguoi dung dang nhap lai khi tai trang)
   (async function(){

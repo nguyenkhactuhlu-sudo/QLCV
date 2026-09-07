@@ -591,6 +591,46 @@ function initialize() {
   document.addEventListener("keydown", event => {
     if (event.key === "Escape") closeNotificationPanel();
   });
+  // O ngay/gio dang go tay (.date-field-input/.time-field-input) - cac o
+  // nay duoc DUNG LAI (innerHTML) nhieu lan trong nhieu form khac nhau nen
+  // gan su kien theo kieu uy quyen (delegation) tren document, khong tren
+  // tung o rieng (se mat tac dung sau moi lan dung lai).
+  document.addEventListener("input", event => {
+    const el = event.target;
+    if (!el.classList) return;
+    if (el.classList.contains("date-field-input")) {
+      const digits = el.value.replace(/\D/g, "").slice(0, 8);
+      let out = digits;
+      if (digits.length > 4) out = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+      else if (digits.length > 2) out = `${digits.slice(0, 2)}/${digits.slice(2)}`;
+      el.value = out;
+    } else if (el.classList.contains("time-field-input")) {
+      const digits = el.value.replace(/\D/g, "").slice(0, 4);
+      el.value = digits.length > 2 ? `${digits.slice(0, 2)}:${digits.slice(2)}` : digits;
+    }
+  });
+  document.addEventListener("click", event => {
+    const toggleBtn = event.target.closest("[data-date-field-toggle]");
+    if (toggleBtn) { event.preventDefault(); toggleDateFieldCalendar(toggleBtn.dataset.dateFieldToggle); return; }
+    if (!dateFieldCalState) return;
+    const prevBtn = event.target.closest("[data-cal-prev]");
+    const nextBtn = event.target.closest("[data-cal-next]");
+    const dayBtn = event.target.closest("[data-cal-day]");
+    if (prevBtn) { dateFieldCalState.m--; if (dateFieldCalState.m < 0) { dateFieldCalState.m = 11; dateFieldCalState.y--; } renderDateFieldCalendar(); return; }
+    if (nextBtn) { dateFieldCalState.m++; if (dateFieldCalState.m > 11) { dateFieldCalState.m = 0; dateFieldCalState.y++; } renderDateFieldCalendar(); return; }
+    if (dayBtn) {
+      const input = document.getElementById(dateFieldCalState.id);
+      if (input) { input.value = isoToDmy(dayBtn.dataset.calDay); input.dispatchEvent(new Event("change", { bubbles: true })); }
+      closeDateFieldCalendar();
+      return;
+    }
+    const popupEl = document.getElementById("dateFieldCalendarPopup");
+    const wrapEl = popupEl ? popupEl.closest(".date-field-wrap") : null;
+    if (!(wrapEl && wrapEl.contains(event.target))) closeDateFieldCalendar();
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && dateFieldCalState) closeDateFieldCalendar();
+  });
   document.querySelectorAll("[data-close-modal]").forEach(button => button.addEventListener("click", closeJournalModal));
   document.getElementById("journalModal").addEventListener("click", event => {
     if (event.target.id === "journalModal") closeJournalModal();
@@ -602,8 +642,8 @@ function initialize() {
   // o <select> (se mat tac dung sau moi lan dung lai).
   document.getElementById("journalForm").addEventListener("change", event => {
     const id = event.target.id;
-    if (id === "journalWorkDateDay" || id === "journalWorkDateMonth" || id === "journalWorkDateYear") { checkJournalDateWarning(); updateJournalRangePreview(); }
-    else if (id === "journalRangeStartDateDay" || id === "journalRangeStartDateMonth" || id === "journalRangeStartDateYear") updateJournalRangePreview();
+    if (id === "journalWorkDate") { checkJournalDateWarning(); updateJournalRangePreview(); }
+    else if (id === "journalRangeStartDate") updateJournalRangePreview();
   });
   document.getElementById("journalForm").elements.duration.addEventListener("change", toggleJournalRangeField);
   document.getElementById("journalForm").elements.selfComplexity.addEventListener("input", event => updateSelfScoreGuide("Complexity", event.target.value));
@@ -652,6 +692,10 @@ function initialize() {
     if (event.target.id === "editTaskModal") closeEditTaskModal();
   });
   document.getElementById("editTaskForm").addEventListener("submit", submitEditTaskForm);
+  document.querySelectorAll("[data-close-assign-task]").forEach(button => button.addEventListener("click", closeAssignTaskModal));
+  document.getElementById("assignTaskModal").addEventListener("click", event => {
+    if (event.target.id === "assignTaskModal") closeAssignTaskModal();
+  });
   updateNav();
   render();
   document.getElementById("loginUserSelect").focus();
@@ -2176,19 +2220,17 @@ function renderUnitJournal() {
     const ni = document.getElementById("ujSearchInput");
     if (ni) { ni.focus(); ni.setSelectionRange(caret, caret); }
   });
-  // 3 o Ngay/Thang/Nam rieng (xem dateOnlyFieldHtml) thay cho input[type=
-  // date] - doi gia tri xong thi tu ep lai trong khoang ky dang xem
-  // (truoc day dung thuoc tinh min/max cua input goc).
-  ["Day", "Month", "Year"].forEach(suf => {
-    const el = document.getElementById(`ujDayFilter${suf}`);
-    if (el) el.addEventListener("change", () => {
-      let v = readDateOnly("ujDayFilter", null);
-      if (!v) return; // chua chon du ca 3 o
-      const start = ujPeriodStart(), end = ujPeriodEnd();
-      if (v < start) v = start; else if (v > end) v = end;
-      state.ujDaySelected = v;
-      renderUnitJournalContent();
-    });
+  // O ngay go tay (xem dateOnlyFieldHtml) thay cho input[type=date] - doi
+  // gia tri xong thi tu ep lai trong khoang ky dang xem (truoc day dung
+  // thuoc tinh min/max cua input goc).
+  const ujDayEl = document.getElementById("ujDayFilter");
+  if (ujDayEl) ujDayEl.addEventListener("change", () => {
+    let v = readDateOnly("ujDayFilter", null);
+    if (!v) return; // chua nhap ngay hop le
+    const start = ujPeriodStart(), end = ujPeriodEnd();
+    if (v < start) v = start; else if (v > end) v = end;
+    state.ujDaySelected = v;
+    renderUnitJournalContent();
   });
 }
 
@@ -3411,20 +3453,50 @@ function renderTasks() {
   const candidates = canAssign ? assignableUsers(user) : [];
   const groupsByMe = canAssign ? taskGroupsAssignedByMe() : [];
   const assignedToMe = canReceive ? tasksAssignedToMe() : [];
+  // Bo cuc 2 cot ngang hang: trai la "Cong viec da giao" (chi con danh
+  // sach, khong con ke ca form giao viec dai ben trong nua - truoc day
+  // phai cuon qua het form moi thay duoc danh sach), phai la "Cong viec
+  // duoc giao" (giu nguyen). Form giao viec gom vao modal rieng
+  // (assignTaskModal), mo tu 2 nut o dau khung ben trai.
+  const assignActions = candidates.length ? `<div class="panel-header-actions">
+      <button type="button" class="button button-secondary button-small" id="openAssignTaskBtn">+ Giao việc mới</button>
+      <button type="button" class="button button-primary button-small" id="openAssignTaskWithLogBtn">+ Giao việc và ghi nhật ký</button>
+    </div>` : "";
   document.getElementById("appView").innerHTML = `<div class="admin-grid ${canAssign && canReceive ? "" : "is-single"}">
-    ${canAssign ? `<section class="panel"><div class="panel-header"><div><h2>Việc tôi đã giao</h2><p>${groupsByMe.length} việc</p></div></div>
-      ${candidates.length ? taskAssignFormHtml(candidates) : `<p class="metric-context">Bạn chưa có cán bộ/đơn vị nào thuộc phạm vi được phép giao việc.</p>`}
+    ${canAssign ? `<section class="panel"><div class="panel-header"><div><h2>Công việc đã giao</h2><p>${groupsByMe.length} việc</p></div>${assignActions}</div>
+      ${candidates.length ? "" : `<p class="metric-context">Bạn chưa có cán bộ/đơn vị nào thuộc phạm vi được phép giao việc.</p>`}
       <div class="task-list">${groupsByMe.length ? groupsByMe.map(taskGroupCardHtml).join("") : `<div class="empty-state compact-empty"><strong>Chưa giao việc nào</strong></div>`}</div>
     </section>` : ""}
     ${canReceive ? `<section class="panel"><div class="panel-header"><div><h2>Công việc được giao</h2><p>${assignedToMe.length} việc</p></div></div>
       <div class="task-list">${assignedToMe.length ? assignedToMe.map(task => taskCardHtml(task, "assignee")).join("") : `<div class="empty-state compact-empty"><strong>Chưa có việc được giao</strong></div>`}</div>
     </section>` : ""}
   </div>`;
-  if (candidates.length) bindTaskAssignForm();
   document.querySelectorAll("[data-set-due-form]").forEach(form => form.addEventListener("submit", submitTaskDueDate));
   document.querySelectorAll("[data-report-task]").forEach(button => button.addEventListener("click", () => openJournalModal(null, button.dataset.reportTask)));
   document.querySelectorAll("[data-edit-task-group]").forEach(button => button.addEventListener("click", () => openEditTaskModal(button.dataset.editTaskGroup)));
   document.querySelectorAll("[data-delete-task-group]").forEach(button => button.addEventListener("click", () => deleteTaskGroup(button.dataset.deleteTaskGroup)));
+  const openAssignBtn = document.getElementById("openAssignTaskBtn");
+  if (openAssignBtn) openAssignBtn.addEventListener("click", () => openAssignTaskModal(false));
+  const openAssignWithLogBtn = document.getElementById("openAssignTaskWithLogBtn");
+  if (openAssignWithLogBtn) openAssignWithLogBtn.addEventListener("click", () => openAssignTaskModal(true));
+}
+
+// Modal "Giao viec moi" - truoc day form nay nam co dinh, dai, ben tren
+// danh sach "Viec da giao" trong CUNG 1 cot, phai cuon qua het form moi
+// thay duoc danh sach - nay gom vao modal rieng, mo tu nut o dau khung.
+let assignTaskWithLog = false;
+function openAssignTaskModal(withLog) {
+  assignTaskWithLog = Boolean(withLog);
+  document.getElementById("assignTaskModalTitle").textContent = withLog ? "Giao việc và ghi nhật ký" : "Giao việc mới";
+  document.getElementById("assignTaskModalBody").innerHTML = taskAssignFormHtml(assignableUsers(currentUser()));
+  bindTaskAssignForm();
+  document.getElementById("assignTaskModal").hidden = false;
+  document.body.style.overflow = "hidden";
+}
+function closeAssignTaskModal() {
+  document.getElementById("assignTaskModal").hidden = true;
+  document.body.style.overflow = "";
+  assignTaskWithLog = false;
 }
 
 // Chia danh sach "nguoi phoi hop" theo nhom vai tro - trong da so truong
@@ -3435,120 +3507,144 @@ const TASK_SUPPORT_GROUP_DEFS = [
   { label: "Cán bộ, Kiểm sát viên", roles: ["staff"], openByDefault: true },
   { label: "Người lao động", roles: ["support_staff"], openByDefault: false }
 ];
-// Chon ngay+gio theo dung khung 24h, thay cho input[type=datetime-local]
-// - trinh duyet native hien 12h (sang/chieu, AM/PM) hay 24h la tuy theo
-// NGON NGU TRINH DUYET cua nguoi dung (khong phai he dieu hanh, khong
-// sua duoc bang thuoc tinh "lang" cua trang) - nhieu may van de trinh
-// duyet o tieng Anh nen hien AM/PM du may/Windows la tieng Viet. Tach
-// rieng 3 o (Ngay/Gio/Phut) de LUON hien dung so 00-23.
-function hourOptionsHtml() {
-  let h = `<option value="">Giờ</option>`;
-  for (let i = 0; i < 24; i++) { const v = String(i).padStart(2, "0"); h += `<option value="${v}">${v}</option>`; }
-  return h;
+// Chon NGAY bang 1 o chu duy nhat "dd/mm/yyyy" (go tay, tu nhay dau "/" -
+// xem binding input o DOMContentLoaded) KEM nut lich bam chon cho nguoi
+// khong quen go tay - thay cho input[type=date] cua trinh duyet (hien thi
+// sai thu tu tuy ngon ngu trinh duyet) va cho 3 o rieng Ngay/Thang/Nam
+// (gon hon nhung nguoi dung phan anh la roi mat, muon gop lai thanh 1 o
+// "nhu truoc"). Ca 2 cach nhap (go tay/bam lich) deu luon ra dung
+// dd/mm/yyyy, khong phu thuoc trinh duyet.
+function isoToDmy(iso) {
+  const m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : "";
 }
-function minuteOptionsHtml() {
-  let h = `<option value="">Phút</option>`;
-  for (let i = 0; i < 60; i += 5) { const v = String(i).padStart(2, "0"); h += `<option value="${v}">${v}</option>`; }
-  return h;
-}
-// Chon NGAY (Ngay/Thang/Nam) bang 3 o rieng, thay cho input[type=date] -
-// CUNG 1 nguyen nhan voi gio o tren: trinh duyet HIEN THI ngay theo NGON
-// NGU TRINH DUYET (kieu My la thang/ngay/nam, kieu Viet la ngay/thang/
-// nam) - GIA TRI luu lai van dung, nhung de tranh nguoi dung doc/nhap
-// NHAM thu tu, luon dung 3 o rieng hien DUNG thu tu Ngay/Thang/Nam quen
-// thuoc, khong phu thuoc trinh duyet nua.
-function dayOptionsHtml() {
-  let h = `<option value="">Ngày</option>`;
-  for (let i = 1; i <= 31; i++) { const v = String(i).padStart(2, "0"); h += `<option value="${v}">${v}</option>`; }
-  return h;
-}
-function monthOptionsHtml() {
-  let h = `<option value="">Tháng</option>`;
-  for (let i = 1; i <= 12; i++) { const v = String(i).padStart(2, "0"); h += `<option value="${v}">${v}</option>`; }
-  return h;
-}
-// Danh sach nam luon gom nam hien tai +/- vai nam, va CA nam dang co san
-// (neu sua 1 gia tri cu nam ngoai khoang mac dinh).
-function yearOptionsHtml(includeYear) {
-  const nowY = new Date().getFullYear();
-  let lo = nowY - 2, hi = nowY + 3;
-  if (includeYear) { if (includeYear < lo) lo = includeYear; if (includeYear > hi) hi = includeYear; }
-  let h = `<option value="">Năm</option>`;
-  for (let y = lo; y <= hi; y++) h += `<option value="${y}">${y}</option>`;
-  return h;
-}
-// idPrefix+"Day"/"Month"/"Year" la id cua 3 o; isoDate (neu co, dang
-// "yyyy-mm-dd") dung de dien san.
+// idPrefix chinh la id cua o (khong con hau to Day/Month/Year nhu truoc).
 function dateOnlyFieldHtml(idPrefix, isoDate) {
-  let dayVal = "", monthVal = "", yearVal = null;
-  if (isoDate) {
-    const parts = isoDate.split("-");
-    if (parts.length === 3) { yearVal = Number(parts[0]); monthVal = parts[1]; dayVal = parts[2]; }
-  }
-  const dayOpts = dayOptionsHtml().replace(`value="${dayVal}"`, `value="${dayVal}" selected`);
-  const monthOpts = monthOptionsHtml().replace(`value="${monthVal}"`, `value="${monthVal}" selected`);
-  const yearOpts = yearOptionsHtml(yearVal).replace(`value="${yearVal || ""}"`, `value="${yearVal || ""}" selected`);
-  return `<span class="date-only-picker">
-    <select id="${idPrefix}Day">${dayOpts}</select>
-    <span class="due-datetime-sep">/</span>
-    <select id="${idPrefix}Month">${monthOpts}</select>
-    <span class="due-datetime-sep">/</span>
-    <select id="${idPrefix}Year">${yearOpts}</select>
+  const displayVal = isoDate ? isoToDmy(isoDate) : "";
+  return `<span class="date-field-wrap">
+    <input type="text" class="date-field-input" id="${idPrefix}" inputmode="numeric" autocomplete="off" placeholder="dd/mm/yyyy" maxlength="10" value="${displayVal}">
+    <button type="button" class="date-field-cal-btn" data-date-field-toggle="${idPrefix}" tabindex="-1" aria-label="Chọn ngày trên lịch">📅</button>
   </span>`;
 }
-// Doc lai 3 o thanh chuoi "yyyy-mm-dd" - null neu CHUA chon gi (con rong
-// het), tra ve undefined (khac null) neu chon THIEU (1-2 o). Chi bao
+// Doc lai o thanh chuoi "yyyy-mm-dd" - null neu de trong, tra ve undefined
+// (khac null) neu go sai dinh dang/ngay khong co that (vd 31/02). Chi bao
 // showToast khi co fieldLabel (bo trong o nhung noi doc "tham" nhu tu luu
-// nhap dang go, tranh hien loi vo ly luc nguoi dung con dang chon dang do).
+// nhap dang go).
 function readDateOnly(idPrefix, fieldLabel) {
-  const dayEl = document.getElementById(`${idPrefix}Day`), monthEl = document.getElementById(`${idPrefix}Month`), yearEl = document.getElementById(`${idPrefix}Year`);
-  if (!dayEl) return null;
-  const d = dayEl.value, m = monthEl.value, y = yearEl.value;
-  if (!d && !m && !y) return null;
-  if (!d || !m || !y) {
-    if (fieldLabel) showToast(`Vui lòng chọn đủ ngày, tháng, năm cho ${fieldLabel}.`);
+  const el = document.getElementById(idPrefix);
+  if (!el) return null;
+  const v = (el.value || "").trim();
+  if (!v) return null;
+  const m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const d = m ? Number(m[1]) : 0, mo = m ? Number(m[2]) : 0, y = m ? Number(m[3]) : 0;
+  let valid = m && d >= 1 && d <= 31 && mo >= 1 && mo <= 12;
+  if (valid) { const dt = new Date(y, mo - 1, d); valid = dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d; }
+  if (!valid) {
+    if (fieldLabel) showToast(`Ngày không hợp lệ cho ${fieldLabel} - nhập theo dạng dd/mm/yyyy.`);
     return undefined;
   }
-  return `${y}-${m}-${d}`;
+  return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
-// idPrefix+"Date"+"Day/Month/Year" va idPrefix+"Hour"/"Minute" la id cua 5
-// o; isoValue (neu co) dung gio DIA PHUONG de dien san (khong dung
-// toISOString() la UTC, se lech gio hien thi so voi luc nguoi dung da chon).
+// Doc lai 1 o "hh:mm" - null neu de trong, undefined neu sai dinh dang/gio
+// khong hop le (>23 hoac phut>59).
+function readTimeField(idPrefix, fieldLabel) {
+  const el = document.getElementById(idPrefix);
+  if (!el) return null;
+  const v = (el.value || "").trim();
+  if (!v) return null;
+  const m = v.match(/^(\d{1,2}):(\d{2})$/);
+  const h = m ? Number(m[1]) : -1, mi = m ? Number(m[2]) : -1;
+  if (!m || h > 23 || mi > 59) {
+    if (fieldLabel) showToast(`Giờ không hợp lệ cho ${fieldLabel} - nhập theo dạng hh:mm.`);
+    return undefined;
+  }
+  return { h, m: mi };
+}
+// idPrefix+"Date" va idPrefix+"Time" la id cua 2 o (Ngay/Gio-phut, moi o
+// la 1 khoi go tay gon nhu truoc); isoValue (neu co) dung gio DIA PHUONG
+// de dien san (khong dung toISOString() la UTC, se lech gio hien thi).
 function dueDateTimeFieldHtml(idPrefix, isoValue) {
-  let dateVal = "", hourVal = "", minuteVal = "";
+  let dateVal = null, timeVal = "";
   if (isoValue) {
     const d = new Date(isoValue);
     if (!isNaN(d.getTime())) {
       const p2 = n => String(n).padStart(2, "0");
       dateVal = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
-      hourVal = p2(d.getHours());
-      minuteVal = p2(Math.floor(d.getMinutes() / 5) * 5);
+      timeVal = `${p2(d.getHours())}:${p2(d.getMinutes())}`;
     }
   }
-  const hourOpts = hourOptionsHtml().replace(`value="${hourVal}"`, `value="${hourVal}" selected`);
-  const minuteOpts = minuteOptionsHtml().replace(`value="${minuteVal}"`, `value="${minuteVal}" selected`);
   return `<div class="due-datetime-picker">
-    ${dateOnlyFieldHtml(idPrefix + "Date", dateVal || null)}
+    ${dateOnlyFieldHtml(idPrefix + "Date", dateVal)}
     <span class="due-datetime-sep">lúc</span>
-    <select id="${idPrefix}Hour">${hourOpts}</select>
-    <span class="due-datetime-colon">:</span>
-    <select id="${idPrefix}Minute">${minuteOpts}</select>
+    <input type="text" class="time-field-input" id="${idPrefix}Time" inputmode="numeric" autocomplete="off" placeholder="hh:mm" maxlength="5" value="${timeVal}">
   </div>`;
 }
-// Doc lai ca 5 o thanh 1 chuoi ISO (gio dia phuong) - tra ve null neu chua
-// chon ngay; bao showToast va tra ve undefined (khac null) neu chon thieu
-// (ngay hoac gio/phut), de noi goi kiem tra duoc ca 2 truong hop.
+// Doc lai ca 2 o thanh 1 chuoi ISO (gio dia phuong) - tra ve null neu chua
+// nhap ngay; bao showToast va tra ve undefined (khac null) neu nhap sai
+// dinh dang o ngay hoac gio, de noi goi kiem tra duoc ca 2 truong hop.
 function readDueDateTime(idPrefix, fieldLabel) {
   const dateStr = readDateOnly(`${idPrefix}Date`, fieldLabel);
   if (dateStr === undefined) return undefined; // readDateOnly da bao loi
   if (!dateStr) return null;
-  const hourEl = document.getElementById(`${idPrefix}Hour`), minuteEl = document.getElementById(`${idPrefix}Minute`);
-  if (!hourEl.value || !minuteEl.value) {
-    showToast(`Vui lòng chọn đủ giờ và phút cho ${fieldLabel}.`);
+  const time = readTimeField(`${idPrefix}Time`, fieldLabel);
+  if (time === undefined) return undefined;
+  if (!time) {
+    if (fieldLabel) showToast(`Vui lòng nhập giờ cho ${fieldLabel}.`);
     return undefined;
   }
   const [y, m, d] = dateStr.split("-").map(Number);
-  return new Date(y, m - 1, d, Number(hourEl.value), Number(minuteEl.value), 0).toISOString();
+  return new Date(y, m - 1, d, time.h, time.m, 0).toISOString();
+}
+
+// ============================================
+// LICH BAM CHON (calendar popup) cho o ngay o tren - danh cho nguoi
+// khong quen go tay. Tu dung (khong dung thu vien ngoai), gan vao DOM
+// ngay canh o dang mo, dong khi bam ra ngoai/Escape/chon xong 1 ngay.
+// ============================================
+let dateFieldCalState = null; // {id, y, m(0-11)} - null = dang dong
+function toggleDateFieldCalendar(id) {
+  if (dateFieldCalState && dateFieldCalState.id === id) { closeDateFieldCalendar(); return; }
+  closeDateFieldCalendar();
+  const input = document.getElementById(id);
+  if (!input) return;
+  const current = readDateOnly(id, null);
+  const base = current ? new Date(`${current}T00:00:00`) : new Date();
+  dateFieldCalState = { id, y: base.getFullYear(), m: base.getMonth() };
+  renderDateFieldCalendar();
+}
+function closeDateFieldCalendar() {
+  const popup = document.getElementById("dateFieldCalendarPopup");
+  if (popup) popup.remove();
+  dateFieldCalState = null;
+}
+function renderDateFieldCalendar() {
+  const st = dateFieldCalState; if (!st) return;
+  const input = document.getElementById(st.id); if (!input) { closeDateFieldCalendar(); return; }
+  const wrap = input.closest(".date-field-wrap"); if (!wrap) { closeDateFieldCalendar(); return; }
+  const old = document.getElementById("dateFieldCalendarPopup"); if (old) old.remove();
+  const popup = document.createElement("div");
+  popup.id = "dateFieldCalendarPopup";
+  popup.className = "date-field-popup";
+  popup.innerHTML = calendarGridHtml(st.y, st.m, readDateOnly(st.id, null));
+  wrap.appendChild(popup);
+}
+function calendarGridHtml(y, m, selectedIso) {
+  const first = new Date(y, m, 1);
+  const offset = (first.getDay() + 6) % 7; // Tu Thu Hai (T2) dau tuan
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const todayIso = DEMO_TODAY;
+  let cells = "";
+  for (let i = 0; i < offset; i++) cells += `<span class="cal-cell cal-empty"></span>`;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const iso = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    let cls = "cal-cell";
+    if (iso === todayIso) cls += " is-today";
+    if (iso === selectedIso) cls += " is-selected";
+    cells += `<button type="button" class="${cls}" data-cal-day="${iso}">${d}</button>`;
+  }
+  return `<div class="cal-header"><button type="button" class="cal-nav" data-cal-prev aria-label="Tháng trước">‹</button><strong>Tháng ${m + 1}/${y}</strong><button type="button" class="cal-nav" data-cal-next aria-label="Tháng sau">›</button></div>
+    <div class="cal-weekdays"><span>T2</span><span>T3</span><span>T4</span><span>T5</span><span>T6</span><span>T7</span><span>CN</span></div>
+    <div class="cal-grid">${cells}</div>`;
 }
 
 function taskSupportPickerHtml(candidates) {
@@ -3648,7 +3744,17 @@ function bindTaskAssignForm() {
     });
     saveTaskAssignments();
     showToast(`Đã giao việc cho ${1 + supportUsers.length} người.`);
+    const withLog = assignTaskWithLog;
+    closeAssignTaskModal();
     renderTasks();
+    // "Giao viec va ghi nhat ky": mo san form Ghi nhat ky moi, dien san
+    // noi dung the hien vua giao viec gi cho ai - de Lanh dao co 1 nhat
+    // ky ca nhan ghi nhan cong tac dieu hanh, van phai tu xem lai/cham
+    // diem va bam Gui nhu nhat ky binh thuong (khong tu dong gui).
+    if (withLog) {
+      const resultText = `Đã giao việc "${title}" cho ${lead.name} (chủ trì)${supportUsers.length ? `, phối hợp: ${supportUsers.map(p => p.name).join(", ")}` : ""}.${description ? ` Yêu cầu: ${description}` : ""}`;
+      openJournalModal(null, null, null, { category: "Quản lý, chỉ đạo điều hành", title: `Giao việc: ${title}`, result: resultText });
+    }
   });
 }
 
@@ -3782,7 +3888,7 @@ function orgUnitCard(unit) {
   return `<div class="org-unit-wrap"><button type="button" class="org-unit ${expanded ? "is-expanded" : ""}" data-org-unit-toggle="${unit.id}"><div><strong>${unit.short}</strong><span>${head ? head.name : "Chưa phân công người đứng đầu"}</span></div><span class="score-pill score-mid">${members.length} người</span></button>${memberRows}</div>`;
 }
 
-function openJournalModal(logId = null, presetTaskId = null, presetNoteId = null) {
+function openJournalModal(logId = null, presetTaskId = null, presetNoteId = null, presetContent = null) {
   const form = document.getElementById("journalForm");
   form.reset();
   state.journalSourceNoteId = null;
@@ -3826,10 +3932,18 @@ function openJournalModal(logId = null, presetTaskId = null, presetNoteId = null
         state.journalSourceNoteId = presetNoteId;
       }
     }
+    // Mo tu "Giao viec va ghi nhat ky" - dien san linh vuc/tieu de/ket qua
+    // the hien vua giao viec gi cho ai, van phai tu xem lai/sua truoc khi
+    // gui (khong khoa, khong tu dong gui).
+    if (presetContent) {
+      if (presetContent.category) form.elements.category.value = presetContent.category;
+      if (presetContent.title) form.elements.title.value = presetContent.title;
+      if (presetContent.result) form.elements.result.value = presetContent.result;
+    }
     // Khoi phuc nhap dang go do (neu co) - chi khi tao MOI thuc su (khong
-    // phai dang gan san 1 viec duoc giao hoac 1 ghi chu, tranh de nham noi
-    // dung cu).
-    if (!presetTaskId && !presetNoteId) {
+    // phai dang gan san 1 viec duoc giao, 1 ghi chu, hay 1 lan giao viec,
+    // tranh de nham noi dung cu).
+    if (!presetTaskId && !presetNoteId && !presetContent) {
       const draft = loadJournalDraft();
       if (draft) {
         if (draft.category) form.elements.category.value = draft.category;
@@ -4218,7 +4332,7 @@ function openLeaveModal() {
   document.getElementById("leaveRangePreview").textContent = "";
   refreshSubmitToOptions("leaveSubmitToSelect", null);
   document.getElementById("leaveModal").hidden = false;
-  document.getElementById("leaveStartDateDay").focus();
+  document.getElementById("leaveStartDate").focus();
 }
 function closeLeaveModal() {
   document.getElementById("leaveModal").hidden = true;
