@@ -81,6 +81,8 @@ var STATUS_CLASS={pending:'status-pending',approved:'status-approved',revision:'
 // mang nay.
 // ============================================
 var CHANGELOG=[
+  {date:'2026-09-07',type:'feature',text:'Giao việc: "Sửa việc đã giao" nay sửa được TOÀN BỘ thông tin, kể cả đổi người chủ trì/phối hợp (trước đây chỉ sửa được tên việc/mô tả/hạn). Nếu người bị đổi/rút khỏi việc đã lỡ nộp nhật ký báo cáo rồi, nhật ký và dữ liệu đó vẫn được giữ nguyên trên tài khoản của họ, chỉ không còn thuộc danh sách đang hoạt động của việc đó nữa (có ghi chú "Đã rút khỏi việc này" để lãnh đạo biết). Chuông thông báo nay báo đầy đủ khi được giao việc mới, bị rút khỏi việc, hoặc việc được cập nhật nội dung.'},
+  {date:'2026-09-07',type:'improve',text:'Giao việc: tách danh sách "Công việc đã giao" thành 2 khu riêng - "Đang thực hiện" và "Đã hoàn thành", mỗi khu có ô tìm kiếm riêng - tránh danh sách dài, khó tìm.'},
   {date:'2026-09-07',type:'feature',text:'Giao việc: bố cục lại màn hình - danh sách "Công việc đã giao" hiện ngay đầu trang bên trái (không phải cuộn qua form dài như trước), form giao việc gom vào 2 nút "+ Giao việc mới" ở góc trên. Thêm nút "+ Giao việc và ghi nhật ký" - giao việc xong tự mở sẵn 1 nhật ký cá nhân ghi nhận đã giao việc gì cho ai (vẫn xem lại/sửa và tự bấm Gửi như nhật ký thường, không tự động gửi).'},
   {date:'2026-09-07',type:'improve',text:'Ô chọn ngày (ghi nhật ký, nghỉ phép, ghi chú, giao việc, ủy quyền, tra cứu theo ngày...) gộp lại thành 1 ô gõ tay "dd/mm/yyyy" kèm nút lịch bấm chọn cho người không quen gõ tay - gọn hơn, vẫn luôn đúng thứ tự ngày/tháng/năm. Ô giờ hạn cũng gộp lại thành 1 ô "hh:mm".'},
   {date:'2026-09-07',type:'fix',text:'Nhật ký công tác của đơn vị (và Nhật ký của tôi): mỗi nhật ký nay ghi rõ nộp cho ai, nộp lúc mấy giờ ngày nào. Nhật ký bị trả về "Cần bổ sung" nay cũng ghi rõ lãnh đạo nào đã yêu cầu, không chỉ hiện nội dung yêu cầu chung chung.'},
@@ -1297,7 +1299,7 @@ var TASK_STATUS_LABELS={pending:'Chờ thực hiện',reported:'Đã báo cáo, 
 var TASK_STATUS_TONES={pending:'status-pending',reported:'status-info',done:'status-approved'};
 var TASK_WORK_ROLE_LABELS={chu_tri:'Chủ trì',phoi_hop:'Phối hợp'};
 var TASKS_BY_ME=[],TASKS_TO_ME=[],TASK_CANDIDATES=[],TASK_GROUP_MEMBERS=[];
-var EDITING_TASK_GROUP_ID=null;
+var TASK_SEARCH_ACTIVE='',TASK_SEARCH_DONE='';
 
 // Dinh dang co dinh "dd/mm/yyyy hh:mm" (giong shortDateTime nhung khong co
 // dau phay, dung cho han giao viec).
@@ -1324,6 +1326,62 @@ function taskGroupsAssignedByMe(){
     groups.push(TASKS_BY_ME.filter(function(x){return x.task_group_id===t.task_group_id}));
   });
   return groups;
+}
+
+// 1 nhom coi la "Da hoan thanh" khi TAT CA nguoi dang con hoat dong
+// (removed_at rong - khong tinh nguoi da rut khoi viec) deu co status
+// "done". Dung de tach danh sach "Dang thuc hien" / "Da hoan thanh" o
+// man Giao viec, tranh danh sach dai lam kho tra cuu (yeu cau nguoi
+// dung, 2026-09-07).
+function taskGroupIsDone(rows){
+  var active=rows.filter(function(r){return !r.removed_at});
+  if(!active.length)return false;
+  return active.every(function(r){return r.status==='done'});
+}
+
+// Tim theo ten viec HOAC ten bat ky nguoi nao trong nhom (ke ca nguoi da
+// rut khoi viec, de van tim lai duoc viec cu ho tung tham gia).
+function taskGroupMatchesSearch(rows,q){
+  if(!q)return true;
+  var nq=q.normalize('NFC').toLowerCase();
+  var lead=rows.find(function(r){return r.work_role==='chu_tri'})||rows[0];
+  if((lead.title||'').normalize('NFC').toLowerCase().indexOf(nq)>=0)return true;
+  return rows.some(function(r){return ((r.assignee&&r.assignee.full_name)||'').normalize('NFC').toLowerCase().indexOf(nq)>=0});
+}
+
+function taskGroupListHtml(groups,q,emptyText){
+  var filtered=groups.filter(function(g){return taskGroupMatchesSearch(g,q)});
+  if(!filtered.length)return '<div class="empty-state compact-empty"><strong>'+esc(emptyText)+'</strong></div>';
+  return filtered.map(taskGroupCardHtml).join('');
+}
+
+function bindTaskGroupCardActions(root){
+  root.querySelectorAll('[data-edit-task-group]').forEach(function(b){b.addEventListener('click',function(){openEditTaskModal(b.dataset.editTaskGroup)})});
+  root.querySelectorAll('[data-delete-task-group]').forEach(function(b){b.addEventListener('click',function(){deleteTaskGroup(b.dataset.deleteTaskGroup)})});
+}
+
+// O tim rieng cho tung khu (Dang thuc hien / Da hoan thanh) - chi ve lai
+// DUNG khu do (khong dong lai toan bo trang), giong cach cac o tim khac
+// trong app da lam (vd ujSearchInput).
+function bindTaskSearchInputs(){
+  var activeInput=$('taskSearchActiveInput');
+  if(activeInput)activeInput.addEventListener('input',function(e){
+    TASK_SEARCH_ACTIVE=e.target.value;
+    var caret=activeInput.selectionStart;
+    var slot=$('taskListActive');
+    slot.innerHTML=taskGroupListHtml(taskGroupsAssignedByMe().filter(function(g){return !taskGroupIsDone(g)}),TASK_SEARCH_ACTIVE,'Chưa có việc nào đang thực hiện');
+    bindTaskGroupCardActions(slot);
+    var ni=$('taskSearchActiveInput');if(ni){ni.focus();ni.setSelectionRange(caret,caret)}
+  });
+  var doneInput=$('taskSearchDoneInput');
+  if(doneInput)doneInput.addEventListener('input',function(e){
+    TASK_SEARCH_DONE=e.target.value;
+    var caret=doneInput.selectionStart;
+    var slot=$('taskListDone');
+    slot.innerHTML=taskGroupListHtml(taskGroupsAssignedByMe().filter(taskGroupIsDone),TASK_SEARCH_DONE,'Chưa có việc nào hoàn thành');
+    bindTaskGroupCardActions(slot);
+    var ni=$('taskSearchDoneInput');if(ni){ni.focus();ni.setSelectionRange(caret,caret)}
+  });
 }
 
 async function rt(){
@@ -1362,21 +1420,33 @@ async function rt(){
     return;
   }
   var groupsByMe=taskGroupsAssignedByMe();
-  // Bo cuc 2 cot ngang hang: trai la "Cong viec da giao" (chi con danh
-  // sach, khong con ke ca form giao viec dai ben trong nua - truoc day
-  // phai cuon qua het form moi thay duoc danh sach, gay kho tra cuu),
-  // phai la "Cong viec duoc giao" (giu nguyen). Form giao viec gom vao
-  // modal rieng (assignTaskModal), mo tu 1 nut "+ Giao viec moi" o dau
-  // khung ben trai - modal do co san 2 nut "Giao viec"/"Giao viec va ghi
-  // nhat ky" (xem taskAssignFormHtml), khong tach thanh 2 nut mo modal.
+  // Tach "Cong viec da giao" thanh 2 khu rieng - "Dang thuc hien" va "Da
+  // hoan thanh" - moi khu co o tim rieng, tranh danh sach dai lam tran
+  // man hinh, kho tra cuu (yeu cau nguoi dung, 2026-09-07).
+  var groupsInProgress=groupsByMe.filter(function(g){return !taskGroupIsDone(g)});
+  var groupsDoneList=groupsByMe.filter(taskGroupIsDone);
+  // Bo cuc 2 cot ngang hang: trai la "Cong viec da giao" (2 khu Dang thuc
+  // hien/Da hoan thanh xep chong, khong con ke ca form giao viec dai ben
+  // trong nua - truoc day phai cuon qua het form moi thay duoc danh
+  // sach), phai la "Cong viec duoc giao" (giu nguyen). Form giao viec gom
+  // vao modal rieng (assignTaskModal), mo tu 1 nut "+ Giao viec moi" o
+  // dau khu "Dang thuc hien" - modal do co san 2 nut "Giao viec"/"Giao
+  // viec va ghi nhat ky" (xem taskAssignFormHtml), khong tach thanh 2 nut
+  // mo modal.
   var h='<div class="admin-grid '+(canAssign&&canReceive?'':'is-single')+'">';
   if(canAssign){
     var assignActions=TASK_CANDIDATES.length?('<div class="panel-header-actions">'
       +'<button type="button" class="button button-primary button-small" id="openAssignTaskBtn">+ Giao việc mới</button>'
       +'</div>'):'';
-    h+='<section class="panel"><div class="panel-header"><div><h2>Công việc đã giao</h2><p>'+groupsByMe.length+' việc</p></div>'+assignActions+'</div>'
+    h+='<div>'
+      +'<section class="panel task-panel-stacked"><div class="panel-header"><div><h2>Công việc đã giao - đang thực hiện</h2><p>'+groupsInProgress.length+' việc</p></div>'+assignActions+'</div>'
       +(TASK_CANDIDATES.length?'':'<p class="metric-context">Bạn chưa có cán bộ/đơn vị nào thuộc phạm vi được phép giao việc.</p>')
-      +'<div class="task-list">'+(groupsByMe.length?groupsByMe.map(taskGroupCardHtml).join(''):'<div class="empty-state compact-empty"><strong>Chưa giao việc nào</strong></div>')+'</div></section>';
+      +(groupsByMe.length?'<label class="field field-wide task-search-field"><span>Tìm theo tên việc hoặc người thực hiện</span><input type="text" id="taskSearchActiveInput" value="'+esc(TASK_SEARCH_ACTIVE)+'" placeholder="Nhập từ khoá..."></label>':'')
+      +'<div class="task-list" id="taskListActive">'+taskGroupListHtml(groupsInProgress,TASK_SEARCH_ACTIVE,'Chưa có việc nào đang thực hiện')+'</div></section>'
+      +'<section class="panel"><div class="panel-header"><div><h2>Đã hoàn thành</h2><p>'+groupsDoneList.length+' việc</p></div></div>'
+      +(groupsDoneList.length?'<label class="field field-wide task-search-field"><span>Tìm theo tên việc hoặc người thực hiện</span><input type="text" id="taskSearchDoneInput" value="'+esc(TASK_SEARCH_DONE)+'" placeholder="Nhập từ khoá..."></label>':'')
+      +'<div class="task-list" id="taskListDone">'+taskGroupListHtml(groupsDoneList,TASK_SEARCH_DONE,'Chưa có việc nào hoàn thành')+'</div></section>'
+      +'</div>';
   }
   if(canReceive)h+='<section class="panel"><div class="panel-header"><div><h2>Công việc được giao</h2><p>'+TASKS_TO_ME.length+' việc</p></div></div>'
     +'<div class="task-list">'+(TASKS_TO_ME.length?TASKS_TO_ME.map(function(t){return taskCardHtml(t,'assignee')}).join(''):'<div class="empty-state compact-empty"><strong>Chưa có việc được giao</strong></div>')+'</div></section>';
@@ -1385,8 +1455,8 @@ async function rt(){
   updateTaskOverdueBadge(TASKS_BY_ME.concat(TASKS_TO_ME).filter(isTaskOverdue).length);
   document.querySelectorAll('[data-set-due-form]').forEach(function(form){form.addEventListener('submit',submitTaskDueDate)});
   document.querySelectorAll('[data-report-task]').forEach(function(b){b.addEventListener('click',function(){oj(null,b.dataset.reportTask)})});
-  document.querySelectorAll('[data-edit-task-group]').forEach(function(b){b.addEventListener('click',function(){openEditTaskModal(b.dataset.editTaskGroup)})});
-  document.querySelectorAll('[data-delete-task-group]').forEach(function(b){b.addEventListener('click',function(){deleteTaskGroup(b.dataset.deleteTaskGroup)})});
+  bindTaskGroupCardActions(document);
+  bindTaskSearchInputs();
   var openAssignBtn=$('openAssignTaskBtn');if(openAssignBtn)openAssignBtn.addEventListener('click',openAssignTaskModal);
 }
 
@@ -1394,6 +1464,7 @@ async function rt(){
 // danh sach "Viec da giao" trong CUNG 1 cot, phai cuon qua het form moi
 // thay duoc danh sach - nay gom vao modal rieng, mo tu nut o dau khung.
 function openAssignTaskModal(){
+  $('assignTaskModalTitle').textContent='Giao việc mới';
   $('assignTaskModalBody').innerHTML=taskAssignFormHtml();
   var form=$('taskAssignForm');
   if(form){form.addEventListener('submit',submitTaskAssignment);bindTaskAssignExtras()}
@@ -1552,7 +1623,11 @@ var TASK_SUPPORT_GROUP_DEFS=[
   {label:'Cán bộ, Kiểm sát viên',roles:['staff'],openByDefault:false},
   {label:'Người lao động',roles:['support_staff'],openByDefault:false}
 ];
-function taskSupportPickerHtml(){
+// presetSupportIds (khong bat buoc): danh sach id dang duoc chon san (khi
+// sua 1 viec da giao) - nhom nao co nguoi duoc chon san thi TU MO ra,
+// khong can bam moi thay.
+function taskSupportPickerHtml(presetSupportIds){
+  presetSupportIds=presetSupportIds||[];
   var covered={};
   TASK_SUPPORT_GROUP_DEFS.forEach(function(def){def.roles.forEach(function(r){covered[r]=true})});
   var groups=TASK_SUPPORT_GROUP_DEFS.map(function(def){return {def:def,people:TASK_CANDIDATES.filter(function(p){return def.roles.indexOf(p.role)>=0})}});
@@ -1561,10 +1636,12 @@ function taskSupportPickerHtml(){
   var uncovered=TASK_CANDIDATES.filter(function(p){return !covered[p.role]});
   if(uncovered.length)groups[0].people=groups[0].people.concat(uncovered);
   var groupsHtml=groups.filter(function(g){return g.people.length}).map(function(g){
+    var hasPreset=g.people.some(function(p){return presetSupportIds.indexOf(p.id)>=0});
     var items=g.people.map(function(p){
-      return '<label data-name="'+esc((p.full_name||'').toLowerCase())+'" data-person-name="'+esc(p.full_name||'')+'"><input type="checkbox" name="supportIds" value="'+p.id+'"> '+esc(p.full_name)+' · '+esc(unitShort(p.unit_id))+'</label>';
+      var checked=presetSupportIds.indexOf(p.id)>=0?' checked':'';
+      return '<label data-name="'+esc((p.full_name||'').toLowerCase())+'" data-person-name="'+esc(p.full_name||'')+'"><input type="checkbox" name="supportIds" value="'+p.id+'"'+checked+'> '+esc(p.full_name)+' · '+esc(unitShort(p.unit_id))+'</label>';
     }).join('');
-    return '<details class="support-group" '+(g.def.openByDefault?'open':'')+'><summary>'+esc(g.def.label)+' ('+g.people.length+')</summary><div class="unit-checklist unit-checklist-lg">'+items+'</div></details>';
+    return '<details class="support-group" '+((g.def.openByDefault||hasPreset)?'open':'')+'><summary>'+esc(g.def.label)+' ('+g.people.length+')</summary><div class="unit-checklist unit-checklist-lg">'+items+'</div></details>';
   }).join('');
   return '<div class="support-picker" id="taskSupportPicker">'
     +'<div class="support-picker-chips" id="taskSupportChips"><span class="support-picker-chips-empty">Chưa chọn ai</span></div>'
@@ -1573,21 +1650,27 @@ function taskSupportPickerHtml(){
     +'</div>';
 }
 
-function taskAssignFormHtml(){
-  var options=TASK_CANDIDATES.map(function(p){return '<option value="'+p.id+'">'+esc(p.full_name)+' · '+esc(unitShort(p.unit_id))+'</option>'}).join('');
+// opts (khong bat buoc): {isEdit, leadId, supportIds, title, description,
+// suggestedDueDate} - dung chung 1 form cho ca "Giao viec moi" va "Sua
+// viec da giao" (truoc day Sua chi sua duoc noi dung, khong doi duoc
+// nguoi - nay dung chung form nay, dien san du lieu hien co, xem migration
+// 00070).
+function taskAssignFormHtml(opts){
+  opts=opts||{};
+  var options=TASK_CANDIDATES.map(function(p){return '<option value="'+p.id+'"'+(p.id===opts.leadId?' selected':'')+'>'+esc(p.full_name)+' · '+esc(unitShort(p.unit_id))+'</option>'}).join('');
+  var actionsHtml=opts.isEdit
+    ?'<button type="submit" class="button button-primary">Lưu thay đổi</button>'
+    :'<button type="submit" class="button button-primary">Giao việc</button><button type="submit" class="button button-secondary" data-with-log="1">Giao việc và ghi nhật ký</button>';
   // Bo "compact-form" (dung khi form nam trong 1 panel da co san padding
   // rieng) - form nay gio nam truc tiep trong modal, can padding cua
   // chinh ".form-grid" de khong bi sat le.
   return '<form class="form-grid" id="taskAssignForm">'
     +'<label class="field field-wide"><span>Người chủ trì</span><select name="leadId" required>'+options+'</select></label>'
-    +'<div class="field field-wide"><span>Người phối hợp (không bắt buộc)</span>'+taskSupportPickerHtml()+'</div>'
-    +'<label class="field field-wide"><span>Tên công việc</span><input type="text" name="title" required maxlength="200"></label>'
-    +'<label class="field field-wide"><span>Mô tả / yêu cầu</span><textarea name="description" rows="5" placeholder="Có thể ghi chi tiết yêu cầu, phạm vi công việc..."></textarea></label>'
-    +'<div class="field field-wide"><span>Hạn gợi ý (không bắt buộc)</span>'+dueDateTimeFieldHtml('taskSuggestedDue',null)+'</div>'
-    +'<div class="review-actions field-wide">'
-    +'<button type="submit" class="button button-primary">Giao việc</button>'
-    +'<button type="submit" class="button button-secondary" data-with-log="1">Giao việc và ghi nhật ký</button>'
-    +'</div>'
+    +'<div class="field field-wide"><span>Người phối hợp (không bắt buộc)</span>'+taskSupportPickerHtml(opts.supportIds)+'</div>'
+    +'<label class="field field-wide"><span>Tên công việc</span><input type="text" name="title" required maxlength="200" value="'+esc(opts.title||'')+'"></label>'
+    +'<label class="field field-wide"><span>Mô tả / yêu cầu</span><textarea name="description" rows="5" placeholder="Có thể ghi chi tiết yêu cầu, phạm vi công việc...">'+esc(opts.description||'')+'</textarea></label>'
+    +'<div class="field field-wide"><span>Hạn gợi ý (không bắt buộc)</span>'+dueDateTimeFieldHtml('taskSuggestedDue',opts.suggestedDueDate||null)+'</div>'
+    +'<div class="review-actions field-wide">'+actionsHtml+'</div>'
     +'</form>';
 }
 
@@ -1671,43 +1754,47 @@ async function submitTaskAssignment(e){
   }catch(err){showToast('Lỗi: '+err.message);submitBtns.forEach(function(b){b.disabled=false})}
 }
 
-// Sua/xoa 1 nhom viec da giao - CHI tac gia giao viec (assigner) moi lam
-// duoc, dung RPC update_task_assignment/delete_task_assignment (migration
-// 00067). Sua ap dung cho CA NHOM (tieu de/mo ta/han goi y dung chung cho
-// moi nguoi cung nhan), khong doi duoc danh sach nguoi nhan.
+// Sua 1 nhom viec da giao - CHI tac gia giao viec (assigner) moi lam
+// duoc, dung RPC update_task_assignment (migration 00070). Nay sua duoc
+// CA nguoi chu tri/phoi hop (truoc day - migration 00067 - chi sua duoc
+// noi dung), dung CHUNG modal voi "Giao viec moi" (taskAssignFormHtml)
+// de day du truong nhu nhau, dien san du lieu hien co. Nguoi da nop bao
+// cao ma bi rut khoi viec KHONG bi mat du lieu - xem chu thich chi tiet
+// o migration 00070.
 function openEditTaskModal(groupId){
   var rows=TASKS_BY_ME.filter(function(t){return t.task_group_id===groupId});
   if(!rows.length)return;
-  var lead=rows.find(function(r){return r.work_role==='chu_tri'})||rows[0];
-  EDITING_TASK_GROUP_ID=groupId;
-  var form=$('editTaskForm');
-  form.reset();
-  form.elements.title.value=lead.title;
-  form.elements.description.value=lead.description||'';
-  $('editTaskDueField').innerHTML=dueDateTimeFieldHtml('editTaskDue',lead.suggested_due_date);
-  $('editTaskModal').hidden=false;
+  var activeRows=rows.filter(function(r){return !r.removed_at});
+  var lead=activeRows.find(function(r){return r.work_role==='chu_tri'})||activeRows[0]||rows[0];
+  var supportIds=activeRows.filter(function(r){return r!==lead}).map(function(r){return r.assignee_id});
+  $('assignTaskModalTitle').textContent='Sửa việc đã giao';
+  $('assignTaskModalBody').innerHTML=taskAssignFormHtml({isEdit:true,leadId:lead.assignee_id,supportIds:supportIds,title:lead.title,description:lead.description,suggestedDueDate:lead.suggested_due_date});
+  var form=$('taskAssignForm');
+  if(form){form.addEventListener('submit',function(e){submitEditTaskGroupForm(e,groupId)});bindTaskAssignExtras()}
+  $('assignTaskModal').hidden=false;document.body.style.overflow='hidden';
 }
-function closeEditTaskModal(){EDITING_TASK_GROUP_ID=null;$('editTaskModal').hidden=true}
 
-async function submitEditTaskForm(e){
+async function submitEditTaskGroupForm(e,groupId){
   e.preventDefault();
-  if(!EDITING_TASK_GROUP_ID)return;
-  var groupId=EDITING_TASK_GROUP_ID;
   var form=e.currentTarget;
   var f=new FormData(form);
+  var leadId=f.get('leadId');
   var title=(f.get('title')||'').trim();
+  if(!leadId){showToast('Vui lòng chọn người chủ trì.');return}
   if(!title){showToast('Vui lòng nhập tên công việc.');return}
-  var suggestedDueDate=readDueDateTime('editTaskDue','hạn gợi ý');
-  if(suggestedDueDate===undefined)return; // da chon ngay nhung thieu gio/phut, readDueDateTime da bao loi
-  var btn=form.querySelector('button[type="submit"]');btn.disabled=true;
+  var supportIds=Array.from(form.querySelectorAll('input[name="supportIds"]:checked')).map(function(cb){return cb.value}).filter(function(id){return id!==leadId});
+  var suggestedDueDate=readDueDateTime('taskSuggestedDue','hạn gợi ý');
+  if(suggestedDueDate===undefined)return;
+  var description=(f.get('description')||'').trim();
+  var submitBtns=form.querySelectorAll('button[type="submit"]');submitBtns.forEach(function(b){b.disabled=true});
   try{
-    var r=await fetch(API+'rpc/update_task_assignment',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_task_group_id:groupId,p_title:title,p_description:(f.get('description')||'').trim()||null,p_suggested_due_date:suggestedDueDate})});
+    var r=await fetch(API+'rpc/update_task_assignment',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_task_group_id:groupId,p_title:title,p_description:description||null,p_suggested_due_date:suggestedDueDate,p_lead_assignee_id:leadId,p_support_assignee_ids:supportIds})});
     var data=await r.json();
-    if(!r.ok||data.success===false){showToast('Lỗi: '+(data.error||'HTTP '+r.status));btn.disabled=false;return}
-    closeEditTaskModal();
+    if(!r.ok||data.success===false){showToast('Lỗi: '+(data.error||'HTTP '+r.status));submitBtns.forEach(function(b){b.disabled=false});return}
+    closeAssignTaskModal();
     showToast('Đã lưu thay đổi việc giao.');
     rt();
-  }catch(err){showToast('Lỗi: '+err.message);btn.disabled=false}
+  }catch(err){showToast('Lỗi: '+err.message);submitBtns.forEach(function(b){b.disabled=false})}
 }
 
 async function deleteTaskGroup(groupId){
@@ -1722,20 +1809,29 @@ async function deleteTaskGroup(groupId){
 }
 
 // The gop 1 nhom giao viec (phia nguoi giao) - liet ke ro chu tri/phoi
-// hop kem trang thai rieng cua tung nguoi.
+// hop kem trang thai rieng cua tung nguoi. Nguoi da bi rut khoi viec
+// (removed_at, xem migration 00070) van hien trong the (mo nhat, kem
+// "Da rut khoi viec nay") de Lanh dao biet ho tung tham gia, nhung tach
+// rieng khoi danh sach dang hoat dong.
 function taskGroupCardHtml(rows){
-  var lead=rows.find(function(r){return r.work_role==='chu_tri'})||rows[0];
-  var others=rows.filter(function(r){return r!==lead});
-  var overdueAny=rows.some(isTaskOverdue);
+  var activeRows=rows.filter(function(r){return !r.removed_at});
+  var removedRows=rows.filter(function(r){return r.removed_at});
+  var lead=activeRows.find(function(r){return r.work_role==='chu_tri'})||activeRows[0]||rows[0];
+  var others=activeRows.filter(function(r){return r!==lead});
+  var overdueAny=activeRows.some(isTaskOverdue);
   function memberRow(row){
     var name=row.assignee&&row.assignee.full_name;
     return '<div class="task-member-row"><span>'+esc(name||'—')+'</span><span class="meta-tag">'+TASK_WORK_ROLE_LABELS[row.work_role]+'</span><span class="status-pill '+TASK_STATUS_TONES[row.status]+'">'+TASK_STATUS_LABELS[row.status]+'</span></div>';
+  }
+  function removedRow(row){
+    var name=row.assignee&&row.assignee.full_name;
+    return '<div class="task-member-row task-member-removed"><span>'+esc(name||'—')+'</span><span class="meta-tag">'+TASK_WORK_ROLE_LABELS[row.work_role]+'</span><span class="meta-tag meta-tag-muted">Đã rút khỏi việc này</span></div>';
   }
   return '<article class="task-card '+(overdueAny?'is-overdue':'')+'">'
     +'<div class="task-card-header"><strong>'+esc(lead.title)+'</strong>'+(overdueAny?'<span class="meta-tag meta-tag-warning">Có người quá hạn</span>':'')+'</div>'
     +(lead.description?('<p>'+esc(lead.description)+'</p>'):'')
     +'<div class="task-card-meta">'+(lead.suggested_due_date?('<span>Hạn gợi ý: '+formatDateTime(lead.suggested_due_date)+'</span>'):'')+'</div>'
-    +'<div class="task-member-list">'+memberRow(lead)+others.map(memberRow).join('')+'</div>'
+    +'<div class="task-member-list">'+memberRow(lead)+others.map(memberRow).join('')+removedRows.map(removedRow).join('')+'</div>'
     +'<div class="task-card-actions"><button type="button" class="button button-secondary button-small" data-edit-task-group="'+lead.task_group_id+'">Sửa</button><button type="button" class="button button-danger button-small" data-delete-task-group="'+lead.task_group_id+'">Xóa</button></div>'
     +'</article>';
 }
@@ -1748,13 +1844,18 @@ function taskCardHtml(task,perspective){
   var coAssignees=perspective==='assignee'
     ?TASK_GROUP_MEMBERS.filter(function(m){return m.task_group_id===task.task_group_id&&m.id!==task.id})
     :[];
-  var dueSetter=(perspective==='assignee'&&task.status!=='done')
+  // Da bi rut khoi viec (migration 00070) - khong con thao tac gi them
+  // duoc nua (khong dat han/ghi nhat ky moi), nhung van giu nguyen the
+  // hien thi + du lieu cu (nhat ky da nop, neu co) tren tai khoan cua ho.
+  var isRemoved=Boolean(task.removed_at);
+  var removedTag=isRemoved?'<span class="meta-tag meta-tag-muted">Đã được rút khỏi việc này</span>':'';
+  var dueSetter=(perspective==='assignee'&&task.status!=='done'&&!isRemoved)
     ?('<form class="task-due-form" data-set-due-form="'+task.id+'"><span class="field-label">Hạn hoàn thành</span>'+dueDateTimeFieldHtml('taskActualDue_'+task.id,task.actual_due_date)+'<button type="submit" class="button button-secondary button-small">Đặt hạn</button></form>')
     :'';
-  var reportButton=(perspective==='assignee'&&task.status==='pending')
+  var reportButton=(perspective==='assignee'&&task.status==='pending'&&!isRemoved)
     ?('<button type="button" class="button button-primary button-small" data-report-task="'+task.id+'">Ghi nhật ký cho việc này</button>')
     :'';
-  return '<article class="task-card '+(overdue?'is-overdue':'')+'">'
+  return '<article class="task-card '+(overdue?'is-overdue':'')+(isRemoved?' task-member-removed':'')+'">'
     +'<div class="task-card-header"><strong>'+esc(task.title)+'</strong><span class="status-pill '+TASK_STATUS_TONES[task.status]+'">'+TASK_STATUS_LABELS[task.status]+'</span></div>'
     +(task.description?('<p>'+esc(task.description)+'</p>'):'')
     +'<div class="task-card-meta"><span>'+counterpartLabel+': <strong>'+esc(counterpart||'—')+'</strong></span>'
@@ -1762,6 +1863,7 @@ function taskCardHtml(task,perspective){
     +(task.suggested_due_date?('<span>Hạn gợi ý: '+formatDateTime(task.suggested_due_date)+'</span>'):'')
     +(task.actual_due_date?('<span>Hạn đã đặt: '+formatDateTime(task.actual_due_date)+'</span>'):'')
     +(overdue?'<span class="meta-tag meta-tag-warning">Quá hạn</span>':'')
+    +removedTag
     +(coAssignees.length?('<span>Cùng thực hiện: '+esc(coAssignees.map(function(m){return m.assignee&&m.assignee.full_name}).filter(Boolean).join(', '))+'</span>'):'')
     +'</div>'+dueSetter+reportButton+'</article>';
 }
@@ -3905,7 +4007,7 @@ async function fetchNotifications(){
   try{
     var nr=await fetch(API+'notifications?user_id=eq.'+U.id+'&order=created_at.desc&limit=20',{headers:authHeaders()});
     (nr.ok?await nr.json():[]).forEach(function(n){
-      var tone=(n.type==='score_override_escalation'||n.type==='monthly_score_deviation_notice')?'escalation':(n.type==='score_overridden_by_senior'||n.type==='score_overridden_reviewer_notice')?'revision':'account';
+      var tone=(n.type==='score_override_escalation'||n.type==='monthly_score_deviation_notice'||n.type==='task_unassigned')?'escalation':(n.type==='score_overridden_by_senior'||n.type==='score_overridden_reviewer_notice')?'revision':(n.type==='task_assigned')?'pending':'account';
       // score_overridden_by_senior/work_log_deleted_by_leader = gui cho TAC
       // GIA (co the la nhan vien thuong, khong vao duoc "Nhat ky cong tac
       // cua don vi"/"Quan tri" - cac trang chi lanh dao) -> ve "Nhat ky cua
@@ -3917,7 +4019,9 @@ async function fetchNotifications(){
       // cham lech diem -> ve thang "Cham diem thang" de xem lai ho so.
       // score_adjustment_added = gui cho CHINH nguoi bi/duoc cong/tru diem
       // dot xuat (migration 00066) -> cung ve "Cham diem thang" de xem chi
-      // tiet + ly do.
+      // tiet + ly do. task_assigned/task_unassigned/task_updated (migration
+      // 00070) = gui cho nguoi lien quan khi giao viec/doi nguoi/sua noi
+      // dung 1 viec da giao -> ve man "Giao viec" de xem lai.
       var view=n.type==='score_overridden_by_senior'?'journal'
         :n.type==='work_log_deleted_by_leader'?'journal'
         :n.type==='delegation_granted'?'unitJournal'
@@ -3925,6 +4029,7 @@ async function fetchNotifications(){
         :n.type==='score_overridden_reviewer_notice'?'unitJournal'
         :n.type==='monthly_score_deviation_notice'?'monthly'
         :n.type==='score_adjustment_added'?'monthly'
+        :(n.type==='task_assigned'||n.type==='task_unassigned'||n.type==='task_updated')?'tasks'
         :'unitJournal';
       list.push({id:'db-'+n.id,tone:tone,title:n.title,message:n.body||'',time:shortDate((n.created_at||'').slice(0,10)),view:view});
     });
@@ -4438,9 +4543,6 @@ document.addEventListener('DOMContentLoaded',function(){
   document.querySelectorAll('[data-close-delete-log]').forEach(function(b){b.addEventListener('click',closeDeleteLogModal)});
   $('deleteLogModal').addEventListener('click',function(e){if(e.target.id==='deleteLogModal')closeDeleteLogModal()});
   $('deleteLogForm').addEventListener('submit',submitDeleteLogForm);
-  document.querySelectorAll('[data-close-edit-task]').forEach(function(b){b.addEventListener('click',closeEditTaskModal)});
-  $('editTaskModal').addEventListener('click',function(e){if(e.target.id==='editTaskModal')closeEditTaskModal()});
-  $('editTaskForm').addEventListener('submit',submitEditTaskForm);
   document.querySelectorAll('[data-close-assign-task]').forEach(function(b){b.addEventListener('click',closeAssignTaskModal)});
   $('assignTaskModal').addEventListener('click',function(e){if(e.target.id==='assignTaskModal')closeAssignTaskModal()});
   $('notificationToggle').addEventListener('click',function(){

@@ -483,6 +483,10 @@ h3 { margin-bottom: 4px; font-size: 15px; }
 .panel-header { display: flex; align-items: start; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
 .panel-header p { margin-bottom: 0; color: var(--muted); font-size: 12px; }
 .panel-header-actions { display: flex; flex-wrap: wrap; gap: 8px; flex: 0 0 auto; }
+/* "Cong viec da giao" tach 2 khu Dang thuc hien/Da hoan thanh, xep chong
+   trong cung 1 nua man hinh (xem rt()/renderTasks). */
+.task-panel-stacked { margin-bottom: 16px; }
+.task-search-field { margin-bottom: 12px; }
 .legend { display: flex; flex-wrap: wrap; gap: 12px; color: var(--muted); font-size: 11px; }
 .legend-item { display: inline-flex; align-items: center; gap: 5px; }
 .legend-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); }
@@ -626,6 +630,11 @@ tbody tr:hover { background: #fbfbfc; }
 .task-member-list { display: grid; gap: 6px; margin-top: 4px; }
 .task-member-row { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); font-size: 12.5px; }
 .task-member-row > span:first-child { flex: 1; font-weight: 600; color: var(--text); }
+/* Nguoi da bi rut khoi 1 viec da giao (con giu lai nhat ky/du lieu cu,
+   xem migration 00070) - hien mo nhat trong the, tach biet voi nguoi
+   dang hoat dong. */
+.task-member-removed { opacity: .55; }
+.meta-tag-muted { font-style: italic; }
 .task-card-actions { display: flex; gap: 8px; margin-top: 2px; }
 
 .journal-header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }

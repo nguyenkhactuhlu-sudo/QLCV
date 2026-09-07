@@ -102,10 +102,10 @@ const sampleDelegations = [
 // dung chung 1 taskGroupId de gom hien thi phia nguoi giao - moi nguoi
 // van la 1 dong rieng, tu theo doi tien do/han rieng (xem workRole).
 const sampleTaskAssignments = [
-  { id: "TASK001", taskGroupId: "TG001", assignerId: "u03", assigneeId: "u05", workRole: "chu_tri", unitId: "p1", title: "Rà soát hồ sơ vụ án Nguyễn Văn A", description: "Tổng hợp chứng cứ, đối chiếu với cáo trạng trước khi báo cáo lãnh đạo.", suggestedDueDate: "2026-08-19T16:30:00", actualDueDate: "2026-08-20T16:30:00", status: "done", linkedLogId: "NK001", createdAt: "2026-08-15T09:00:00" },
-  { id: "TASK002", taskGroupId: "TG002", assignerId: "u03", assigneeId: "u06", workRole: "chu_tri", unitId: "p1", title: "Chuẩn bị báo cáo kiểm sát tháng 8", description: "Tổng hợp số liệu kiểm sát điều tra tháng 8 gửi lãnh đạo phòng trước 30/8.", suggestedDueDate: "2026-08-28T17:00:00", actualDueDate: null, status: "pending", linkedLogId: null, createdAt: "2026-08-20T10:00:00" },
-  { id: "TASK002B", taskGroupId: "TG002", assignerId: "u03", assigneeId: "u07", workRole: "phoi_hop", unitId: "p1", title: "Chuẩn bị báo cáo kiểm sát tháng 8", description: "Tổng hợp số liệu kiểm sát điều tra tháng 8 gửi lãnh đạo phòng trước 30/8.", suggestedDueDate: "2026-08-28T17:00:00", actualDueDate: null, status: "pending", linkedLogId: null, createdAt: "2026-08-20T10:00:00" },
-  { id: "TASK003", taskGroupId: "TG003", assignerId: "u01", assigneeId: "u03", workRole: "chu_tri", unitId: "p1", title: "Tổng hợp kết quả công tác quý III toàn Viện", description: "Trưởng phòng tổng hợp báo cáo quý III của Phòng 1 gửi Viện trưởng.", suggestedDueDate: "2026-08-20T14:30:00", actualDueDate: "2026-08-20T14:30:00", status: "pending", linkedLogId: null, createdAt: "2026-08-10T08:00:00" }
+  { id: "TASK001", taskGroupId: "TG001", assignerId: "u03", assigneeId: "u05", workRole: "chu_tri", unitId: "p1", title: "Rà soát hồ sơ vụ án Nguyễn Văn A", description: "Tổng hợp chứng cứ, đối chiếu với cáo trạng trước khi báo cáo lãnh đạo.", suggestedDueDate: "2026-08-19T16:30:00", actualDueDate: "2026-08-20T16:30:00", status: "done", linkedLogId: "NK001", removedAt: null, createdAt: "2026-08-15T09:00:00" },
+  { id: "TASK002", taskGroupId: "TG002", assignerId: "u03", assigneeId: "u06", workRole: "chu_tri", unitId: "p1", title: "Chuẩn bị báo cáo kiểm sát tháng 8", description: "Tổng hợp số liệu kiểm sát điều tra tháng 8 gửi lãnh đạo phòng trước 30/8.", suggestedDueDate: "2026-08-28T17:00:00", actualDueDate: null, status: "pending", linkedLogId: null, removedAt: null, createdAt: "2026-08-20T10:00:00" },
+  { id: "TASK002B", taskGroupId: "TG002", assignerId: "u03", assigneeId: "u07", workRole: "phoi_hop", unitId: "p1", title: "Chuẩn bị báo cáo kiểm sát tháng 8", description: "Tổng hợp số liệu kiểm sát điều tra tháng 8 gửi lãnh đạo phòng trước 30/8.", suggestedDueDate: "2026-08-28T17:00:00", actualDueDate: null, status: "pending", linkedLogId: null, removedAt: null, createdAt: "2026-08-20T10:00:00" },
+  { id: "TASK003", taskGroupId: "TG003", assignerId: "u01", assigneeId: "u03", workRole: "chu_tri", unitId: "p1", title: "Tổng hợp kết quả công tác quý III toàn Viện", description: "Trưởng phòng tổng hợp báo cáo quý III của Phòng 1 gửi Viện trưởng.", suggestedDueDate: "2026-08-20T14:30:00", actualDueDate: "2026-08-20T14:30:00", status: "pending", linkedLogId: null, removedAt: null, createdAt: "2026-08-10T08:00:00" }
 ];
 
 const sampleLogs = [
@@ -286,7 +286,8 @@ const state = {
   reviewQueueOthersCollapsed: true,
   editingJournalId: null,
   journalSourceNoteId: null,
-  editingTaskGroupId: null,
+  taskSearchActive: "",
+  taskSearchDone: "",
   selectedMonthlyUserId: null,
   dashboardUnit: filterPrefs.dashboardUnit || "all",
   dashboardPeriod: filterPrefs.dashboardPeriod || "2026-08",
@@ -687,11 +688,6 @@ function initialize() {
     if (event.target.id === "deleteLogModal") closeDeleteLogModal();
   });
   document.getElementById("deleteLogForm").addEventListener("submit", submitDeleteLogForm);
-  document.querySelectorAll("[data-close-edit-task]").forEach(button => button.addEventListener("click", closeEditTaskModal));
-  document.getElementById("editTaskModal").addEventListener("click", event => {
-    if (event.target.id === "editTaskModal") closeEditTaskModal();
-  });
-  document.getElementById("editTaskForm").addEventListener("submit", submitEditTaskForm);
   document.querySelectorAll("[data-close-assign-task]").forEach(button => button.addEventListener("click", closeAssignTaskModal));
   document.getElementById("assignTaskModal").addEventListener("click", event => {
     if (event.target.id === "assignTaskModal") closeAssignTaskModal();
@@ -853,7 +849,7 @@ function notificationsForCurrentUser() {
   // Canh bao chenh lech dat NGAY SAU nhom "can bo sung" (ca 2 deu la tin
   // rieng, quan trong) va TRUOC hang doi cho cham diem (co the rat dai voi
   // lanh dao pham vi rong) - de khong bi ".slice(0, 20)" ben duoi cat mat.
-  const SYSTEM_NOTIFICATION_TONES = { score_overridden: "revision", score_overridden_reviewer_notice: "revision", monthly_score_deviation_notice: "escalation", delegation_granted: "account", delegation_revoked: "account", work_log_deleted: "revision" };
+  const SYSTEM_NOTIFICATION_TONES = { score_overridden: "revision", score_overridden_reviewer_notice: "revision", monthly_score_deviation_notice: "escalation", delegation_granted: "account", delegation_revoked: "account", work_log_deleted: "revision", task_assigned: "pending", task_unassigned: "escalation", task_updated: "account" };
   systemNotifications.filter(n => n.userId === user.id).forEach(n => {
     notifications.push({
       id: n.id,
@@ -3445,6 +3441,64 @@ function taskGroupsAssignedByMe() {
   return groups;
 }
 
+// 1 nhom coi la "Da hoan thanh" khi TAT CA nguoi dang con hoat dong
+// (removedAt rong - khong tinh nguoi da rut khoi viec) deu co status
+// "done". Dung de tach danh sach "Dang thuc hien" / "Da hoan thanh" o
+// man Giao viec, tranh danh sach dai lam kho tra cuu (yeu cau nguoi
+// dung, 2026-09-07).
+function taskGroupIsDone(rows) {
+  const active = rows.filter(r => !r.removedAt);
+  if (!active.length) return false;
+  return active.every(r => r.status === "done");
+}
+
+// Tim theo ten viec HOAC ten bat ky nguoi nao trong nhom (ke ca nguoi da
+// rut khoi viec, de van tim lai duoc viec cu ho tung tham gia).
+function taskGroupMatchesSearch(rows, q) {
+  if (!q) return true;
+  const nq = q.normalize("NFC").toLowerCase();
+  const lead = rows.find(r => r.workRole === "chu_tri") || rows[0];
+  if ((lead.title || "").normalize("NFC").toLowerCase().includes(nq)) return true;
+  return rows.some(r => (userById(r.assigneeId)?.name || "").normalize("NFC").toLowerCase().includes(nq));
+}
+
+function taskGroupListHtml(groups, q, emptyText) {
+  const filtered = groups.filter(g => taskGroupMatchesSearch(g, q));
+  if (!filtered.length) return `<div class="empty-state compact-empty"><strong>${emptyText}</strong></div>`;
+  return filtered.map(taskGroupCardHtml).join("");
+}
+
+function bindTaskGroupCardActions(root) {
+  root.querySelectorAll("[data-edit-task-group]").forEach(button => button.addEventListener("click", () => openEditTaskModal(button.dataset.editTaskGroup)));
+  root.querySelectorAll("[data-delete-task-group]").forEach(button => button.addEventListener("click", () => deleteTaskGroup(button.dataset.deleteTaskGroup)));
+}
+
+// O tim rieng cho tung khu (Dang thuc hien / Da hoan thanh) - chi ve lai
+// DUNG khu do (khong dong lai toan bo trang), giong cach cac o tim khac
+// trong app da lam (vd ujSearchInput).
+function bindTaskSearchInputs() {
+  const activeInput = document.getElementById("taskSearchActiveInput");
+  if (activeInput) activeInput.addEventListener("input", event => {
+    state.taskSearchActive = event.target.value;
+    const caret = activeInput.selectionStart;
+    const slot = document.getElementById("taskListActive");
+    slot.innerHTML = taskGroupListHtml(taskGroupsAssignedByMe().filter(g => !taskGroupIsDone(g)), state.taskSearchActive, "Chưa có việc nào đang thực hiện");
+    bindTaskGroupCardActions(slot);
+    const ni = document.getElementById("taskSearchActiveInput");
+    if (ni) { ni.focus(); ni.setSelectionRange(caret, caret); }
+  });
+  const doneInput = document.getElementById("taskSearchDoneInput");
+  if (doneInput) doneInput.addEventListener("input", event => {
+    state.taskSearchDone = event.target.value;
+    const caret = doneInput.selectionStart;
+    const slot = document.getElementById("taskListDone");
+    slot.innerHTML = taskGroupListHtml(taskGroupsAssignedByMe().filter(taskGroupIsDone), state.taskSearchDone, "Chưa có việc nào hoàn thành");
+    bindTaskGroupCardActions(slot);
+    const ni = document.getElementById("taskSearchDoneInput");
+    if (ni) { ni.focus(); ni.setSelectionRange(caret, caret); }
+  });
+}
+
 function renderTasks() {
   const user = currentUser();
   const canAssign = canAssignTasks(user);
@@ -3453,29 +3507,42 @@ function renderTasks() {
   const candidates = canAssign ? assignableUsers(user) : [];
   const groupsByMe = canAssign ? taskGroupsAssignedByMe() : [];
   const assignedToMe = canReceive ? tasksAssignedToMe() : [];
-  // Bo cuc 2 cot ngang hang: trai la "Cong viec da giao" (chi con danh
-  // sach, khong con ke ca form giao viec dai ben trong nua - truoc day
-  // phai cuon qua het form moi thay duoc danh sach), phai la "Cong viec
-  // duoc giao" (giu nguyen). Form giao viec gom vao modal rieng
-  // (assignTaskModal), mo tu 1 nut "+ Giao viec moi" o dau khung ben
-  // trai - modal do co san 2 nut "Giao viec"/"Giao viec va ghi nhat ky"
-  // (xem taskAssignFormHtml), khong tach thanh 2 nut mo modal.
+  // Tach "Cong viec da giao" thanh 2 khu rieng - "Dang thuc hien" va "Da
+  // hoan thanh" - moi khu co o tim rieng, tranh danh sach dai lam tran
+  // man hinh, kho tra cuu (yeu cau nguoi dung, 2026-09-07).
+  const groupsInProgress = groupsByMe.filter(g => !taskGroupIsDone(g));
+  const groupsDoneList = groupsByMe.filter(taskGroupIsDone);
+  // Bo cuc 2 cot ngang hang: trai la "Cong viec da giao" (2 khu Dang thuc
+  // hien/Da hoan thanh xep chong, khong con ke ca form giao viec dai ben
+  // trong nua - truoc day phai cuon qua het form moi thay duoc danh
+  // sach), phai la "Cong viec duoc giao" (giu nguyen). Form giao viec gom
+  // vao modal rieng (assignTaskModal), mo tu 1 nut "+ Giao viec moi" o
+  // dau khu "Dang thuc hien" - modal do co san 2 nut "Giao viec"/"Giao
+  // viec va ghi nhat ky" (xem taskAssignFormHtml), khong tach thanh 2 nut
+  // mo modal.
   const assignActions = candidates.length ? `<div class="panel-header-actions">
       <button type="button" class="button button-primary button-small" id="openAssignTaskBtn">+ Giao việc mới</button>
     </div>` : "";
   document.getElementById("appView").innerHTML = `<div class="admin-grid ${canAssign && canReceive ? "" : "is-single"}">
-    ${canAssign ? `<section class="panel"><div class="panel-header"><div><h2>Công việc đã giao</h2><p>${groupsByMe.length} việc</p></div>${assignActions}</div>
-      ${candidates.length ? "" : `<p class="metric-context">Bạn chưa có cán bộ/đơn vị nào thuộc phạm vi được phép giao việc.</p>`}
-      <div class="task-list">${groupsByMe.length ? groupsByMe.map(taskGroupCardHtml).join("") : `<div class="empty-state compact-empty"><strong>Chưa giao việc nào</strong></div>`}</div>
-    </section>` : ""}
+    ${canAssign ? `<div>
+      <section class="panel task-panel-stacked"><div class="panel-header"><div><h2>Công việc đã giao - đang thực hiện</h2><p>${groupsInProgress.length} việc</p></div>${assignActions}</div>
+        ${candidates.length ? "" : `<p class="metric-context">Bạn chưa có cán bộ/đơn vị nào thuộc phạm vi được phép giao việc.</p>`}
+        ${groupsByMe.length ? `<label class="field field-wide task-search-field"><span>Tìm theo tên việc hoặc người thực hiện</span><input type="text" id="taskSearchActiveInput" value="${state.taskSearchActive}" placeholder="Nhập từ khoá..."></label>` : ""}
+        <div class="task-list" id="taskListActive">${taskGroupListHtml(groupsInProgress, state.taskSearchActive, "Chưa có việc nào đang thực hiện")}</div>
+      </section>
+      <section class="panel"><div class="panel-header"><div><h2>Đã hoàn thành</h2><p>${groupsDoneList.length} việc</p></div></div>
+        ${groupsDoneList.length ? `<label class="field field-wide task-search-field"><span>Tìm theo tên việc hoặc người thực hiện</span><input type="text" id="taskSearchDoneInput" value="${state.taskSearchDone}" placeholder="Nhập từ khoá..."></label>` : ""}
+        <div class="task-list" id="taskListDone">${taskGroupListHtml(groupsDoneList, state.taskSearchDone, "Chưa có việc nào hoàn thành")}</div>
+      </section>
+    </div>` : ""}
     ${canReceive ? `<section class="panel"><div class="panel-header"><div><h2>Công việc được giao</h2><p>${assignedToMe.length} việc</p></div></div>
       <div class="task-list">${assignedToMe.length ? assignedToMe.map(task => taskCardHtml(task, "assignee")).join("") : `<div class="empty-state compact-empty"><strong>Chưa có việc được giao</strong></div>`}</div>
     </section>` : ""}
   </div>`;
   document.querySelectorAll("[data-set-due-form]").forEach(form => form.addEventListener("submit", submitTaskDueDate));
   document.querySelectorAll("[data-report-task]").forEach(button => button.addEventListener("click", () => openJournalModal(null, button.dataset.reportTask)));
-  document.querySelectorAll("[data-edit-task-group]").forEach(button => button.addEventListener("click", () => openEditTaskModal(button.dataset.editTaskGroup)));
-  document.querySelectorAll("[data-delete-task-group]").forEach(button => button.addEventListener("click", () => deleteTaskGroup(button.dataset.deleteTaskGroup)));
+  bindTaskGroupCardActions(document);
+  bindTaskSearchInputs();
   const openAssignBtn = document.getElementById("openAssignTaskBtn");
   if (openAssignBtn) openAssignBtn.addEventListener("click", openAssignTaskModal);
 }
@@ -3484,6 +3551,7 @@ function renderTasks() {
 // danh sach "Viec da giao" trong CUNG 1 cot, phai cuon qua het form moi
 // thay duoc danh sach - nay gom vao modal rieng, mo tu nut o dau khung.
 function openAssignTaskModal() {
+  document.getElementById("assignTaskModalTitle").textContent = "Giao việc mới";
   document.getElementById("assignTaskModalBody").innerHTML = taskAssignFormHtml(assignableUsers(currentUser()));
   bindTaskAssignForm();
   document.getElementById("assignTaskModal").hidden = false;
@@ -3644,14 +3712,19 @@ function calendarGridHtml(y, m, selectedIso) {
     <div class="cal-grid">${cells}</div>`;
 }
 
-function taskSupportPickerHtml(candidates) {
+// presetSupportIds (khong bat buoc): danh sach id dang duoc chon san (khi
+// sua 1 viec da giao) - nhom nao co nguoi duoc chon san thi TU MO ra,
+// khong can bam moi thay.
+function taskSupportPickerHtml(candidates, presetSupportIds) {
+  presetSupportIds = presetSupportIds || [];
   const covered = new Set(TASK_SUPPORT_GROUP_DEFS.flatMap(def => def.roles));
   const groups = TASK_SUPPORT_GROUP_DEFS.map(def => ({ def, people: candidates.filter(p => def.roles.includes(p.role)) }));
   const uncovered = candidates.filter(p => !covered.has(p.role));
   if (uncovered.length) groups[0].people = groups[0].people.concat(uncovered);
   const groupsHtml = groups.filter(g => g.people.length).map(g => {
-    const items = g.people.map(person => `<label data-name="${person.name.toLowerCase()}" data-person-name="${person.name}"><input type="checkbox" name="supportIds" value="${person.id}"> ${person.name} · ${unitById(person.unitId).short}</label>`).join("");
-    return `<details class="support-group" ${g.def.openByDefault ? "open" : ""}><summary>${g.def.label} (${g.people.length})</summary><div class="unit-checklist unit-checklist-lg">${items}</div></details>`;
+    const hasPreset = g.people.some(p => presetSupportIds.includes(p.id));
+    const items = g.people.map(person => `<label data-name="${person.name.toLowerCase()}" data-person-name="${person.name}"><input type="checkbox" name="supportIds" value="${person.id}"${presetSupportIds.includes(person.id) ? " checked" : ""}> ${person.name} · ${unitById(person.unitId).short}</label>`).join("");
+    return `<details class="support-group" ${(g.def.openByDefault || hasPreset) ? "open" : ""}><summary>${g.def.label} (${g.people.length})</summary><div class="unit-checklist unit-checklist-lg">${items}</div></details>`;
   }).join("");
   return `<div class="support-picker" id="taskSupportPicker">
     <div class="support-picker-chips" id="taskSupportChips"><span class="support-picker-chips-empty">Chưa chọn ai</span></div>
@@ -3660,21 +3733,26 @@ function taskSupportPickerHtml(candidates) {
   </div>`;
 }
 
-function taskAssignFormHtml(candidates) {
-  const options = candidates.map(person => `<option value="${person.id}">${person.name} · ${unitById(person.unitId).short}</option>`).join("");
+// opts (khong bat buoc): {isEdit, leadId, supportIds, title, description,
+// suggestedDueDate} - dung chung 1 form cho ca "Giao viec moi" va "Sua
+// viec da giao" (truoc day Sua chi sua duoc noi dung, khong doi duoc
+// nguoi - nay dung chung form nay, dien san du lieu hien co, xem
+// submitEditTaskGroupForm).
+function taskAssignFormHtml(candidates, opts = {}) {
+  const options = candidates.map(person => `<option value="${person.id}"${person.id === opts.leadId ? " selected" : ""}>${person.name} · ${unitById(person.unitId).short}</option>`).join("");
+  const actionsHtml = opts.isEdit
+    ? `<button type="submit" class="button button-primary">Lưu thay đổi</button>`
+    : `<button type="submit" class="button button-primary">Giao việc</button><button type="submit" class="button button-secondary" data-with-log="1">Giao việc và ghi nhật ký</button>`;
   // Bo "compact-form" (dung khi form nam trong 1 panel da co san padding
   // rieng) - form nay gio nam truc tiep trong modal, can padding cua
   // chinh ".form-grid" de khong bi sat le.
   return `<form class="form-grid" id="taskAssignForm">
     <label class="field field-wide"><span>Người chủ trì</span><select name="leadId" required>${options}</select></label>
-    <div class="field field-wide"><span>Người phối hợp (không bắt buộc)</span>${taskSupportPickerHtml(candidates)}</div>
-    <label class="field field-wide"><span>Tên công việc</span><input type="text" name="title" required maxlength="200"></label>
-    <label class="field field-wide"><span>Mô tả / yêu cầu</span><textarea name="description" rows="5" placeholder="Có thể ghi chi tiết yêu cầu, phạm vi công việc..."></textarea></label>
-    <div class="field field-wide"><span>Hạn gợi ý (không bắt buộc)</span>${dueDateTimeFieldHtml("taskSuggestedDue", null)}</div>
-    <div class="review-actions field-wide">
-      <button type="submit" class="button button-primary">Giao việc</button>
-      <button type="submit" class="button button-secondary" data-with-log="1">Giao việc và ghi nhật ký</button>
-    </div>
+    <div class="field field-wide"><span>Người phối hợp (không bắt buộc)</span>${taskSupportPickerHtml(candidates, opts.supportIds)}</div>
+    <label class="field field-wide"><span>Tên công việc</span><input type="text" name="title" required maxlength="200" value="${opts.title || ""}"></label>
+    <label class="field field-wide"><span>Mô tả / yêu cầu</span><textarea name="description" rows="5" placeholder="Có thể ghi chi tiết yêu cầu, phạm vi công việc...">${opts.description || ""}</textarea></label>
+    <div class="field field-wide"><span>Hạn gợi ý (không bắt buộc)</span>${dueDateTimeFieldHtml("taskSuggestedDue", opts.suggestedDueDate || null)}</div>
+    <div class="review-actions field-wide">${actionsHtml}</div>
   </form>`;
 }
 
@@ -3716,6 +3794,15 @@ function bindTaskSupportExtras() {
   }
 }
 
+// Bao 1 nguoi vua duoc giao/rut khoi 1 viec - dung chung 1 kieu voi cac
+// thong bao "su kien" khac trong demo (systemNotifications). Truoc day
+// GIAO VIEC LAN DAU khong he co thong bao gi, nguoi dung yeu cau chuong
+// thong bao phai bao het moi thay doi lien quan (giao moi/bi rut/sua noi
+// dung), giong het nguyen tac da ap dung o production (migration 00070).
+function notifyTaskChange(userId, type, title, message) {
+  systemNotifications.push({ id: `TN-${Date.now()}-${userId}-${Math.random().toString(36).slice(2, 7)}`, userId, type, title, message, view: "tasks", createdAt: new Date().toISOString() });
+}
+
 function bindTaskAssignForm() {
   const form = document.getElementById("taskAssignForm");
   if (!form) return;
@@ -3739,17 +3826,21 @@ function bindTaskAssignForm() {
     if (suggestedDueDate === undefined) return; // da chon ngay nhung thieu gio/phut
     const groupId = `TG-${Date.now()}`;
     const createdAt = new Date().toISOString();
+    const assignerName = currentUser().name;
     taskAssignments.push({
       id: `TASK-${Date.now()}-lead`, taskGroupId: groupId, assignerId: currentUser().id, assigneeId: lead.id, workRole: "chu_tri",
-      unitId: lead.unitId, title, description, suggestedDueDate, actualDueDate: null, status: "pending", linkedLogId: null, createdAt
+      unitId: lead.unitId, title, description, suggestedDueDate, actualDueDate: null, status: "pending", linkedLogId: null, removedAt: null, createdAt
     });
+    notifyTaskChange(lead.id, "task_assigned", "Bạn được giao việc mới (chủ trì)", `${assignerName} đã giao việc "${title}" cho bạn (chủ trì).`);
     supportUsers.forEach((person, index) => {
       taskAssignments.push({
         id: `TASK-${Date.now()}-s${index}`, taskGroupId: groupId, assignerId: currentUser().id, assigneeId: person.id, workRole: "phoi_hop",
-        unitId: person.unitId, title, description, suggestedDueDate, actualDueDate: null, status: "pending", linkedLogId: null, createdAt
+        unitId: person.unitId, title, description, suggestedDueDate, actualDueDate: null, status: "pending", linkedLogId: null, removedAt: null, createdAt
       });
+      notifyTaskChange(person.id, "task_assigned", "Bạn được giao việc mới (phối hợp)", `${assignerName} đã giao việc "${title}" cho bạn (phối hợp).`);
     });
     saveTaskAssignments();
+    saveSystemNotifications();
     showToast(`Đã giao việc cho ${1 + supportUsers.length} người.`);
     closeAssignTaskModal();
     renderTasks();
@@ -3764,15 +3855,113 @@ function bindTaskAssignForm() {
   });
 }
 
+// Sua toan bo 1 nhom viec da giao (noi dung + nguoi chu tri/phoi hop) -
+// dung CHUNG form voi "Giao viec moi" (taskAssignFormHtml voi opts.isEdit)
+// nen can 1 ham gan submit RIENG (khac bindTaskAssignForm o tren). Nguoi
+// da nop bao cao ma bi rut khoi viec KHONG bi mat du lieu - chi danh dau
+// removedAt, giu nguyen tren "Cong viec duoc giao"/"Nhat ky cua toi" cua
+// chinh ho. Xem chu thich chi tiet o migration 00070 (ban production).
+function bindEditTaskAssignForm(groupId) {
+  const form = document.getElementById("taskAssignForm");
+  if (!form) return;
+  bindTaskSupportExtras();
+  form.addEventListener("submit", event => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const leadId = data.get("leadId");
+    const lead = userById(leadId);
+    if (!lead) { showToast("Vui lòng chọn người chủ trì."); return; }
+    const title = String(data.get("title") || "").trim();
+    if (!title) { showToast("Vui lòng nhập tên công việc."); return; }
+    const supportIds = Array.from(form.querySelectorAll('input[name="supportIds"]:checked'))
+      .map(checkbox => checkbox.value).filter(id => id !== leadId);
+    const description = String(data.get("description") || "").trim();
+    const suggestedDueDate = readDueDateTime("taskSuggestedDue", "hạn gợi ý");
+    if (suggestedDueDate === undefined) return;
+    const assignerName = currentUser().name;
+    const desiredIds = [leadId, ...supportIds];
+    const groupRows = taskAssignments.filter(t => t.taskGroupId === groupId && t.assignerId === currentUser().id);
+    const activeRows = groupRows.filter(t => !t.removedAt);
+    const handledIds = new Set();
+
+    // Noi dung chung - ap dung cho MOI dong (ke ca da rut khoi viec).
+    groupRows.forEach(t => { t.title = title; t.description = description; t.suggestedDueDate = suggestedDueDate; });
+
+    // 1) Nguoi dang active nhung KHONG con trong danh sach moi -> rut
+    // khoi viec (xoa han neu chua bao cao gi, giu lai neu da co du lieu).
+    activeRows.filter(t => !desiredIds.includes(t.assigneeId)).forEach(t => {
+      if (t.status === "pending" && !t.linkedLogId) {
+        taskAssignments = taskAssignments.filter(x => x.id !== t.id);
+      } else {
+        t.removedAt = new Date().toISOString();
+      }
+      notifyTaskChange(t.assigneeId, "task_unassigned", "Bạn không còn được phân công việc này",
+        `${assignerName} đã điều chỉnh lại việc "${title}" - bạn không còn được phân công tiếp tục. Nhật ký/kết quả bạn đã báo cáo (nếu có) vẫn được giữ nguyên trên tài khoản của bạn.`);
+      handledIds.add(t.assigneeId);
+    });
+
+    // 2) Nguoi van con, DOI vai tro (chu tri <-> phoi hop) -> cap nhat
+    // vai tro tren CHINH dong cu, khong tao/xoa.
+    activeRows.forEach(t => {
+      if (t.assigneeId === leadId) t.workRole = "chu_tri";
+      else if (supportIds.includes(t.assigneeId)) t.workRole = "phoi_hop";
+    });
+
+    // 3) Chu tri moi (chua co dong active) -> them dong moi.
+    if (!activeRows.some(t => t.assigneeId === leadId)) {
+      taskAssignments.push({
+        id: `TASK-${Date.now()}-lead`, taskGroupId: groupId, assignerId: currentUser().id, assigneeId: leadId, workRole: "chu_tri",
+        unitId: lead.unitId, title, description, suggestedDueDate, actualDueDate: null, status: "pending", linkedLogId: null, removedAt: null, createdAt: new Date().toISOString()
+      });
+      notifyTaskChange(leadId, "task_assigned", "Bạn được giao việc mới (chủ trì)", `${assignerName} đã giao việc "${title}" cho bạn (chủ trì).`);
+      handledIds.add(leadId);
+    }
+
+    // 4) Nguoi phoi hop moi (chua co dong active) -> them dong moi.
+    supportIds.forEach((id, index) => {
+      if (activeRows.some(t => t.assigneeId === id)) return;
+      const person = userById(id);
+      if (!person) return;
+      taskAssignments.push({
+        id: `TASK-${Date.now()}-s${index}`, taskGroupId: groupId, assignerId: currentUser().id, assigneeId: id, workRole: "phoi_hop",
+        unitId: person.unitId, title, description, suggestedDueDate, actualDueDate: null, status: "pending", linkedLogId: null, removedAt: null, createdAt: new Date().toISOString()
+      });
+      notifyTaskChange(id, "task_assigned", "Bạn được giao việc mới (phối hợp)", `${assignerName} đã giao việc "${title}" cho bạn (phối hợp).`);
+      handledIds.add(id);
+    });
+
+    // 5) Nguoi khong doi gi (van active, khong vua duoc them/rut o tren)
+    // -> bao noi dung viec da duoc cap nhat.
+    activeRows.filter(t => !handledIds.has(t.assigneeId)).forEach(t => {
+      notifyTaskChange(t.assigneeId, "task_updated", "Việc được giao vừa được cập nhật", `${assignerName} đã cập nhật nội dung việc "${title}".`);
+    });
+
+    saveTaskAssignments();
+    saveSystemNotifications();
+    closeAssignTaskModal();
+    showToast("Đã lưu thay đổi việc giao.");
+    renderTasks();
+  });
+}
+
 // The gop 1 nhom giao viec (phia nguoi giao) - liet ke ro chu tri/phoi
-// hop kem trang thai rieng cua tung nguoi.
+// hop kem trang thai rieng cua tung nguoi. Nguoi da bi rut khoi viec
+// (removedAt) van hien trong the (mo nhat, kem "Da rut khoi viec nay")
+// de Lanh dao biet ho tung tham gia, nhung tach rieng khoi danh sach
+// dang hoat dong.
 function taskGroupCardHtml(rows) {
-  const lead = rows.find(row => row.workRole === "chu_tri") || rows[0];
-  const others = rows.filter(row => row !== lead);
-  const overdueAny = rows.some(isTaskOverdue);
+  const activeRows = rows.filter(r => !r.removedAt);
+  const removedRows = rows.filter(r => r.removedAt);
+  const lead = activeRows.find(row => row.workRole === "chu_tri") || activeRows[0] || rows[0];
+  const others = activeRows.filter(row => row !== lead);
+  const overdueAny = activeRows.some(isTaskOverdue);
   const memberRow = row => {
     const person = userById(row.assigneeId);
     return `<div class="task-member-row"><span>${person ? person.name : "—"}</span><span class="meta-tag">${TASK_WORK_ROLE_LABELS[row.workRole]}</span><span class="status-pill ${TASK_STATUS_TONES[row.status]}">${TASK_STATUS_LABELS[row.status]}</span></div>`;
+  };
+  const removedRow = row => {
+    const person = userById(row.assigneeId);
+    return `<div class="task-member-row task-member-removed"><span>${person ? person.name : "—"}</span><span class="meta-tag">${TASK_WORK_ROLE_LABELS[row.workRole]}</span><span class="meta-tag meta-tag-muted">Đã rút khỏi việc này</span></div>`;
   };
   return `<article class="task-card ${overdueAny ? "is-overdue" : ""}">
     <div class="task-card-header"><strong>${lead.title}</strong>${overdueAny ? `<span class="meta-tag meta-tag-warning">Có người quá hạn</span>` : ""}</div>
@@ -3780,7 +3969,7 @@ function taskGroupCardHtml(rows) {
     <div class="task-card-meta">
       ${lead.suggestedDueDate ? `<span>Hạn gợi ý: ${formatDateTime(lead.suggestedDueDate)}</span>` : ""}
     </div>
-    <div class="task-member-list">${memberRow(lead)}${others.map(memberRow).join("")}</div>
+    <div class="task-member-list">${memberRow(lead)}${others.map(memberRow).join("")}${removedRows.map(removedRow).join("")}</div>
     <div class="task-card-actions">
       <button type="button" class="button button-secondary button-small" data-edit-task-group="${lead.taskGroupId}">Sửa</button>
       <button type="button" class="button button-danger button-small" data-delete-task-group="${lead.taskGroupId}">Xóa</button>
@@ -3788,45 +3977,22 @@ function taskGroupCardHtml(rows) {
   </article>`;
 }
 
-// Sua/xoa 1 nhom viec da giao - CHI tac gia giao viec (assigner) moi lam
-// duoc. Sua ap dung cho CA NHOM (tieu de/mo ta/han goi y dung chung cho
-// moi nguoi cung nhan), khong doi duoc danh sach nguoi nhan.
+// Sua 1 nhom viec da giao - CHI tac gia giao viec (assigner) moi lam
+// duoc. Nay sua duoc CA nguoi chu tri/phoi hop (truoc day chi sua duoc
+// noi dung), dung CHUNG modal voi "Giao viec moi" (taskAssignFormHtml),
+// dien san du lieu hien co. Xem bindEditTaskAssignForm() de biet co che
+// giu lai du lieu cho nguoi bi rut khoi viec.
 function openEditTaskModal(groupId) {
   const rows = taskAssignments.filter(t => t.taskGroupId === groupId);
   if (!rows.length) return;
-  const lead = rows.find(row => row.workRole === "chu_tri") || rows[0];
-  state.editingTaskGroupId = groupId;
-  const form = document.getElementById("editTaskForm");
-  form.reset();
-  form.elements.title.value = lead.title;
-  form.elements.description.value = lead.description || "";
-  document.getElementById("editTaskDueField").innerHTML = dueDateTimeFieldHtml("editTaskDue", lead.suggestedDueDate);
-  document.getElementById("editTaskModal").hidden = false;
-}
-function closeEditTaskModal() {
-  state.editingTaskGroupId = null;
-  document.getElementById("editTaskModal").hidden = true;
-}
-function submitEditTaskForm(event) {
-  event.preventDefault();
-  if (!state.editingTaskGroupId) return;
-  const groupId = state.editingTaskGroupId;
-  const form = event.currentTarget;
-  const data = new FormData(form);
-  const title = String(data.get("title") || "").trim();
-  if (!title) { showToast("Vui lòng nhập tên công việc."); return; }
-  const suggestedDueDate = readDueDateTime("editTaskDue", "hạn gợi ý");
-  if (suggestedDueDate === undefined) return; // da chon ngay nhung thieu gio/phut
-  const description = String(data.get("description") || "").trim();
-  taskAssignments.filter(t => t.taskGroupId === groupId && t.assignerId === currentUser().id).forEach(t => {
-    t.title = title;
-    t.description = description;
-    t.suggestedDueDate = suggestedDueDate;
-  });
-  saveTaskAssignments();
-  closeEditTaskModal();
-  showToast("Đã lưu thay đổi việc giao.");
-  renderTasks();
+  const activeRows = rows.filter(r => !r.removedAt);
+  const lead = activeRows.find(row => row.workRole === "chu_tri") || activeRows[0] || rows[0];
+  const supportIds = activeRows.filter(row => row !== lead).map(row => row.assigneeId);
+  document.getElementById("assignTaskModalTitle").textContent = "Sửa việc đã giao";
+  document.getElementById("assignTaskModalBody").innerHTML = taskAssignFormHtml(assignableUsers(currentUser()), { isEdit: true, leadId: lead.assigneeId, supportIds, title: lead.title, description: lead.description, suggestedDueDate: lead.suggestedDueDate });
+  bindEditTaskAssignForm(groupId);
+  document.getElementById("assignTaskModal").hidden = false;
+  document.body.style.overflow = "hidden";
 }
 function deleteTaskGroup(groupId) {
   if (!confirm("Xóa việc giao này cho tất cả người liên quan? Nhật ký đã báo cáo (nếu có) sẽ không bị xóa, chỉ gỡ liên kết với việc này. Không thể khôi phục lại.")) return;
@@ -3849,12 +4015,18 @@ function taskCardHtml(task, perspective) {
   const coAssignees = perspective === "assignee"
     ? taskAssignments.filter(item => item.taskGroupId === task.taskGroupId && item.id !== task.id).map(item => userById(item.assigneeId)?.name).filter(Boolean)
     : [];
-  const dueSetter = perspective === "assignee" && task.status !== "done"
+  // Da bi rut khoi viec (xem bindEditTaskAssignForm) - khong con thao tac
+  // gi them duoc nua (khong dat han/ghi nhat ky moi), nhung van giu
+  // nguyen the hien thi + du lieu cu (nhat ky da nop, neu co) tren tai
+  // khoan cua ho.
+  const isRemoved = Boolean(task.removedAt);
+  const removedTag = isRemoved ? `<span class="meta-tag meta-tag-muted">Đã được rút khỏi việc này</span>` : "";
+  const dueSetter = perspective === "assignee" && task.status !== "done" && !isRemoved
     ? `<form class="task-due-form" data-set-due-form="${task.id}"><span class="field-label">Hạn hoàn thành</span>${dueDateTimeFieldHtml("taskActualDue_" + task.id, task.actualDueDate)}<button type="submit" class="button button-secondary button-small">Đặt hạn</button></form>`
     : "";
-  const reportButton = perspective === "assignee" && task.status === "pending"
+  const reportButton = perspective === "assignee" && task.status === "pending" && !isRemoved
     ? `<button type="button" class="button button-primary button-small" data-report-task="${task.id}">Ghi nhật ký cho việc này</button>` : "";
-  return `<article class="task-card ${overdue ? "is-overdue" : ""}">
+  return `<article class="task-card ${overdue ? "is-overdue" : ""}${isRemoved ? " task-member-removed" : ""}">
     <div class="task-card-header"><strong>${task.title}</strong><span class="status-pill ${TASK_STATUS_TONES[task.status]}">${TASK_STATUS_LABELS[task.status]}</span></div>
     ${task.description ? `<p>${task.description}</p>` : ""}
     <div class="task-card-meta">
@@ -3863,6 +4035,7 @@ function taskCardHtml(task, perspective) {
       ${task.suggestedDueDate ? `<span>Hạn gợi ý: ${formatDateTime(task.suggestedDueDate)}</span>` : ""}
       ${task.actualDueDate ? `<span>Hạn đã đặt: ${formatDateTime(task.actualDueDate)}</span>` : ""}
       ${overdue ? `<span class="meta-tag meta-tag-warning">Quá hạn</span>` : ""}
+      ${removedTag}
       ${coAssignees.length ? `<span>Cùng thực hiện: ${coAssignees.join(", ")}</span>` : ""}
     </div>
     ${dueSetter}${reportButton}
