@@ -902,8 +902,12 @@ details.uj-day-card .uj-day-card-logs .journal-card:first-child { margin-top: 12
   border-radius: 9px;
   color: var(--text);
   background: var(--surface);
-  resize: vertical;
 }
+/* Textarea tu dan cao theo noi dung go vao (xem autoGrowTextarea trong
+   app.js) - khong con keo tay (resize:none), thanh cuon rieng CHI xuat
+   hien khi noi dung vuot qua max-height (dan giay/dan cuc dai), tranh 1 o
+   nho phai cuon len xuong trong khi dien tich con lai cua trang van trong. */
+.field textarea { resize: none; overflow-y: auto; max-height: 480px; }
 .field input:focus, .field select:focus, .field textarea:focus { outline: 3px solid rgba(29,113,184,.13); border-color: var(--primary); }
 .field-wide { grid-column: 1 / -1; }
 .form-actions { display: flex; justify-content: flex-end; gap: 9px; padding-top: 4px; }

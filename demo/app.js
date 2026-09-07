@@ -408,6 +408,19 @@ function saveScoreAdjustments() {
   localStorage.setItem(SCORE_ADJUSTMENTS_STORAGE_KEY, JSON.stringify(scoreAdjustments));
 }
 
+// Tu dong dan cao cac o textarea (Ket qua/San pham, Mo ta, Nhan xet...) theo
+// dung do dai noi dung go vao - tranh phai cuon len xuong trong 1 o nho. Bo
+// qua ".sticky-note-text" (ghi chu dang the note, chu dong lap day dung
+// 100% chieu cao khung the co san - tu dong dan cao se pha vo bo cuc do).
+// CSS di kem (.field textarea) da dat max-height + overflow-y:auto, nen
+// truong hop dan 1 doan cuc dai van co thanh cuon rieng trong o, khong lam
+// vo bo cuc trang.
+function autoGrowTextarea(el) {
+  if (!el || el.tagName !== "TEXTAREA" || el.classList.contains("sticky-note-text")) return;
+  el.style.height = "auto";
+  el.style.height = el.scrollHeight + "px";
+}
+
 function saveDelegations() {
   localStorage.setItem(DELEGATIONS_STORAGE_KEY, JSON.stringify(delegations));
 }
@@ -602,6 +615,7 @@ function initialize() {
   // tung o rieng (se mat tac dung sau moi lan dung lai).
   document.addEventListener("input", event => {
     const el = event.target;
+    if (el.tagName === "TEXTAREA") autoGrowTextarea(el);
     if (!el.classList) return;
     if (el.classList.contains("date-field-input")) {
       const digits = el.value.replace(/\D/g, "").slice(0, 8);
@@ -614,6 +628,20 @@ function initialize() {
       el.value = digits.length > 2 ? `${digits.slice(0, 2)}:${digits.slice(2)}` : digits;
     }
   });
+  // Cac form/modal duoc dung lai (innerHTML) o rat nhieu noi khac nhau trong
+  // app - thay vi phai goi autoGrowTextarea() thu cong o tung noi, dung 1
+  // MutationObserver theo doi CA TRANG, tu dong dan cao BAT KY textarea nao
+  // vua duoc chen vao DOM (ke ca da co san noi dung dien truoc, vi du sua
+  // lai 1 nhat ky/ghi chu cu - luc do khong co su kien 'input' nao ban ra).
+  new MutationObserver(mutations => {
+    mutations.forEach(m => {
+      m.addedNodes.forEach(node => {
+        if (node.nodeType !== 1) return;
+        if (node.tagName === "TEXTAREA") autoGrowTextarea(node);
+        if (node.querySelectorAll) node.querySelectorAll("textarea").forEach(autoGrowTextarea);
+      });
+    });
+  }).observe(document.body, { childList: true, subtree: true });
   document.addEventListener("click", event => {
     const toggleBtn = event.target.closest("[data-date-field-toggle]");
     if (toggleBtn) { event.preventDefault(); toggleDateFieldCalendar(toggleBtn.dataset.dateFieldToggle); return; }

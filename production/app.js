@@ -65,6 +65,19 @@ function scheduleSessionRefresh(){
 scheduleSessionRefresh();
 function esc(s){return (s==null?'':String(s)).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 
+// Tu dong dan cao cac o textarea (Ket qua/San pham, Mo ta, Nhan xet...) theo
+// dung do dai noi dung go vao - tranh phai cuon len xuong trong 1 o nho.
+// Bo qua ".sticky-note-text" (ghi chu dang the note, chu dong lap day dung
+// 100% chieu cao khung the co san - tu dong dan cao se pha vo bo cuc do).
+// CSS di kem (.field textarea) da dat max-height + overflow-y:auto, nen
+// truong hop dan 1 doan cuc dai van co thanh cuon rieng trong o, khong lam
+// vo bo cuc trang.
+function autoGrowTextarea(el){
+  if(!el||el.tagName!=='TEXTAREA'||el.classList.contains('sticky-note-text'))return;
+  el.style.height='auto';
+  el.style.height=el.scrollHeight+'px';
+}
+
 var WORK_ROLE_LABEL={chu_tri:'Chủ trì',phoi_hop:'Phối hợp'};
 var DURATION_LABEL={duoi_2_gio:'Dưới 2 giờ','2_4_gio':'2–4 giờ',tren_4_gio:'4 giờ - 1 ngày',nhieu_ngay:'Nhiều ngày'};
 var STATUS_LABEL={pending:'Chờ đánh giá',approved:'Đã xác nhận',revision:'Cần bổ sung'};
@@ -96,6 +109,7 @@ var CHANGELOG=[
   {date:'2026-09-07',type:'improve',text:'Giao việc: khu "Đã hoàn thành" nay mặc định thu gọn (chỉ hiện dòng tóm tắt số việc), bấm vào mới mở ra xem danh sách - đỡ chiếm chỗ màn hình.'},
   {date:'2026-09-07',type:'feature',text:'Giao việc: thêm nút "Ghi nhật ký cho việc này" ngay trên thẻ việc đã giao (cạnh "Sửa"/"Xóa") - dùng khi lãnh đạo lỡ quên ghi nhật ký lúc giao việc, bấm vào là mở sẵn form nhật ký điền trước nội dung, chỉ cần xem lại và gửi.'},
   {date:'2026-09-07',type:'improve',text:'Thanh điều hướng bên trái: rút ngắn khoảng cách thừa giữa thẻ tên người đăng nhập và nút "Tổng quan", bằng đúng khoảng cách giữa các nút khác cho gọn gàng.'},
+  {date:'2026-09-07',type:'improve',text:'Các ô nhập nội dung dài (Kết quả/sản phẩm đầu ra, Mô tả, Nhận xét của lãnh đạo, Lý do...) nay tự động giãn cao theo đúng lượng chữ đã gõ, không còn phải cuộn lên xuống trong 1 ô nhỏ.'},
   {date:'2026-09-06',type:'feature',text:'Thêm mục riêng "Điểm cộng/trừ đột xuất" (khen thưởng/kỷ luật phát hiện sau khi tháng đã chấm xong) - có thống kê tổng lượt/tổng điểm riêng, ghi thành từng dòng, không bao giờ mất, luôn áp dụng cho tháng hiện tại (không sửa lại điểm tháng đã chốt), người bị/được áp dụng xem được lý do. Có link nhảy nhanh từ "Chấm điểm tháng" sang.'},
   {date:'2026-09-06',type:'feature',text:'Nhật ký công tác của đơn vị: thêm cách xem "Theo ngày" - chọn 1 ngày cụ thể là thấy ngay ai đã nộp việc, ai đang nghỉ phép, ai chưa nộp trong ngày đó, giúp lãnh đạo đôn đốc kịp thời.'},
   {date:'2026-09-06',type:'fix',text:'Sửa lỗi Trưởng phòng/Viện trưởng khu vực có thể duyệt nhầm nhật ký mà KSV đã nộp đích danh cho 1 Phó - nay tách riêng thành 2 khu "Nộp cho tôi" và "Đang chờ người khác xử lý" trong màn Duyệt & chấm điểm.'},
@@ -4599,6 +4613,7 @@ document.addEventListener('DOMContentLoaded',function(){
   // tung o rieng (se mat tac dung sau moi lan dung lai).
   document.addEventListener('input',function(e){
     var el=e.target;
+    if(el.tagName==='TEXTAREA')autoGrowTextarea(el);
     if(!el.classList)return;
     if(el.classList.contains('date-field-input')){
       var digits=el.value.replace(/\D/g,'').slice(0,8);
@@ -4612,6 +4627,20 @@ document.addEventListener('DOMContentLoaded',function(){
       el.value=out2;
     }
   });
+  // Cac form/modal duoc dung lai (innerHTML) o rat nhieu noi khac nhau trong
+  // app - thay vi phai goi autoGrowTextarea() thu cong o tung noi, dung 1
+  // MutationObserver theo doi CA TRANG, tu dong dan cao BAT KY textarea nao
+  // vua duoc chen vao DOM (ke ca da co san noi dung dien truoc, vi du sua
+  // lai 1 nhat ky/ghi chu cu - luc do khong co su kien 'input' nao ban ra).
+  new MutationObserver(function(mutations){
+    mutations.forEach(function(m){
+      m.addedNodes.forEach(function(node){
+        if(node.nodeType!==1)return;
+        if(node.tagName==='TEXTAREA')autoGrowTextarea(node);
+        if(node.querySelectorAll)node.querySelectorAll('textarea').forEach(autoGrowTextarea);
+      });
+    });
+  }).observe(document.body,{childList:true,subtree:true});
   document.addEventListener('click',function(e){
     var toggleBtn=e.target.closest('[data-date-field-toggle]');
     if(toggleBtn){e.preventDefault();toggleDateFieldCalendar(toggleBtn.dataset.dateFieldToggle);return}
