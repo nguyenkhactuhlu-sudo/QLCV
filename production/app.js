@@ -115,6 +115,8 @@ var CHANGELOG=[
   {date:'2026-09-08',type:'improve',text:'Đổi tên lĩnh vực công tác "Kế toán" thành "Kế toán, đầu tư xây dựng cơ bản" cho đúng phạm vi công việc thực tế.'},
   {date:'2026-09-08',type:'fix',text:'Xuất báo cáo/nhật ký tháng: Phó Viện trưởng tỉnh đang trong thời gian được uỷ quyền thay mặt toàn tỉnh (nhưng không có đơn vị phân công cố định) nay xuất được toàn tỉnh, trước đây bị trả về rỗng.'},
   {date:'2026-09-08',type:'feature',text:'Thêm nút "Xuất nhật ký tháng" - liệt kê từng nhật ký thực tế đã ghi trong kỳ (ngày, lĩnh vực, nội dung, kết quả, điểm), nhóm theo từng người, khác với "Xuất báo cáo tháng" (chỉ có bảng tổng hợp điểm). Phạm vi đúng theo cấp: Viện trưởng - toàn tỉnh, Phó Viện trưởng - các đơn vị phụ trách, Trưởng/Phó phòng - cả đơn vị, cán bộ/KSV thường - nhật ký của chính mình (nút "Xuất báo cáo tháng" trên tài khoản cá nhân nay đổi thành "Xuất nhật ký tháng").'},
+  {date:'2026-09-08',type:'fix',text:'Sửa lỗi bấm "Xuất Excel"/"Xuất PDF" (báo cáo/nhật ký tháng) không tải được file - do xung đột tên biến nội bộ khiến trình duyệt không tạo được file để tải.'},
+  {date:'2026-09-08',type:'fix',text:'Chuông thông báo: sắp xếp lại đúng thứ tự mới nhất lên đầu (trước đây các loại thông báo bị gộp theo nhóm cố định, có lúc tin cũ lại hiện trên tin mới hơn).'},
   {date:'2026-09-06',type:'feature',text:'Thêm mục riêng "Điểm cộng/trừ đột xuất" (khen thưởng/kỷ luật phát hiện sau khi tháng đã chấm xong) - có thống kê tổng lượt/tổng điểm riêng, ghi thành từng dòng, không bao giờ mất, luôn áp dụng cho tháng hiện tại (không sửa lại điểm tháng đã chốt), người bị/được áp dụng xem được lý do. Có link nhảy nhanh từ "Chấm điểm tháng" sang.'},
   {date:'2026-09-06',type:'feature',text:'Nhật ký công tác của đơn vị: thêm cách xem "Theo ngày" - chọn 1 ngày cụ thể là thấy ngay ai đã nộp việc, ai đang nghỉ phép, ai chưa nộp trong ngày đó, giúp lãnh đạo đôn đốc kịp thời.'},
   {date:'2026-09-06',type:'fix',text:'Sửa lỗi Trưởng phòng/Viện trưởng khu vực có thể duyệt nhầm nhật ký mà KSV đã nộp đích danh cho 1 Phó - nay tách riêng thành 2 khu "Nộp cho tôi" và "Đang chờ người khác xử lý" trong màn Duyệt & chấm điểm.'},
@@ -4018,6 +4020,11 @@ async function exportMonthlyPdf(period){
   container.style.width='1600px';
   container.innerHTML=monthlyReportBodyHtml(period,scope,headName);
   document.body.appendChild(container);
+  // Xem giai thich chi tiet o exportMonthlyLogPdf - html2canvas/jsPDF dung
+  // "window.URL" ben trong, tam thoi tra ve dung doi tuong URL that trong
+  // luc xuat roi khoi phuc lai ngay sau do.
+  var savedWindowUrl=window.URL;
+  window.URL=NativeURL;
   try{
     var canvas=await html2canvas(container,{scale:2,useCORS:true});
     var imgData=canvas.toDataURL('image/jpeg',0.98);
@@ -4039,8 +4046,10 @@ async function exportMonthlyPdf(period){
     pdf.save('tong-hop-cham-diem-'+period+'.pdf');
     showToast('Đã xuất file PDF.');
   }catch(e){
+    console.error('exportMonthlyPdf',e);
     showToast('Lỗi khi xuất PDF: '+e.message);
   }finally{
+    window.URL=savedWindowUrl;
     container.remove();
   }
 }
@@ -4084,8 +4093,14 @@ function monthlyLogExportGroups(peopleWithLogs){
 }
 
 async function exportMonthlyLogExcel(period){
-  var scope;
-  try{scope=await fetchMonthlyLogsScope(period)}catch(e){showToast('Lỗi: '+e.message);return}
+  // Boc TOAN BO than ham trong try/catch (truoc day chi boc phan fetch
+  // scope) - loi xay ra trong luc dung ExcelJS truoc do bi rot ra ngoai,
+  // thanh 1 promise rejection khong ai bat, khong hien thong bao gi ("khong
+  // phan hoi") - loi nguoi dung bao cao 2026-09-08, sua boc het + log ra
+  // console de con chan doan neu tai phat sinh.
+  if(typeof ExcelJS==='undefined'){showToast('Chưa tải được thư viện xuất Excel, thử lại sau.');return}
+  try{
+  var scope=await fetchMonthlyLogsScope(period);
   var groups=monthlyLogExportGroups(scope);
   var workbook=new ExcelJS.Workbook();
   var sheet=workbook.addWorksheet('Nhật ký',{pageSetup:{orientation:'landscape',fitToPage:true}});
@@ -4134,10 +4149,18 @@ async function exportMonthlyLogExcel(period){
   });
   var buffer=await workbook.xlsx.writeBuffer();
   var blob=new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-  var url=URL.createObjectURL(blob);
-  var a=document.createElement('a');a.href=url;a.download='nhat-ky-chi-tiet-'+period+'.xlsx';a.click();
-  URL.revokeObjectURL(url);
+  // NativeURL (KHONG PHAI "URL") - "URL" la bien toan cuc da bi ghi de
+  // thanh chuoi API Supabase (xem dong 11-12 dau file), goi URL.createObjectURL
+  // se nem loi vi chuoi khong co ham nay. Day chinh la nguyen nhan bao cao
+  // "bam Xuat Excel khong phan hoi" (loi bi rot ra ngoai, khong ai bat).
+  var url=NativeURL.createObjectURL(blob);
+  var a=document.createElement('a');a.href=url;a.download='nhat-ky-chi-tiet-'+period+'.xlsx';document.body.appendChild(a);a.click();a.remove();
+  NativeURL.revokeObjectURL(url);
   showToast('Đã xuất file Excel.');
+  }catch(e){
+    console.error('exportMonthlyLogExcel',e);
+    showToast('Lỗi khi xuất Excel: '+e.message);
+  }
 }
 
 function monthlyLogReportBodyHtml(period,groups){
@@ -4187,6 +4210,14 @@ async function exportMonthlyLogPdf(period){
   container.style.width='1600px';
   container.innerHTML=monthlyLogReportBodyHtml(period,groups);
   document.body.appendChild(container);
+  // html2canvas/jsPDF tu dung "URL.createObjectURL" o ben trong (qua bien
+  // toan cuc "window.URL") de tao/tai file - nhung "URL" cua trang nay da
+  // bi ghi de thanh chuoi API Supabase (xem dong 11-12 dau file, bien
+  // NativeURL luu lai ban goc). Tam thoi tra "window.URL" ve dung doi
+  // tuong that trong luc xuat, roi khoi phuc lai ngay sau do (khong anh
+  // huong phan con lai cua app dang dung "URL" lam chuoi API).
+  var savedWindowUrl=window.URL;
+  window.URL=NativeURL;
   try{
     var canvas=await html2canvas(container,{scale:2,useCORS:true});
     var imgData=canvas.toDataURL('image/jpeg',0.98);
@@ -4208,8 +4239,10 @@ async function exportMonthlyLogPdf(period){
     pdf.save('nhat-ky-chi-tiet-'+period+'.pdf');
     showToast('Đã xuất file PDF.');
   }catch(e){
+    console.error('exportMonthlyLogPdf',e);
     showToast('Lỗi khi xuất PDF: '+e.message);
   }finally{
+    window.URL=savedWindowUrl;
     container.remove();
   }
 }
@@ -4236,7 +4269,7 @@ async function fetchNotifications(){
       }
       mine.forEach(function(l){
         var reviewerName=(reviewers[l.reviewer_id]&&reviewers[l.reviewer_id].full_name)||'Lãnh đạo';
-        list.push({id:'revision-'+l.id+'-'+(l.reviewed_at||'pending'),tone:'revision',title:'Nhật ký cần bổ sung',message:reviewerName+': '+(l.review_comment||'Yêu cầu chỉnh sửa, làm rõ kết quả.'),time:shortDate(l.log_date),view:'journal',logId:l.id});
+        list.push({id:'revision-'+l.id+'-'+(l.reviewed_at||'pending'),tone:'revision',title:'Nhật ký cần bổ sung',message:reviewerName+': '+(l.review_comment||'Yêu cầu chỉnh sửa, làm rõ kết quả.'),time:shortDate(l.log_date),view:'journal',logId:l.id,_t:new Date(l.reviewed_at||l.log_date).getTime()});
       });
     }
   }catch(e){}
@@ -4282,7 +4315,7 @@ async function fetchNotifications(){
         :(n.type==='task_assigned'||n.type==='task_unassigned'||n.type==='task_updated'||n.type==='task_deleted'||n.type==='task_due_date_set')?'tasks'
         :(n.type==='account_role_changed'||n.type==='account_scope_changed'||n.type==='account_active_changed')?'settings'
         :'unitJournal';
-      list.push({id:'db-'+n.id,tone:tone,title:n.title,message:n.body||'',time:shortDate((n.created_at||'').slice(0,10)),view:view});
+      list.push({id:'db-'+n.id,tone:tone,title:n.title,message:n.body||'',time:shortDate((n.created_at||'').slice(0,10)),view:view,_t:new Date(n.created_at).getTime()});
     });
   }catch(e){}
   // Nhac qua han giao viec: ad-hoc nhu cac loai khac (khong dung bang
@@ -4296,7 +4329,7 @@ async function fetchNotifications(){
     var tar=await fetch(API+'task_assignments?assignee_id=eq.'+U.id+'&status=neq.done&select=id,title,suggested_due_date,actual_due_date',{headers:authHeaders()});
     (tar.ok?await tar.json():[]).forEach(function(t){
       var due=t.actual_due_date||t.suggested_due_date;
-      if(due&&new Date(due)<nowT)list.push({id:'task-overdue-assignee-'+t.id,tone:'escalation',title:'Việc được giao đã quá hạn',message:t.title+' — hạn '+formatDateTime(due),time:formatDateTime(due),view:'tasks'});
+      if(due&&new Date(due)<nowT)list.push({id:'task-overdue-assignee-'+t.id,tone:'escalation',title:'Việc được giao đã quá hạn',message:t.title+' — hạn '+formatDateTime(due),time:formatDateTime(due),view:'tasks',_t:new Date(due).getTime()});
     });
   }catch(e){}
   try{
@@ -4304,7 +4337,7 @@ async function fetchNotifications(){
     var tbr=await fetch(API+'task_assignments?assigner_id=eq.'+U.id+'&status=neq.done&select=id,title,suggested_due_date,actual_due_date,assignee:assignee_id(full_name)',{headers:authHeaders()});
     (tbr.ok?await tbr.json():[]).forEach(function(t){
       var due=t.actual_due_date||t.suggested_due_date;
-      if(due&&new Date(due)<nowT2)list.push({id:'task-overdue-assigner-'+t.id,tone:'escalation',title:'Việc đã giao quá hạn chưa hoàn thành',message:((t.assignee&&t.assignee.full_name)||'Cán bộ')+': '+t.title,time:formatDateTime(due),view:'tasks'});
+      if(due&&new Date(due)<nowT2)list.push({id:'task-overdue-assigner-'+t.id,tone:'escalation',title:'Việc đã giao quá hạn chưa hoàn thành',message:((t.assignee&&t.assignee.full_name)||'Cán bộ')+': '+t.title,time:formatDateTime(due),view:'tasks',_t:new Date(due).getTime()});
     });
   }catch(e){}
   // Nhac han ghi chu cong viec (chi ap dung cho ghi chu da chon "Nhac toi
@@ -4324,9 +4357,9 @@ async function fetchNotifications(){
       var p2=function(n){return String(n).padStart(2,'0')};
       var dueLabel=p2(dueMoment.getDate())+'/'+p2(dueMoment.getMonth()+1)+'/'+dueMoment.getFullYear()+' '+p2(dueMoment.getHours())+':'+p2(dueMoment.getMinutes());
       if(nowN>=dueMoment){
-        list.push({id:'note-overdue-'+note.id,tone:'escalation',title:'Ghi chú đã quá hạn',message:note.title+' — hạn '+dueLabel,time:dueLabel,view:'notes'});
+        list.push({id:'note-overdue-'+note.id,tone:'escalation',title:'Ghi chú đã quá hạn',message:note.title+' — hạn '+dueLabel,time:dueLabel,view:'notes',_t:dueMoment.getTime()});
       }else if(nowN>=remindMoment){
-        list.push({id:'note-reminder-'+note.id,tone:'reminder',title:'Ghi chú sắp đến hạn',message:note.title+' — hạn '+dueLabel,time:dueLabel,view:'notes'});
+        list.push({id:'note-reminder-'+note.id,tone:'reminder',title:'Ghi chú sắp đến hạn',message:note.title+' — hạn '+dueLabel,time:dueLabel,view:'notes',_t:remindMoment.getTime()});
       }
     });
   }catch(e){}
@@ -4334,10 +4367,16 @@ async function fetchNotifications(){
     try{
       var queue=await fetchReviewQueue();
       queue.forEach(function(l){
-        list.push({id:'review-'+l.id+'-'+(l.created_at||l.log_date),tone:l.revision_count?'resubmitted':'pending',title:l.revision_count?('Nhật ký trình lại lần '+l.revision_count):'Nhật ký chờ chấm điểm',message:((l._author&&l._author.full_name)||'Cán bộ')+': '+l.title,time:shortDate(l.log_date),view:'reviews',logId:l.id});
+        list.push({id:'review-'+l.id+'-'+(l.created_at||l.log_date),tone:l.revision_count?'resubmitted':'pending',title:l.revision_count?('Nhật ký trình lại lần '+l.revision_count):'Nhật ký chờ chấm điểm',message:((l._author&&l._author.full_name)||'Cán bộ')+': '+l.title,time:shortDate(l.log_date),view:'reviews',logId:l.id,_t:new Date(l.created_at||l.log_date).getTime()});
       });
     }catch(e){}
   }
+  // Sap xep MOI NHAT len tren dau, gop chung tat ca cac loai (truoc day
+  // moi loai duoc noi vao "list" theo 1 thu tu uu tien co dinh - vd hang
+  // cho duyet luon nam duoi cung - khong phan anh dung thoi gian thuc te,
+  // khien tin that su moi bi chim xuong duoi tin cu hon nhung thuoc nhom
+  // uu tien cao hon. Loi nguoi dung bao cao 2026-09-08.
+  list.sort(function(a,b){return (b._t||0)-(a._t||0)});
   return list.slice(0,20);
 }
 

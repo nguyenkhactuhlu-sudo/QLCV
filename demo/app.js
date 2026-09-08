@@ -888,7 +888,8 @@ function notificationsForCurrentUser() {
       message: `${reviewer?.name || "Lãnh đạo"}: ${log.comment || "Yêu cầu chỉnh sửa, làm rõ kết quả."}`,
       time: shortDate(log.date),
       view: "journal",
-      logId: log.id
+      logId: log.id,
+      _t: new Date(log.reviewedAt || log.date).getTime()
     });
   });
   // Canh bao chenh lech dat NGAY SAU nhom "can bo sung" (ca 2 deu la tin
@@ -909,7 +910,8 @@ function notificationsForCurrentUser() {
       title: n.title,
       message: n.message,
       time: shortDate(n.createdAt.slice(0, 10)),
-      view: n.view || "unitJournal"
+      view: n.view || "unitJournal",
+      _t: new Date(n.createdAt).getTime()
     });
   });
   // Nhac qua han giao viec: hien cho CA NGUOI GIAO va NGUOI NHAN, dat ngay
@@ -922,7 +924,8 @@ function notificationsForCurrentUser() {
       title: "Việc được giao đã quá hạn",
       message: `${task.title} — hạn ${formatDateTime(taskDueDate(task))}`,
       time: formatDateTime(taskDueDate(task)),
-      view: "tasks"
+      view: "tasks",
+      _t: new Date(taskDueDate(task)).getTime()
     });
   });
   taskAssignments.filter(task => task.assignerId === user.id && isTaskOverdue(task)).forEach(task => {
@@ -933,7 +936,8 @@ function notificationsForCurrentUser() {
       title: "Việc đã giao quá hạn chưa hoàn thành",
       message: `${assignee ? assignee.name : "Cán bộ"}: ${task.title}`,
       time: formatDateTime(taskDueDate(task)),
-      view: "tasks"
+      view: "tasks",
+      _t: new Date(taskDueDate(task)).getTime()
     });
   });
   // Nhac han ghi chu cong viec (chi ap dung cho ghi chu da chon "Nhac toi
@@ -948,9 +952,9 @@ function notificationsForCurrentUser() {
     const dueLabel = formatDateTime(dueMoment.toISOString());
     const now = new Date();
     if (now >= dueMoment) {
-      notifications.push({ id: `note-overdue-${note.id}`, tone: "escalation", title: "Ghi chú đã quá hạn", message: `${note.title} — hạn ${dueLabel}`, time: dueLabel, view: "notes" });
+      notifications.push({ id: `note-overdue-${note.id}`, tone: "escalation", title: "Ghi chú đã quá hạn", message: `${note.title} — hạn ${dueLabel}`, time: dueLabel, view: "notes", _t: dueMoment.getTime() });
     } else if (now >= remindMoment) {
-      notifications.push({ id: `note-reminder-${note.id}`, tone: "pending", title: "Ghi chú sắp đến hạn", message: `${note.title} — hạn ${dueLabel}`, time: dueLabel, view: "notes" });
+      notifications.push({ id: `note-reminder-${note.id}`, tone: "pending", title: "Ghi chú sắp đến hạn", message: `${note.title} — hạn ${dueLabel}`, time: dueLabel, view: "notes", _t: remindMoment.getTime() });
     }
   });
   if (isLeader(user)) reviewQueue().forEach(log => {
@@ -962,9 +966,14 @@ function notificationsForCurrentUser() {
       message: `${author?.name || "Cán bộ"}: ${log.title}`,
       time: shortDate(log.date),
       view: "reviews",
-      logId: log.id
+      logId: log.id,
+      _t: new Date(log.resubmittedAt || log.createdAt || log.date).getTime()
     });
   });
+  // Sap xep MOI NHAT len tren dau, gop chung tat ca cac loai (truoc day moi
+  // loai duoc noi vao mang theo 1 thu tu uu tien co dinh, khong phan anh
+  // dung thoi gian thuc te - yeu cau nguoi dung, 2026-09-08).
+  notifications.sort((a, b) => (b._t || 0) - (a._t || 0));
   return notifications.slice(0, 20);
 }
 
