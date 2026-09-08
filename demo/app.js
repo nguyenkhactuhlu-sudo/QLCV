@@ -889,7 +889,14 @@ function notificationsForCurrentUser() {
   // Canh bao chenh lech dat NGAY SAU nhom "can bo sung" (ca 2 deu la tin
   // rieng, quan trong) va TRUOC hang doi cho cham diem (co the rat dai voi
   // lanh dao pham vi rong) - de khong bi ".slice(0, 20)" ben duoi cat mat.
-  const SYSTEM_NOTIFICATION_TONES = { score_overridden: "revision", score_overridden_reviewer_notice: "revision", monthly_score_deviation_notice: "escalation", delegation_granted: "account", delegation_revoked: "account", work_log_deleted: "revision", task_assigned: "pending", task_unassigned: "escalation", task_updated: "account" };
+  const SYSTEM_NOTIFICATION_TONES = { score_overridden: "revision", score_overridden_reviewer_notice: "revision", monthly_score_deviation_notice: "escalation", delegation_granted: "account", delegation_revoked: "account", work_log_deleted: "revision", task_assigned: "pending", task_unassigned: "escalation", task_updated: "account",
+    // Bo sung sau ra soat "chuong thong bao thieu nhieu thay doi" (yeu cau
+    // nguoi dung, 2026-09-08) - xem cac ham deleteTaskGroup/submitScoreAdjustment/
+    // deleteScoreAdjustment/saveAccountRole/toggleAccountActive/
+    // applyLeaveAcknowledge/saveSelfScore/submitTaskDueDate.
+    task_deleted: "escalation", score_adjustment_added: "account", score_adjustment_removed: "escalation",
+    account_role_changed: "revision", account_active_changed: "escalation", leave_acknowledged: "account",
+    monthly_self_score_submitted: "pending", task_due_date_set: "pending" };
   systemNotifications.filter(n => n.userId === user.id).forEach(n => {
     notifications.push({
       id: n.id,
@@ -1892,6 +1899,13 @@ function applyLeaveAcknowledge(log) {
   Object.assign(log, { status: "approved", reviewerId: reviewer.id, reviewedAt: new Date().toISOString() });
   createLogClones(log);
   saveLogs();
+  systemNotifications.push({
+    id: `ON-${Date.now()}-${log.authorId}`, userId: log.authorId, type: "leave_acknowledged",
+    title: "Lãnh đạo đã xác nhận đơn nghỉ phép",
+    message: `${reviewer.name} đã xác nhận đã biết đơn nghỉ phép "${log.title}" của bạn.`,
+    view: "journal", createdAt: new Date().toISOString()
+  });
+  saveSystemNotifications();
   showToast("Đã xác nhận nghỉ phép.");
   state.selectedReviewId = null;
   renderReviews();
@@ -2399,6 +2413,19 @@ function canApproveMonthly(person, reviewer = currentUser()) {
   return false;
 }
 
+// Chieu NGUOC lai voi canApproveMonthly: cho 1 nguoi, tim NGUOI DUYET
+// chinh cua ho (dung khi bao "co nguoi vua tu cham diem, cho duyet" - xem
+// saveSelfScore). province_head khong co cap tren, tra ve null (khong bao).
+function findMonthlyApprover(person) {
+  if (person.role === "unit_head") {
+    const deputy = users.find(u => u.role === "province_deputy" && (u.assignedUnits || []).includes(person.unitId));
+    return deputy || users.find(u => u.role === "province_head") || null;
+  }
+  if (person.role === "province_deputy") return users.find(u => u.role === "province_head") || null;
+  if (person.role === "province_head") return null;
+  return users.find(u => u.unitId === person.unitId && u.role === "unit_head") || null;
+}
+
 function journalEvidence(userId) {
   // Nhat ky nghi phep khong tinh vao khoi luong/binh quan.
   const items = logs.filter(log => log.authorId === userId && !isLeaveCategoryName(log.category));
@@ -2588,9 +2615,26 @@ function saveMonthlyReview(row) {
 function saveSelfScore(row) {
   const score = Number(document.getElementById("selfScore").value);
   if (!Number.isFinite(score) || score < 0 || score > 100) return showToast("Điểm tự chấm phải nằm trong khoảng 0–100.");
+  const isFirstTime = row.selfScore == null;
   row.selfScore = score;
   if (row.status !== "approved") row.status = "pending";
   localStorage.setItem(MONTHLY_STORAGE_KEY, JSON.stringify(monthlyReviews));
+  // Bao cho nguoi duyet CHI 1 LAN DUY NHAT - lan dau tien tu cham trong ky
+  // nay - tranh spam moi lan sua di sua lai truoc khi lanh dao kip duyet
+  // (dung y het nguyen tac ap dung o production - migration 00072).
+  if (isFirstTime) {
+    const person = userById(row.userId);
+    const approver = person ? findMonthlyApprover(person) : null;
+    if (approver) {
+      systemNotifications.push({
+        id: `ON-${Date.now()}-${approver.id}`, userId: approver.id, type: "monthly_self_score_submitted",
+        title: "Có người vừa tự chấm điểm tháng, chờ duyệt",
+        message: `${person.name} đã tự chấm điểm tháng ${row.period} (${score} điểm), đang chờ bạn duyệt.`,
+        view: "monthly", createdAt: new Date().toISOString()
+      });
+      saveSystemNotifications();
+    }
+  }
   showToast("Đã lưu điểm tự chấm và gửi người có thẩm quyền.");
   renderMonthly();
 }
@@ -2737,11 +2781,22 @@ function submitScoreAdjustment() {
   const targetPerson = userById(userId);
   if (!targetPerson || !canApproveMonthly(targetPerson)) return showToast("Không có quyền điều chỉnh điểm của người này.");
   const delta = type === "minus" ? -amount : amount;
+  const period = currentRealPeriod();
   scoreAdjustments.push({
-    id: `SA-${Date.now()}`, userId, period: currentRealPeriod(), delta, reason,
+    id: `SA-${Date.now()}`, userId, period, delta, reason,
     createdBy: currentUser().id, createdAt: new Date().toISOString()
   });
   saveScoreAdjustments();
+  // Bao cho CHINH nguoi bi/duoc cong/tru diem dot xuat - truoc day ban
+  // demo thieu hoan toan (khac production da co tu migration 00066), phat
+  // hien khi ra soat chuong thong bao (yeu cau nguoi dung, 2026-09-08).
+  systemNotifications.push({
+    id: `ON-${Date.now()}-${userId}`, userId, type: "score_adjustment_added",
+    title: delta > 0 ? "Bạn được cộng điểm đột xuất" : "Bạn bị trừ điểm đột xuất",
+    message: `${currentUser().name} đã ${delta > 0 ? "cộng " : "trừ "}${Math.abs(delta)} điểm vào đánh giá tháng ${period} - lý do: ${reason}`,
+    view: "monthly", createdAt: new Date().toISOString()
+  });
+  saveSystemNotifications();
   showToast("Đã lưu điều chỉnh điểm.");
   renderScoreAdjustments();
 }
@@ -2754,6 +2809,13 @@ function deleteScoreAdjustment(id) {
   if (!person || !canApproveMonthly(person)) return showToast("Không có quyền xoá điều chỉnh này.");
   scoreAdjustments = scoreAdjustments.filter(a => a.id !== id);
   saveScoreAdjustments();
+  systemNotifications.push({
+    id: `ON-${Date.now()}-${person.id}`, userId: person.id, type: "score_adjustment_removed",
+    title: adjustment.delta > 0 ? "Điểm cộng đột xuất của bạn đã bị xoá" : "Điểm trừ đột xuất của bạn đã được xoá",
+    message: `${currentUser().name} đã xoá điều chỉnh ${adjustment.delta > 0 ? "+" : ""}${adjustment.delta} điểm (kỳ ${adjustment.period}) - lý do trước đó: ${adjustment.reason}`,
+    view: "monthly", createdAt: new Date().toISOString()
+  });
+  saveSystemNotifications();
   showToast("Đã xoá điều chỉnh.");
   renderScoreAdjustments();
 }
@@ -3204,6 +3266,20 @@ function saveAccountRole(id) {
   savePersonnelState();
   auditEvents.push({ at: new Date().toISOString(), actor: currentUser().name, action: "Gán vai trò và đơn vị", detail: `${person.name}: ${ROLE_LABELS[oldRole]} tại ${oldUnit} → ${ROLE_LABELS[person.role]} tại ${unitDisplayName(person.unitId)}` });
   localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(auditEvents));
+  // Bao cho CHINH nguoi bi doi vai tro/don vi - anh huong truc tiep quyen
+  // han cua ho ma truoc day khong he hay biet (phat hien khi ra soat
+  // chuong thong bao, yeu cau nguoi dung 2026-09-08). Gop chung role+don
+  // vi+pham vi phu trach vao 1 thong bao duy nhat (khac production tach 2
+  // RPC rieng) vi form demo nay luu ca 2 CUNG 1 lan bam.
+  if (person.id !== currentUser().id) {
+    systemNotifications.push({
+      id: `ON-${Date.now()}-${person.id}`, userId: person.id, type: "account_role_changed",
+      title: "Vai trò/đơn vị của bạn đã được thay đổi",
+      message: `${currentUser().name} đã đổi vai trò của bạn thành "${ROLE_LABELS[person.role]}", đơn vị "${unitDisplayName(person.unitId)}".`,
+      view: "settings", createdAt: new Date().toISOString()
+    });
+    saveSystemNotifications();
+  }
   showToast("Đã cập nhật vai trò và đơn vị.");
   updateNav();
   // Giu lai cac nhom <details> dang mo + vi tri cuon man hinh khi ve lai
@@ -3227,6 +3303,13 @@ function toggleAccountActive(id) {
   savePersonnelState();
   auditEvents.push({ at: new Date().toISOString(), actor: currentUser().name, action: person.active ? "Mở lại tài khoản" : "Khoá tài khoản", detail: `${person.name} · ${unitDisplayName(person.unitId)}` });
   localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(auditEvents));
+  systemNotifications.push({
+    id: `ON-${Date.now()}-${person.id}`, userId: person.id, type: "account_active_changed",
+    title: person.active ? "Tài khoản của bạn đã được mở lại" : "Tài khoản của bạn đã bị khoá",
+    message: `${currentUser().name} đã ${person.active ? "mở lại tài khoản của bạn - bạn có thể đăng nhập lại." : "khoá tài khoản của bạn."}`,
+    view: "settings", createdAt: new Date().toISOString()
+  });
+  saveSystemNotifications();
   showToast(person.active ? "Đã mở lại tài khoản." : "Đã khoá tài khoản.");
   renderOrganization();
 }
@@ -4062,6 +4145,22 @@ function openEditTaskModal(groupId) {
 function deleteTaskGroup(groupId) {
   if (!confirm("Xóa việc giao này cho tất cả người liên quan? Nhật ký đã báo cáo (nếu có) sẽ không bị xóa, chỉ gỡ liên kết với việc này. Không thể khôi phục lại.")) return;
   const userId = currentUser().id;
+  const title = (taskAssignments.find(t => t.taskGroupId === groupId) || {}).title || "";
+  // Bao cho TUNG nguoi lien quan TRUOC khi xoa - xoa xong khong con gi de
+  // tra cuu lai (phat hien khi ra soat chuong thong bao, yeu cau nguoi
+  // dung 2026-09-08).
+  const affectedIds = Array.from(new Set(
+    taskAssignments.filter(t => t.taskGroupId === groupId && t.assignerId === userId && t.assigneeId !== userId).map(t => t.assigneeId)
+  ));
+  affectedIds.forEach(assigneeId => {
+    systemNotifications.push({
+      id: `ON-${Date.now()}-${assigneeId}`, userId: assigneeId, type: "task_deleted",
+      title: "Việc đã giao bị xoá",
+      message: `${currentUser().name} đã xoá việc "${title}".`,
+      view: "tasks", createdAt: new Date().toISOString()
+    });
+  });
+  if (affectedIds.length) saveSystemNotifications();
   taskAssignments.forEach(t => { if (t.linkedLogId) { const log = logs.find(l => l.id === t.linkedLogId); if (log && t.taskGroupId === groupId) log.taskAssignmentId = null; } });
   taskAssignments = taskAssignments.filter(t => !(t.taskGroupId === groupId && t.assignerId === userId));
   saveTaskAssignments();
@@ -4117,6 +4216,16 @@ function submitTaskDueDate(event) {
   if (!value) { showToast("Vui lòng chọn thời điểm hoàn thành."); return; }
   task.actualDueDate = value;
   saveTaskAssignments();
+  if (task.assignerId !== task.assigneeId) {
+    const assignee = userById(task.assigneeId);
+    systemNotifications.push({
+      id: `ON-${Date.now()}-${task.assignerId}`, userId: task.assignerId, type: "task_due_date_set",
+      title: "Có người vừa đặt hạn hoàn thành cho việc đã giao",
+      message: `${assignee ? assignee.name : "Cán bộ"} đã đặt hạn hoàn thành cho việc "${task.title}": ${formatDateTime(value)}.`,
+      view: "tasks", createdAt: new Date().toISOString()
+    });
+    saveSystemNotifications();
+  }
   showToast("Đã đặt hạn hoàn thành.");
   renderTasks();
 }

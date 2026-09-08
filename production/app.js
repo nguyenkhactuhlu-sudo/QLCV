@@ -111,6 +111,7 @@ var CHANGELOG=[
   {date:'2026-09-07',type:'improve',text:'Thanh điều hướng bên trái: rút ngắn khoảng cách thừa giữa thẻ tên người đăng nhập và nút "Tổng quan", bằng đúng khoảng cách giữa các nút khác cho gọn gàng.'},
   {date:'2026-09-07',type:'improve',text:'Các ô nhập nội dung dài (Kết quả/sản phẩm đầu ra, Mô tả, Nhận xét của lãnh đạo, Lý do...) nay tự động giãn cao theo đúng lượng chữ đã gõ, không còn phải cuộn lên xuống trong 1 ô nhỏ.'},
   {date:'2026-09-07',type:'improve',text:'Giao việc: ô "Tên công việc" nay tự xuống dòng và giãn cao khi hết bề ngang, không còn bị cố định trong 1 dòng phải cuộn ngang mới đọc hết.'},
+  {date:'2026-09-08',type:'feature',text:'Chuông thông báo: rà soát và bổ sung 8 trường hợp thay đổi trước đây không báo cho người liên quan - xoá hẳn 1 việc đã giao, xoá điểm cộng/trừ đột xuất, đổi vai trò/đơn vị tài khoản, đổi phạm vi đơn vị phụ trách, khoá/mở khoá tài khoản, lãnh đạo xác nhận đơn nghỉ phép, cấp dưới tự chấm điểm tháng (báo cho người duyệt), cấp dưới tự đặt hạn hoàn thành việc được giao (báo cho người giao việc).'},
   {date:'2026-09-06',type:'feature',text:'Thêm mục riêng "Điểm cộng/trừ đột xuất" (khen thưởng/kỷ luật phát hiện sau khi tháng đã chấm xong) - có thống kê tổng lượt/tổng điểm riêng, ghi thành từng dòng, không bao giờ mất, luôn áp dụng cho tháng hiện tại (không sửa lại điểm tháng đã chốt), người bị/được áp dụng xem được lý do. Có link nhảy nhanh từ "Chấm điểm tháng" sang.'},
   {date:'2026-09-06',type:'feature',text:'Nhật ký công tác của đơn vị: thêm cách xem "Theo ngày" - chọn 1 ngày cụ thể là thấy ngay ai đã nộp việc, ai đang nghỉ phép, ai chưa nộp trong ngày đó, giúp lãnh đạo đôn đốc kịp thời.'},
   {date:'2026-09-06',type:'fix',text:'Sửa lỗi Trưởng phòng/Viện trưởng khu vực có thể duyệt nhầm nhật ký mà KSV đã nộp đích danh cho 1 Phó - nay tách riêng thành 2 khu "Nộp cho tôi" và "Đang chờ người khác xử lý" trong màn Duyệt & chấm điểm.'},
@@ -4055,7 +4056,7 @@ async function fetchNotifications(){
   try{
     var nr=await fetch(API+'notifications?user_id=eq.'+U.id+'&order=created_at.desc&limit=20',{headers:authHeaders()});
     (nr.ok?await nr.json():[]).forEach(function(n){
-      var tone=(n.type==='score_override_escalation'||n.type==='monthly_score_deviation_notice'||n.type==='task_unassigned')?'escalation':(n.type==='score_overridden_by_senior'||n.type==='score_overridden_reviewer_notice')?'revision':(n.type==='task_assigned')?'pending':'account';
+      var tone=(n.type==='score_override_escalation'||n.type==='monthly_score_deviation_notice'||n.type==='task_unassigned'||n.type==='task_deleted'||n.type==='score_adjustment_removed'||n.type==='account_active_changed')?'escalation':(n.type==='score_overridden_by_senior'||n.type==='score_overridden_reviewer_notice'||n.type==='account_role_changed'||n.type==='account_scope_changed')?'revision':(n.type==='task_assigned'||n.type==='monthly_self_score_submitted'||n.type==='task_due_date_set')?'pending':'account';
       // score_overridden_by_senior/work_log_deleted_by_leader = gui cho TAC
       // GIA (co the la nhan vien thuong, khong vao duoc "Nhat ky cong tac
       // cua don vi"/"Quan tri" - cac trang chi lanh dao) -> ve "Nhat ky cua
@@ -4070,14 +4071,26 @@ async function fetchNotifications(){
       // tiet + ly do. task_assigned/task_unassigned/task_updated (migration
       // 00070) = gui cho nguoi lien quan khi giao viec/doi nguoi/sua noi
       // dung 1 viec da giao -> ve man "Giao viec" de xem lai.
+      // task_deleted/task_due_date_set (migration 00072) = tuong tu, ve
+      // "Giao viec". score_adjustment_removed = ve "Cham diem thang" nhu
+      // score_adjustment_added. account_role_changed/account_scope_changed/
+      // account_active_changed = ve "Cai dat" de xem lai thong tin tai
+      // khoan hien tai cua chinh minh. leave_acknowledged = ve "Nhat ky cua
+      // toi" de xem lai don nghi phep vua duoc xac nhan.
+      // monthly_self_score_submitted = gui cho nguoi duyet -> ve "Cham diem
+      // thang" de duyet luon.
       var view=n.type==='score_overridden_by_senior'?'journal'
         :n.type==='work_log_deleted_by_leader'?'journal'
+        :n.type==='leave_acknowledged'?'journal'
         :n.type==='delegation_granted'?'unitJournal'
         :n.type==='delegation_revoked'?'unitJournal'
         :n.type==='score_overridden_reviewer_notice'?'unitJournal'
         :n.type==='monthly_score_deviation_notice'?'monthly'
         :n.type==='score_adjustment_added'?'monthly'
-        :(n.type==='task_assigned'||n.type==='task_unassigned'||n.type==='task_updated')?'tasks'
+        :n.type==='score_adjustment_removed'?'monthly'
+        :n.type==='monthly_self_score_submitted'?'monthly'
+        :(n.type==='task_assigned'||n.type==='task_unassigned'||n.type==='task_updated'||n.type==='task_deleted'||n.type==='task_due_date_set')?'tasks'
+        :(n.type==='account_role_changed'||n.type==='account_scope_changed'||n.type==='account_active_changed')?'settings'
         :'unitJournal';
       list.push({id:'db-'+n.id,tone:tone,title:n.title,message:n.body||'',time:shortDate((n.created_at||'').slice(0,10)),view:view});
     });
