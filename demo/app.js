@@ -34,25 +34,25 @@ const units = [
 ];
 
 const users = [
-  { id: "u01", name: "Phạm Hải Anh", title: "Viện trưởng", professionalTitle: "KSV cao cấp", role: "province_head", unitId: "province", initials: "PA" },
-  { id: "u02", name: "Nguyễn Văn Lượng", title: "Phó Viện trưởng", professionalTitle: "KSV cao cấp", role: "province_deputy", unitId: "province", assignedUnits: ["p1", "p7", "kv1"], initials: "NL" },
-  { id: "u03", name: "Lưu Thị Lệ Phương", title: "Trưởng phòng", professionalTitle: "KSV Trung cấp", role: "unit_head", unitId: "p1", initials: "LP" },
-  { id: "u04", name: "Phùng Đức Khương", title: "Phó Trưởng phòng", professionalTitle: "KSV Trung cấp", role: "unit_deputy", unitId: "p1", initials: "PK" },
-  { id: "u05", name: "Nguyễn Văn Quân", title: "Kiểm sát viên", professionalTitle: "KSV Trung cấp", role: "staff", unitId: "p1", initials: "NQ" },
-  { id: "u06", name: "Nguyễn Tiến Trung", title: "Kiểm sát viên", professionalTitle: "KSV Trung cấp", role: "staff", unitId: "p1", initials: "NT" },
-  { id: "u07", name: "Phạm Hữu Cường", title: "Kiểm sát viên", professionalTitle: "KSV Trung cấp", role: "staff", unitId: "p1", initials: "PC" },
-  { id: "u08", name: "Nguyễn Ngọc Cường", title: "Viện trưởng", professionalTitle: "KSV Trung cấp", role: "unit_head", unitId: "kv1", initials: "NC" },
-  { id: "u09", name: "Trần Thị Huệ", title: "Phó Viện trưởng", professionalTitle: "KSV Trung cấp", role: "unit_deputy", unitId: "kv1", initials: "TH" },
-  { id: "u10", name: "Vi Xuân Vượng", title: "Kiểm sát viên", professionalTitle: "KSV sơ cấp", role: "staff", unitId: "kv1", initials: "VV" },
-  { id: "u11", name: "Trần Văn Mạnh", title: "Kiểm sát viên", professionalTitle: "KSV sơ cấp", role: "staff", unitId: "kv1", initials: "TM" },
-  { id: "u12", name: "Hoàng Văn Quý", title: "Trưởng phòng", professionalTitle: "KSV Trung cấp", role: "unit_head", unitId: "p7", initials: "HQ" },
-  { id: "u13", name: "Thân Thanh Huyền", title: "Kiểm sát viên", professionalTitle: "KSV Trung cấp", role: "staff", unitId: "p7", initials: "TH" },
-  { id: "u14", name: "Nguyễn Thế Anh", title: "Chánh Văn phòng", professionalTitle: "KSV Trung cấp", role: "unit_head", unitId: "vp", initials: "NA" },
-  { id: "u15", name: "Nguyễn Thị Huệ Anh", title: "Phó Chánh Văn phòng", professionalTitle: "KSV Trung cấp", role: "unit_deputy", unitId: "vp", initials: "HA" },
-  { id: "u16", name: "Hoàng Tùng", title: "Viện trưởng", professionalTitle: "KSV Trung cấp", role: "unit_head", unitId: "kv2", initials: "HT" },
-  { id: "u17", name: "Phạm Thu Hà", title: "Phó Viện trưởng", professionalTitle: "KSV Trung cấp", role: "unit_deputy", unitId: "kv2", initials: "PH" },
-  { id: "u18", name: "Ngô Văn Tuấn", title: "Viện trưởng", professionalTitle: "KSV Trung cấp", role: "unit_head", unitId: "kv3", initials: "NT" },
-  { id: "u19", name: "Nguyễn Văn Hải", title: "Kiểm sát viên", professionalTitle: "KSV sơ cấp", role: "staff", unitId: "kv3", initials: "NH" },
+  { id: "u01", name: "Phạm Hải Anh", title: "Viện trưởng", professionalTitle: "KSV cao cấp", role: "province_head", unitId: "province", initials: "PA", birthYear: 1970 },
+  { id: "u02", name: "Nguyễn Văn Lượng", title: "Phó Viện trưởng", professionalTitle: "KSV cao cấp", role: "province_deputy", unitId: "province", assignedUnits: ["p1", "p7", "kv1"], initials: "NL", birthYear: 1972 },
+  { id: "u03", name: "Lưu Thị Lệ Phương", title: "Trưởng phòng", professionalTitle: "KSV Trung cấp", role: "unit_head", unitId: "p1", initials: "LP", birthYear: 1975 },
+  { id: "u04", name: "Phùng Đức Khương", title: "Phó Trưởng phòng", professionalTitle: "KSV Trung cấp", role: "unit_deputy", unitId: "p1", initials: "PK", birthYear: 1980 },
+  { id: "u05", name: "Nguyễn Văn Quân", title: "Kiểm sát viên", professionalTitle: "KSV Trung cấp", role: "staff", unitId: "p1", initials: "NQ", birthYear: 1990 },
+  { id: "u06", name: "Nguyễn Tiến Trung", title: "Kiểm sát viên", professionalTitle: "KSV Trung cấp", role: "staff", unitId: "p1", initials: "NT", birthYear: 1988 },
+  { id: "u07", name: "Phạm Hữu Cường", title: "Kiểm sát viên", professionalTitle: "KSV Trung cấp", role: "staff", unitId: "p1", initials: "PC", birthYear: 1992 },
+  { id: "u08", name: "Nguyễn Ngọc Cường", title: "Viện trưởng", professionalTitle: "KSV Trung cấp", role: "unit_head", unitId: "kv1", initials: "NC", birthYear: 1975 },
+  { id: "u09", name: "Trần Thị Huệ", title: "Phó Viện trưởng", professionalTitle: "KSV Trung cấp", role: "unit_deputy", unitId: "kv1", initials: "TH", birthYear: 1974 },
+  { id: "u10", name: "Vi Xuân Vượng", title: "Kiểm sát viên", professionalTitle: "KSV sơ cấp", role: "staff", unitId: "kv1", initials: "VV", birthYear: 1979 },
+  { id: "u11", name: "Trần Văn Mạnh", title: "Kiểm sát viên", professionalTitle: "KSV sơ cấp", role: "staff", unitId: "kv1", initials: "TM", birthYear: 1987 },
+  { id: "u12", name: "Hoàng Văn Quý", title: "Trưởng phòng", professionalTitle: "KSV Trung cấp", role: "unit_head", unitId: "p7", initials: "HQ", birthYear: 1978 },
+  { id: "u13", name: "Thân Thanh Huyền", title: "Kiểm sát viên", professionalTitle: "KSV Trung cấp", role: "staff", unitId: "p7", initials: "TH", birthYear: 1990 },
+  { id: "u14", name: "Nguyễn Thế Anh", title: "Chánh Văn phòng", professionalTitle: "KSV Trung cấp", role: "unit_head", unitId: "vp", initials: "NA", birthYear: 1980 },
+  { id: "u15", name: "Nguyễn Thị Huệ Anh", title: "Phó Chánh Văn phòng", professionalTitle: "KSV Trung cấp", role: "unit_deputy", unitId: "vp", initials: "HA", birthYear: 1981 },
+  { id: "u16", name: "Hoàng Tùng", title: "Viện trưởng", professionalTitle: "KSV Trung cấp", role: "unit_head", unitId: "kv2", initials: "HT", birthYear: 1976 },
+  { id: "u17", name: "Phạm Thu Hà", title: "Phó Viện trưởng", professionalTitle: "KSV Trung cấp", role: "unit_deputy", unitId: "kv2", initials: "PH", birthYear: 1979 },
+  { id: "u18", name: "Ngô Văn Tuấn", title: "Viện trưởng", professionalTitle: "KSV Trung cấp", role: "unit_head", unitId: "kv3", initials: "NT", birthYear: 1977 },
+  { id: "u19", name: "Nguyễn Văn Hải", title: "Kiểm sát viên", professionalTitle: "KSV sơ cấp", role: "staff", unitId: "kv3", initials: "NH", birthYear: 1993 },
   { id: "u20", name: "Quản trị hệ thống", title: "Quản trị demo", professionalTitle: "", role: "administrator", unitId: "province", initials: "QT" },
   { id: "u21", name: "Lưu Hồng Anh", title: "Trưởng phòng", professionalTitle: "KSV Trung cấp", role: "unit_head", unitId: "p2", initials: "LA" },
   { id: "u22", name: "Vũ Công Thập", title: "Trưởng phòng", professionalTitle: "KSV Trung cấp", role: "unit_head", unitId: "p3", initials: "VT" },
@@ -482,6 +482,17 @@ function submittedAtOf(log) { return (log.revisionCount ? log.resubmittedAt : lo
 function scoreClass(score) { return score >= 8 ? "score-high" : score >= 6 ? "score-mid" : "score-low"; }
 function statusLabel(status) { return ({ pending: "Chờ đánh giá", approved: "Đã xác nhận", revision: "Cần bổ sung" })[status] || status; }
 function statusClass(status) { return ({ pending: "status-pending", approved: "status-approved", revision: "status-revision" })[status] || ""; }
+// Dong "so bo thong tin" 1 nguoi (chuc vu + chuc danh + nam sinh) - dung
+// chung o moi noi lanh dao xem danh sach nguoi (Nhat ky cong tac don vi,
+// Cham diem thang, Co cau & phan quyen, Giao viec) de nam bat nhanh, khong
+// phai tra cuu rieng (yeu cau nguoi dung, 2026-09-08). Rong neu khong co gi.
+function personBioLine(p) {
+  const parts = [];
+  if (p.title) parts.push(p.title);
+  if (p.professionalTitle) parts.push(p.professionalTitle);
+  if (p.birthYear) parts.push(`Sinh ${p.birthYear}`);
+  return parts.join(" · ");
+}
 function average(values) { return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0; }
 function weightedQuality(items) {
   const reviewed = items.filter(item => Number.isFinite(item.complexity) && Number.isFinite(item.quality));
@@ -2362,8 +2373,9 @@ function renderUjDayHtml() {
 // (lai xe, bao ve, phuc vu... xen lan voi KSV/lanh dao).
 function ujPersonCardHtml(p, counts) {
   const c = counts[p.id] || { count: 0, last: null };
+  const bio = personBioLine(p);
   return `<button type="button" class="uj-person-card" data-uj-person="${p.id}">
-    <div class="uj-person-info"><strong>${p.name}</strong><span>${p.title} · ${unitById(p.unitId).short}</span></div>
+    <div class="uj-person-info"><strong>${p.name}</strong><span>${bio ? bio + " · " : ""}${unitById(p.unitId).short}</span></div>
     <div class="uj-person-stats"><span class="score-pill ${c.count ? "score-mid" : ""}">${c.count} nhật ký</span><span class="uj-last-date">${c.last ? `Gần nhất: ${fullDate(c.last)}` : "Chưa nộp trong kỳ"}</span></div>
   </button>`;
 }
@@ -2385,7 +2397,8 @@ function renderUjPersonDetailHtml(personId) {
   const personLogs = ujScopeLogs().filter(l => l.authorId === personId);
   const groups = groupLogsByDate(personLogs);
   let h = `<div class="uj-back"><button type="button" class="button button-secondary button-small" id="ujBackToList">← Quay lại danh sách</button></div>`;
-  h += `<div class="panel-header"><div><h2>${person ? person.name : "Không xác định"}</h2><p>${person ? person.title : ""} · ${person ? unitById(person.unitId).short : ""}</p></div></div>`;
+  const personBio = person ? personBioLine(person) : "";
+  h += `<div class="panel-header"><div><h2>${person ? person.name : "Không xác định"}</h2><p>${personBio ? personBio + " · " : ""}${person ? unitById(person.unitId).short : ""}</p></div></div>`;
   h += groups.length ? groups.map(g => ujDateGroupHtml(g)).join("") : `<div class="empty-state"><strong>Không có nhật ký trong kỳ này</strong></div>`;
   return h;
 }
@@ -2562,7 +2575,7 @@ function monthlyFilteredRows(rows) {
 function monthlyRowHtml(row) {
   const person = userById(row.userId);
   const selected = row.userId === state.selectedMonthlyUserId;
-  return `<tr class="${selected ? "is-selected-row" : ""}"><td><div class="person-cell"><span class="mini-avatar">${person.initials}</span><div><strong>${person.name}</strong><span>${person.professionalTitle || ""}</span></div></div></td><td>${person.title}</td><td>${unitById(person.unitId).short}</td><td class="numeric">${row.selfScore ?? "—"}</td><td class="numeric"><strong>${row.officialScore ?? "—"}</strong></td><td class="numeric"><span class="grade-badge grade-${(row.classification || "pending").toLowerCase()}">${row.classification || "Chờ"}</span></td><td class="numeric"><button class="button button-secondary button-small" data-monthly-user="${person.id}">Xem căn cứ</button></td></tr>`;
+  return `<tr class="${selected ? "is-selected-row" : ""}"><td><div class="person-cell"><span class="mini-avatar">${person.initials}</span><div><strong>${person.name}</strong><span>${person.professionalTitle || ""}${person.birthYear ? ` · Sinh ${person.birthYear}` : ""}</span></div></div></td><td>${person.title}</td><td>${unitById(person.unitId).short}</td><td class="numeric">${row.selfScore ?? "—"}</td><td class="numeric"><strong>${row.officialScore ?? "—"}</strong></td><td class="numeric"><span class="grade-badge grade-${(row.classification || "pending").toLowerCase()}">${row.classification || "Chờ"}</span></td><td class="numeric"><button class="button button-secondary button-small" data-monthly-user="${person.id}">Xem căn cứ</button></td></tr>`;
 }
 
 // Tach rieng "Nguoi lao dong" (support_staff) khoi "Can bo/KSV" bang 1
@@ -2582,7 +2595,7 @@ function monthlyDetail(row) {
   const evidence = journalEvidence(person.id);
   const mayApprove = canApproveMonthly(person);
   const isSelf = currentUser().id === person.id;
-  return `<div class="panel-header"><div><span class="eyebrow">HỒ SƠ ĐÁNH GIÁ THÁNG</span><h2>${person.name}</h2><p>${person.title} · ${person.professionalTitle || ""} · ${unitById(person.unitId).short}</p></div><span class="grade-seal grade-${(row.classification || "pending").toLowerCase()}">${row.classification || "…"}</span></div>
+  const bio = personBioLine(person); return `<div class="panel-header"><div><span class="eyebrow">HỒ SƠ ĐÁNH GIÁ THÁNG</span><h2>${person.name}</h2><p>${bio ? bio + " · " : ""}${unitById(person.unitId).short}</p></div><span class="grade-seal grade-${(row.classification || "pending").toLowerCase()}">${row.classification || "…"}</span></div>
     <div class="evidence-grid">
       <div><span>Nhật ký</span><strong>${evidence.total}</strong></div><div><span>Được công nhận</span><strong>${evidence.approved}</strong></div><div><span>Độ phức tạp bình quân</span><strong>${evidence.complexity ? evidence.complexity.toFixed(1) : "—"}</strong></div><div><span>Chất lượng bình quân</span><strong>${evidence.quality ? evidence.quality.toFixed(1) : "—"}</strong></div>
     </div>
@@ -4058,7 +4071,7 @@ function taskSupportPickerHtml(candidates, presetSupportIds) {
   if (uncovered.length) groups[0].people = groups[0].people.concat(uncovered);
   const groupsHtml = groups.filter(g => g.people.length).map(g => {
     const hasPreset = g.people.some(p => presetSupportIds.includes(p.id));
-    const items = g.people.map(person => `<label data-name="${person.name.toLowerCase()}" data-person-name="${person.name}"><input type="checkbox" name="supportIds" value="${person.id}"${presetSupportIds.includes(person.id) ? " checked" : ""}> ${person.name} · ${unitById(person.unitId).short}</label>`).join("");
+    const items = g.people.map(person => { const bio = personBioLine(person); return `<label data-name="${person.name.toLowerCase()}" data-person-name="${person.name}"><input type="checkbox" name="supportIds" value="${person.id}"${presetSupportIds.includes(person.id) ? " checked" : ""}> ${person.name} · ${unitById(person.unitId).short}${bio ? " · " + bio : ""}</label>`; }).join("");
     return `<details class="support-group" ${(g.def.openByDefault || hasPreset) ? "open" : ""}><summary>${g.def.label} (${g.people.length})</summary><div class="unit-checklist unit-checklist-lg">${items}</div></details>`;
   }).join("");
   return `<div class="support-picker" id="taskSupportPicker">
@@ -4074,7 +4087,7 @@ function taskSupportPickerHtml(candidates, presetSupportIds) {
 // nguoi - nay dung chung form nay, dien san du lieu hien co, xem
 // submitEditTaskGroupForm).
 function taskAssignFormHtml(candidates, opts = {}) {
-  const options = candidates.map(person => `<option value="${person.id}"${person.id === opts.leadId ? " selected" : ""}>${person.name} · ${unitById(person.unitId).short}</option>`).join("");
+  const options = candidates.map(person => { const bio = personBioLine(person); return `<option value="${person.id}"${person.id === opts.leadId ? " selected" : ""}>${person.name} · ${unitById(person.unitId).short}${bio ? " · " + bio : ""}</option>`; }).join("");
   const actionsHtml = opts.isEdit
     ? `<button type="submit" class="button button-primary">Lưu thay đổi</button>`
     : `<button type="submit" class="button button-primary">Giao việc</button><button type="submit" class="button button-secondary" data-with-log="1">Giao việc và ghi nhật ký</button>`;
@@ -4424,7 +4437,7 @@ function orgUnitCard(unit) {
     .slice().sort((a, b) => (ROLE_RANK[b.role] ?? 0) - (ROLE_RANK[a.role] ?? 0) || a.name.localeCompare(b.name));
   const expanded = state.orgExpandedUnitId === unit.id;
   const memberRows = expanded
-    ? `<div class="org-unit-members">${members.length ? members.map(m => `<div class="org-member-row"><span>${m.name}</span><span class="meta-tag">${ROLE_LABELS[m.role] || m.role}</span>${m.active === false ? `<span class="meta-tag meta-tag-warning">Đã khoá</span>` : ""}</div>`).join("") : `<span class="unit-checklist-empty">Chưa có nhân sự</span>`}</div>`
+    ? `<div class="org-unit-members">${members.length ? members.map(m => { const bio = personBioLine(m); return `<div class="org-member-row"><span>${m.name}</span><span class="meta-tag">${ROLE_LABELS[m.role] || m.role}</span>${bio ? `<span class="meta-tag">${bio}</span>` : ""}${m.active === false ? `<span class="meta-tag meta-tag-warning">Đã khoá</span>` : ""}</div>`; }).join("") : `<span class="unit-checklist-empty">Chưa có nhân sự</span>`}</div>`
     : "";
   return `<div class="org-unit-wrap"><button type="button" class="org-unit ${expanded ? "is-expanded" : ""}" data-org-unit-toggle="${unit.id}"><div><strong>${unit.short}</strong><span>${head ? head.name : "Chưa phân công người đứng đầu"}</span></div><span class="score-pill score-mid">${members.length} người</span></button>${memberRows}</div>`;
 }
