@@ -491,7 +491,10 @@ function weightedQuality(items) {
 
 function visibleUnitIds(user = currentUser()) {
   if (user.role === "province_head" || user.role === "administrator") return units.map(unit => unit.id);
-  if (user.role === "province_deputy") return ["province", ...(user.assignedUnits || [])];
+  // Pho Vien truong dang duoc uy quyen thay mat toan tinh thi xem toan bo
+  // giong Vien truong, khong chi rieng don vi phan cong co dinh (yeu cau
+  // nguoi dung, 2026-09-08).
+  if (user.role === "province_deputy") return hasActiveDelegation(user.id) ? units.map(unit => unit.id) : ["province", ...(user.assignedUnits || [])];
   return [user.unitId];
 }
 
@@ -710,9 +713,11 @@ function initialize() {
   document.getElementById("exportModal").addEventListener("click", event => {
     if (event.target.id === "exportModal") closeExportModal();
   });
-  document.getElementById("exportPeriodSelect").addEventListener("change", event => renderExportSummary(event.target.value));
+  document.getElementById("exportPeriodSelect").addEventListener("change", event => { if (!document.getElementById("exportScoreSection").hidden) renderExportSummary(event.target.value); });
   document.getElementById("exportExcelButton").addEventListener("click", () => exportMonthlyExcel(document.getElementById("exportPeriodSelect").value));
   document.getElementById("exportPdfButton").addEventListener("click", () => exportMonthlyPdf(document.getElementById("exportPeriodSelect").value));
+  document.getElementById("exportLogExcelButton").addEventListener("click", () => exportMonthlyLogExcel(document.getElementById("exportPeriodSelect").value));
+  document.getElementById("exportLogPdfButton").addEventListener("click", () => exportMonthlyLogPdf(document.getElementById("exportPeriodSelect").value));
   document.querySelectorAll("[data-close-note]").forEach(button => button.addEventListener("click", closeNoteModal));
   document.getElementById("noteModal").addEventListener("click", event => {
     if (event.target.id === "noteModal") closeNoteModal();
@@ -2461,7 +2466,7 @@ function renderMonthly() {
     <div class="demo-notice"><strong>Dữ liệu tham chiếu</strong><span>Danh mục và điểm ${periodLabel(state.monthlyPeriod).toLowerCase()} lấy từ bảng tổng hợp đã cung cấp (hoặc mô phỏng cho các kỳ khác). Demo đang nạp 32 hồ sơ đại diện trong tổng số 428 cán bộ, công chức và người lao động.</span></div>
     <div class="toolbar">
       <label class="filter-field"><span>Kỳ đánh giá</span><select id="monthlyPeriodFilter">${recentPeriods().map(period => `<option value="${period}" ${state.monthlyPeriod === period ? "selected" : ""}>${periodLabel(period)}${period === recentPeriods()[0] ? " · Đang chấm" : " · Đã chốt"}</option>`).join("")}</select></label>
-      ${unitFilter}<label class="field"><span>Tìm theo tên</span><input type="text" id="monthlySearchInput" value="${state.monthlySearch}" placeholder="Nhập tên..."></label><div class="spacer"></div><button class="button button-secondary" id="exportMonthly">Xuất báo cáo tháng</button>
+      ${unitFilter}<label class="field"><span>Tìm theo tên</span><input type="text" id="monthlySearchInput" value="${state.monthlySearch}" placeholder="Nhập tên..."></label><div class="spacer"></div><button class="button button-secondary" id="exportMonthly">${(currentUser().role === "staff" || currentUser().role === "support_staff") ? "Xuất nhật ký tháng" : "Xuất báo cáo tháng"}</button>
     </div>
     <div class="metric-grid">
       ${metricCard("Hồ sơ trong phạm vi", rows.length, `${approved.length} hồ sơ đã duyệt`, "")}
@@ -2829,7 +2834,10 @@ function monthlyExportScope(period) {
   let scopedUsers = users.filter(person => person.role !== "administrator");
   if (user.role === "staff" || user.role === "support_staff") scopedUsers = scopedUsers.filter(person => person.id === user.id);
   if (user.role === "unit_head" || user.role === "unit_deputy") scopedUsers = scopedUsers.filter(person => person.unitId === user.unitId && isVisibleInUnitScope(person, user));
-  if (user.role === "province_deputy") scopedUsers = scopedUsers.filter(person => person.role === "unit_head" && (user.assignedUnits || []).includes(person.unitId));
+  // Pho Vien truong dang duoc uy quyen thay mat toan tinh thi xuat toan bo
+  // giong Vien truong, khong chi rieng don vi phan cong co dinh (yeu cau
+  // nguoi dung, 2026-09-08).
+  if (user.role === "province_deputy" && !hasActiveDelegation(user.id)) scopedUsers = scopedUsers.filter(person => person.role === "unit_head" && (user.assignedUnits || []).includes(person.unitId));
   return scopedUsers.map(person => ({ person, review: monthlyReviews.find(r => r.period === period && r.userId === person.id) || null }));
 }
 
@@ -2871,10 +2879,18 @@ function monthlyExportCompleteness(period) {
   return { total: scope.length, missingSelf, missingOfficial, missingClassification, officialApplicable, byUnit };
 }
 
+// Nhan vien/KSV thuong khong co ai "duoi quyen" de tong hop bang diem, nen
+// chi hien khu "Nhat ky chi tiet" (xuat nhat ky cua chinh ho trong ky) -
+// khu "Bao cao tong hop diem" chi hien cho lanh dao (yeu cau nguoi dung,
+// 2026-09-08).
 function openExportModal() {
+  const user = currentUser();
+  const isIndividual = user.role === "staff" || user.role === "support_staff";
+  document.getElementById("exportModalTitle").textContent = isIndividual ? "Xuất nhật ký tháng" : "Xuất báo cáo chấm điểm tháng";
+  document.getElementById("exportScoreSection").hidden = isIndividual;
   const select = document.getElementById("exportPeriodSelect");
   select.innerHTML = recentPeriods().map(period => `<option value="${period}" ${period === state.monthlyPeriod ? "selected" : ""}>${periodLabel(period)}</option>`).join("");
-  renderExportSummary(select.value);
+  if (!isIndividual) renderExportSummary(select.value);
   document.getElementById("exportModal").hidden = false;
 }
 
@@ -3022,6 +3038,7 @@ const PDF_EXPORT_CSS = `
   .pdf-export-root td.c { text-align: center; }
   .pdf-export-root tr { break-inside: avoid; page-break-inside: avoid; }
   .pdf-export-root .section-row td { font-weight: bold; text-align: left; background: #f3f3f3; }
+  .pdf-export-root .person-row td { font-weight: bold; font-style: italic; text-align: left; background: #fafafa; }
   .pdf-export-root .signature { margin-top: 26px; width: 100%; }
   .pdf-export-root .signature td { border: none; text-align: center; }
   .pdf-export-root .sig-title { font-weight: bold; }
@@ -3113,7 +3130,169 @@ async function exportMonthlyPdf(period) {
   }
 }
 
-const ROLE_LABELS = { province_head: "Viện trưởng tỉnh", province_deputy: "Phó Viện trưởng tỉnh", unit_head: "Trưởng phòng/Viện trưởng KV", unit_deputy: "Phó phòng/Phó Viện trưởng KV", staff: "Cán bộ/Kiểm sát viên", support_staff: "Người lao động", administrator: "Quản trị viên" };
+// ============================================
+// XUAT NHAT KY CHI TIET THANG - khac voi "Xuat bao cao thang" (bang tong
+// hop diem o tren), day la liet ke TUNG dong nhat ky thuc te da ghi trong
+// ky, nhom theo tung nguoi - dung khi can xem lai chi tiet noi dung cong
+// viec, khong chi con so tong hop (yeu cau nguoi dung, 2026-09-08).
+// ============================================
+function monthlyLogExportScopeProfiles(user = currentUser()) {
+  if (user.role === "staff" || user.role === "support_staff") return [user];
+  if (user.role === "unit_head" || user.role === "unit_deputy") {
+    return users.filter(p => p.unitId === user.unitId && p.role !== "administrator" && isVisibleInUnitScope(p, user));
+  }
+  // Pho Vien truong dang duoc uy quyen thay mat toan tinh thi xem toan bo
+  // giong Vien truong, khong chi rieng don vi phan cong co dinh.
+  if (user.role === "province_deputy" && !hasActiveDelegation(user.id)) {
+    const ids = user.assignedUnits || [];
+    return users.filter(p => ids.includes(p.unitId) && p.role !== "administrator");
+  }
+  return users.filter(p => p.role !== "administrator");
+}
+
+function monthlyLogExportScope(period) {
+  const people = monthlyLogExportScopeProfiles();
+  return people.map(person => ({ person, logs: logs.filter(l => l.authorId === person.id && (l.date || "").startsWith(period)) }));
+}
+
+// Nhom theo don vi (sap xep ten don vi) roi theo nguoi (sap xep ten) trong
+// tung don vi - dung cho ca Excel lan PDF.
+function monthlyLogExportGroups(peopleWithLogs) {
+  const byUnit = {};
+  peopleWithLogs.forEach(x => { (byUnit[x.person.unitId] = byUnit[x.person.unitId] || []).push(x); });
+  return Object.keys(byUnit).map(uid => ({
+    unitId: uid, unitName: unitDisplayName(uid),
+    items: byUnit[uid].slice().sort((a, b) => a.person.name.localeCompare(b.person.name, "vi"))
+  })).sort((a, b) => a.unitName.localeCompare(b.unitName, "vi"));
+}
+
+async function exportMonthlyLogExcel(period) {
+  const groups = monthlyLogExportGroups(monthlyLogExportScope(period));
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Nhật ký", { pageSetup: { orientation: "landscape", fitToPage: true } });
+  sheet.columns = [{ width: 5 }, { width: 12 }, { width: 22 }, { width: 34 }, { width: 34 }, { width: 10 }, { width: 10 }, { width: 14 }];
+  let r = 1;
+  sheet.mergeCells(`A${r}:H${r}`);
+  sheet.getCell(`A${r}`).value = `NHẬT KÝ CÔNG TÁC CHI TIẾT THÁNG ${Number(period.split("-")[1])}/${period.split("-")[0]}`;
+  sheet.getCell(`A${r}`).font = { bold: true, size: 13, name: "Times New Roman" };
+  sheet.getCell(`A${r}`).alignment = { horizontal: "center" };
+  r += 2;
+  groups.forEach(g => {
+    sheet.mergeCells(`A${r}:H${r}`);
+    sheet.getCell(`A${r}`).value = g.unitName;
+    sheet.getCell(`A${r}`).font = { bold: true, name: "Times New Roman", size: 12 };
+    sheet.getCell(`A${r}`).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEFEFEF" } };
+    r++;
+    g.items.forEach(x => {
+      sheet.mergeCells(`A${r}:H${r}`);
+      sheet.getCell(`A${r}`).value = `${x.person.name}${x.person.title ? " - " + x.person.title : ""} (${x.logs.length} nhật ký)`;
+      sheet.getCell(`A${r}`).font = { bold: true, italic: true, name: "Times New Roman", size: 11 };
+      r++;
+      const headRow = sheet.getRow(r);
+      headRow.values = ["STT", "Ngày", "Lĩnh vực", "Nội dung công việc", "Kết quả", "Độ phức tạp", "Chất lượng", "Trạng thái"];
+      headRow.eachCell(cell => { cell.font = { bold: true, name: "Times New Roman", size: 10.5 }; cell.border = EXCEL_BORDER; cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true }; });
+      r++;
+      if (!x.logs.length) {
+        sheet.mergeCells(`A${r}:H${r}`);
+        sheet.getCell(`A${r}`).value = "Chưa ghi nhật ký nào trong tháng này.";
+        sheet.getCell(`A${r}`).font = { italic: true, name: "Times New Roman", size: 10.5, color: { argb: "FF888888" } };
+        r++;
+      } else {
+        x.logs.forEach((l, idx) => {
+          const row = sheet.getRow(r);
+          row.values = [idx + 1, fullDate(l.date), l.category || "", l.title || "", l.result || "", l.complexity ?? l.selfComplexity ?? "", l.quality ?? l.selfQuality ?? "", statusLabel(l.status)];
+          row.eachCell(cell => { cell.font = { name: "Times New Roman", size: 10.5 }; cell.border = EXCEL_BORDER; cell.alignment = { vertical: "top", wrapText: true }; });
+          row.getCell(1).alignment = { horizontal: "center", vertical: "top" };
+          row.getCell(2).alignment = { horizontal: "center", vertical: "top" };
+          row.getCell(6).alignment = { horizontal: "center", vertical: "top" };
+          row.getCell(7).alignment = { horizontal: "center", vertical: "top" };
+          row.getCell(8).alignment = { horizontal: "center", vertical: "top" };
+          r++;
+        });
+      }
+      r++;
+    });
+  });
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = `nhat-ky-chi-tiet-${period}-demo.xlsx`; a.click();
+  URL.revokeObjectURL(url);
+  showToast("Đã xuất file Excel.");
+}
+
+function monthlyLogReportBodyHtml(period, groups) {
+  const [reportYear, reportMonth] = period.split("-");
+  const bodyHtml = groups.map(g => {
+    const unitHeader = `<tr class="section-row"><td colspan="8">${g.unitName}</td></tr>`;
+    const peopleHtml = g.items.map(x => {
+      const personHeader = `<tr class="person-row"><td colspan="8">${x.person.name}${x.person.title ? " - " + x.person.title : ""} (${x.logs.length} nhật ký)</td></tr>`;
+      const rowsHtml = x.logs.length ? x.logs.map((l, idx) => `<tr><td class="c">${idx + 1}</td><td class="c">${fullDate(l.date)}</td><td>${l.category || ""}</td><td>${l.title || ""}</td><td>${l.result || ""}</td><td class="c">${l.complexity ?? l.selfComplexity ?? ""}</td><td class="c">${l.quality ?? l.selfQuality ?? ""}</td><td class="c">${statusLabel(l.status)}</td></tr>`).join("")
+        : `<tr><td colspan="8" style="font-style:italic;color:#888">Chưa ghi nhật ký nào trong tháng này.</td></tr>`;
+      return personHeader + rowsHtml;
+    }).join("");
+    return unitHeader + peopleHtml;
+  }).join("");
+  return `
+    <div class="letterhead">
+      <div><strong>VIỆN KIỂM SÁT NHÂN DÂN TỐI CAO</strong><span>VIỆN KIỂM SÁT NHÂN DÂN TỈNH BẮC NINH</span></div>
+      <div><strong>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><span style="text-decoration:underline">Độc lập - Tự do - Hạnh phúc</span></div>
+    </div>
+    <h1>NHẬT KÝ CÔNG TÁC CHI TIẾT</h1>
+    <div class="period">tháng ${Number(reportMonth)} năm ${reportYear}</div>
+    <table>
+      <thead><tr><th>Số TT</th><th>Ngày</th><th>Lĩnh vực công tác</th><th>Nội dung công việc</th><th>Kết quả/sản phẩm</th><th>Độ phức tạp</th><th>Chất lượng</th><th>Trạng thái</th></tr></thead>
+      <tbody>${bodyHtml}</tbody>
+    </table>`;
+}
+
+async function exportMonthlyLogPdf(period) {
+  if (typeof html2canvas === "undefined" || typeof window.jspdf === "undefined") { showToast("Chưa tải được thư viện xuất PDF, thử lại sau."); return; }
+  const groups = monthlyLogExportGroups(monthlyLogExportScope(period));
+  let styleEl = document.getElementById("pdfExportStyle");
+  if (!styleEl) {
+    styleEl = document.createElement("style");
+    styleEl.id = "pdfExportStyle";
+    styleEl.textContent = PDF_EXPORT_CSS;
+    document.head.appendChild(styleEl);
+  }
+  const container = document.createElement("div");
+  container.className = "pdf-export-root";
+  container.style.position = "fixed";
+  container.style.left = "0";
+  container.style.top = "0";
+  container.style.zIndex = "-1";
+  container.style.width = "1600px";
+  container.innerHTML = monthlyLogReportBodyHtml(period, groups);
+  document.body.appendChild(container);
+  try {
+    const canvas = await html2canvas(container, { scale: 2, useCORS: true });
+    const imgData = canvas.toDataURL("image/jpeg", 0.98);
+    const pdf = new window.jspdf.jsPDF({ unit: "mm", format: "a3", orientation: "landscape" });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidthMm = pageWidth;
+    const imgHeightMm = canvas.height * imgWidthMm / canvas.width;
+    let heightLeft = imgHeightMm;
+    let position = 0;
+    pdf.addImage(imgData, "JPEG", 0, position, imgWidthMm, imgHeightMm);
+    heightLeft -= pageHeight;
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeightMm;
+      pdf.addPage();
+      pdf.addImage(imgData, "JPEG", 0, position, imgWidthMm, imgHeightMm);
+      heightLeft -= pageHeight;
+    }
+    pdf.save(`nhat-ky-chi-tiet-${period}-demo.pdf`);
+    showToast("Đã xuất file PDF.");
+  } catch (e) {
+    showToast("Lỗi khi xuất PDF: " + e.message);
+  } finally {
+    container.remove();
+  }
+}
+
+const ROLE_LABELS ={ province_head: "Viện trưởng tỉnh", province_deputy: "Phó Viện trưởng tỉnh", unit_head: "Trưởng phòng/Viện trưởng KV", unit_deputy: "Phó phòng/Phó Viện trưởng KV", staff: "Cán bộ/Kiểm sát viên", support_staff: "Người lao động", administrator: "Quản trị viên" };
 const ROLE_OPTIONS = ["staff", "support_staff", "unit_deputy", "unit_head", "province_deputy", "province_head", "administrator"];
 
 function renderOrganization() {

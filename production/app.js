@@ -112,6 +112,9 @@ var CHANGELOG=[
   {date:'2026-09-07',type:'improve',text:'Các ô nhập nội dung dài (Kết quả/sản phẩm đầu ra, Mô tả, Nhận xét của lãnh đạo, Lý do...) nay tự động giãn cao theo đúng lượng chữ đã gõ, không còn phải cuộn lên xuống trong 1 ô nhỏ.'},
   {date:'2026-09-07',type:'improve',text:'Giao việc: ô "Tên công việc" nay tự xuống dòng và giãn cao khi hết bề ngang, không còn bị cố định trong 1 dòng phải cuộn ngang mới đọc hết.'},
   {date:'2026-09-08',type:'feature',text:'Chuông thông báo: rà soát và bổ sung 8 trường hợp thay đổi trước đây không báo cho người liên quan - xoá hẳn 1 việc đã giao, xoá điểm cộng/trừ đột xuất, đổi vai trò/đơn vị tài khoản, đổi phạm vi đơn vị phụ trách, khoá/mở khoá tài khoản, lãnh đạo xác nhận đơn nghỉ phép, cấp dưới tự chấm điểm tháng (báo cho người duyệt), cấp dưới tự đặt hạn hoàn thành việc được giao (báo cho người giao việc).'},
+  {date:'2026-09-08',type:'improve',text:'Đổi tên lĩnh vực công tác "Kế toán" thành "Kế toán, đầu tư xây dựng cơ bản" cho đúng phạm vi công việc thực tế.'},
+  {date:'2026-09-08',type:'fix',text:'Xuất báo cáo/nhật ký tháng: Phó Viện trưởng tỉnh đang trong thời gian được uỷ quyền thay mặt toàn tỉnh (nhưng không có đơn vị phân công cố định) nay xuất được toàn tỉnh, trước đây bị trả về rỗng.'},
+  {date:'2026-09-08',type:'feature',text:'Thêm nút "Xuất nhật ký tháng" - liệt kê từng nhật ký thực tế đã ghi trong kỳ (ngày, lĩnh vực, nội dung, kết quả, điểm), nhóm theo từng người, khác với "Xuất báo cáo tháng" (chỉ có bảng tổng hợp điểm). Phạm vi đúng theo cấp: Viện trưởng - toàn tỉnh, Phó Viện trưởng - các đơn vị phụ trách, Trưởng/Phó phòng - cả đơn vị, cán bộ/KSV thường - nhật ký của chính mình (nút "Xuất báo cáo tháng" trên tài khoản cá nhân nay đổi thành "Xuất nhật ký tháng").'},
   {date:'2026-09-06',type:'feature',text:'Thêm mục riêng "Điểm cộng/trừ đột xuất" (khen thưởng/kỷ luật phát hiện sau khi tháng đã chấm xong) - có thống kê tổng lượt/tổng điểm riêng, ghi thành từng dòng, không bao giờ mất, luôn áp dụng cho tháng hiện tại (không sửa lại điểm tháng đã chốt), người bị/được áp dụng xem được lý do. Có link nhảy nhanh từ "Chấm điểm tháng" sang.'},
   {date:'2026-09-06',type:'feature',text:'Nhật ký công tác của đơn vị: thêm cách xem "Theo ngày" - chọn 1 ngày cụ thể là thấy ngay ai đã nộp việc, ai đang nghỉ phép, ai chưa nộp trong ngày đó, giúp lãnh đạo đôn đốc kịp thời.'},
   {date:'2026-09-06',type:'fix',text:'Sửa lỗi Trưởng phòng/Viện trưởng khu vực có thể duyệt nhầm nhật ký mà KSV đã nộp đích danh cho 1 Phó - nay tách riêng thành 2 khu "Nộp cho tôi" và "Đang chờ người khác xử lý" trong màn Duyệt & chấm điểm.'},
@@ -384,7 +387,10 @@ function dashboardLogsFiltered(includeAllPeriods){
 
 function dashboardAvailableUnits(){
   if(U.rl==='province_head'||U.rl==='administrator')return UNITS.filter(function(u){return u.type!=='province'});
-  if(U.rl==='province_deputy')return UNITS.filter(function(u){return (U.assignedUnits||[]).indexOf(u.id)>=0});
+  // Pho Vien truong dang duoc uy quyen thay mat toan tinh (U.hasFullDelegation)
+  // thi xem toan bo giong Vien truong, khong chi rieng don vi phan cong co
+  // dinh (yeu cau nguoi dung, 2026-09-08).
+  if(U.rl==='province_deputy')return U.hasFullDelegation?UNITS.filter(function(u){return u.type!=='province'}):UNITS.filter(function(u){return (U.assignedUnits||[]).indexOf(u.id)>=0});
   return UNITS.filter(function(u){return u.id===U.uid});
 }
 
@@ -410,13 +416,18 @@ async function fetchDashboardScopeProfiles(){
     if(!r.ok)throw new Error('HTTP '+r.status);
     return filterVisibleInUnitScope(await r.json());
   }
-  if(U.rl==='province_deputy'){
+  if(U.rl==='province_deputy'&&!U.hasFullDelegation){
     var ids=(U.assignedUnits||[]);
     if(!ids.length)return [];
     var r2=await fetch(API+'profiles?unit_id=in.('+ids.join(',')+')&role=neq.administrator&select='+sel,{headers:authHeaders()});
     if(!r2.ok)throw new Error('HTTP '+r2.status);
     return await r2.json();
   }
+  // province_head, hoac province_deputy dang trong thoi gian duoc uy quyen
+  // thay mat 100% toan tinh (U.hasFullDelegation) - xem toan bo, giong het
+  // pham vi Vien truong tinh (yeu cau nguoi dung, 2026-09-08: truoc day Pho
+  // Vien truong khong co don vi phan cong co dinh nhung dang duoc uy quyen
+  // van bi tra ve rong, khong xuat duoc gi).
   var r3=await fetch(API+'profiles?role=neq.administrator&select='+sel,{headers:authHeaders()});
   if(!r3.ok)throw new Error('HTTP '+r3.status);
   return await r3.json();
@@ -3252,13 +3263,15 @@ async function fetchMonthlyScopeProfiles(){
     if(!r.ok)throw new Error('HTTP '+r.status);
     return filterVisibleInUnitScope(await r.json());
   }
-  if(U.rl==='province_deputy'){
+  if(U.rl==='province_deputy'&&!U.hasFullDelegation){
     var ids=(U.assignedUnits||[]);
     if(!ids.length)return [];
     var r2=await fetch(API+'profiles?unit_id=in.('+ids.join(',')+')&role=eq.unit_head&select='+sel,{headers:authHeaders()});
     if(!r2.ok)throw new Error('HTTP '+r2.status);
     return await r2.json();
   }
+  // Xem giai thich o fetchDashboardScopeProfiles - Pho Vien truong dang
+  // duoc uy quyen thay mat toan tinh thi xem toan bo giong Vien truong.
   var r3=await fetch(API+'profiles?role=neq.administrator&select='+sel,{headers:authHeaders()});
   if(!r3.ok)throw new Error('HTTP '+r3.status);
   return await r3.json();
@@ -3346,7 +3359,7 @@ async function rm(){
 
   var h='<div class="toolbar"><label class="filter-field"><span>Kỳ đánh giá</span><select id="monthlyPeriodSelect">'
     +recentPeriods().map(function(p){return '<option value="'+p+'" '+(p===CURRENT_PERIOD?'selected':'')+'>'+esc(periodLabel(p))+'</option>'}).join('')
-    +'</select></label>'+unitFilterHtml+'<label class="field"><span>Tìm theo tên</span><input type="text" id="monthlySearchInput" value="'+esc(MONTHLY_SEARCH)+'" placeholder="Nhập tên..."></label><div class="spacer"></div><button class="button button-secondary" id="exportMonthly">Xuất báo cáo tháng</button></div>';
+    +'</select></label>'+unitFilterHtml+'<label class="field"><span>Tìm theo tên</span><input type="text" id="monthlySearchInput" value="'+esc(MONTHLY_SEARCH)+'" placeholder="Nhập tên..."></label><div class="spacer"></div><button class="button button-secondary" id="exportMonthly">'+((U.rl==='staff'||U.rl==='support_staff')?'Xuất nhật ký tháng':'Xuất báo cáo tháng')+'</button></div>';
   h+='<div class="metric-grid">'
     +metricCard('Hồ sơ trong phạm vi',rows.length,approved.length+' hồ sơ đã duyệt','')
     +metricCard('Xếp loại A',counts.A,counts.B+' xếp loại B','green')
@@ -3763,11 +3776,18 @@ function monthlyExportCompleteness(scope){
   return {total:scope.length,missingSelf:missingSelf,missingOfficial:missingOfficial,missingClassification:missingClassification,officialApplicable:officialApplicable,byUnit:byUnit};
 }
 
+// Nhan vien/KSV thuong khong co ai "duoi quyen" de tong hop bang diem, nen
+// chi hien khu "Nhat ky chi tiet" (xuat nhat ky cua chinh ho trong ky) -
+// khu "Bao cao tong hop diem" chi hien cho lanh dao (yeu cau nguoi dung,
+// 2026-09-08).
 async function openExportModal(){
+  var isIndividual=(U.rl==='staff'||U.rl==='support_staff');
+  $('exportModalTitle').textContent=isIndividual?'Xuất nhật ký tháng':'Xuất báo cáo chấm điểm tháng';
+  $('exportScoreSection').hidden=isIndividual;
   var select=$('exportPeriodSelect');
   select.innerHTML=recentPeriods().map(function(p){return '<option value="'+p+'" '+(p===CURRENT_PERIOD?'selected':'')+'>'+esc(periodLabel(p))+'</option>'}).join('');
   $('exportModal').hidden=false;
-  await renderExportSummary(select.value);
+  if(!isIndividual)await renderExportSummary(select.value);
 }
 
 function closeExportModal(){$('exportModal').hidden=true}
@@ -3929,6 +3949,7 @@ var PDF_EXPORT_CSS=''
   +'.pdf-export-root td.c { text-align: center; }'
   +'.pdf-export-root tr { break-inside: avoid; page-break-inside: avoid; }'
   +'.pdf-export-root .section-row td { font-weight: bold; text-align: left; background: #f3f3f3; }'
+  +'.pdf-export-root .person-row td { font-weight: bold; font-style: italic; text-align: left; background: #fafafa; }'
   +'.pdf-export-root .signature { margin-top: 26px; width: 100%; }'
   +'.pdf-export-root .signature td { border: none; text-align: center; }'
   +'.pdf-export-root .sig-title { font-weight: bold; }'
@@ -4016,6 +4037,175 @@ async function exportMonthlyPdf(period){
       heightLeft-=pageHeight;
     }
     pdf.save('tong-hop-cham-diem-'+period+'.pdf');
+    showToast('Đã xuất file PDF.');
+  }catch(e){
+    showToast('Lỗi khi xuất PDF: '+e.message);
+  }finally{
+    container.remove();
+  }
+}
+
+// ============================================
+// XUAT NHAT KY CHI TIET THANG - khac voi "Xuat bao cao thang" (bang tong
+// hop diem, dung khuon mau chinh thuc co san o tren), day la liet ke TUNG
+// dong nhat ky thuc te da ghi trong ky, nhom theo tung nguoi - dung khi
+// can xem lai chi tiet noi dung cong viec, khong chi con so tong hop
+// (yeu cau nguoi dung, 2026-09-08). Pham vi nguoi dung DUNG LAI
+// fetchDashboardScopeProfiles() (da tinh dung ca truong hop Pho Vien
+// truong dang duoc uy quyen thay mat toan tinh).
+async function fetchMonthlyLogsScope(period){
+  var people=await fetchDashboardScopeProfiles();
+  if(!people.length)return [];
+  var ids=people.map(function(p){return p.id});
+  var start=period+'-01';
+  var parts=period.split('-');
+  // Number(parts[1]) khong -1: parts[1] la thang 1-index (vd "08"), ymdStr
+  // nhan thang 0-index nen chinh la thang KE TIEP theo 0-index (giong cach
+  // dung trong monthlyEvidence()).
+  var end=ymdStr(Number(parts[0]),Number(parts[1]),1);
+  var r=await fetch(API+'work_logs?author_id=in.('+ids.join(',')+')&log_date=gte.'+start+'&log_date=lt.'+end+'&select=id,author_id,log_date,category_id,title,result,complexity_score,quality_score,status&order=log_date.asc',{headers:authHeaders()});
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  var logs=await r.json();
+  return people.map(function(p){return {person:p,logs:logs.filter(function(l){return l.author_id===p.id})}});
+}
+
+// Nhom theo don vi (sap xep ten don vi) roi theo nguoi (sap xep ten) trong
+// tung don vi - dung cho ca Excel lan PDF.
+function monthlyLogExportGroups(peopleWithLogs){
+  var byUnit={};
+  peopleWithLogs.forEach(function(x){
+    var uid=x.person.unit_id;
+    if(!byUnit[uid])byUnit[uid]=[];
+    byUnit[uid].push(x);
+  });
+  return Object.keys(byUnit).map(function(uid){
+    return {unitId:uid,unitName:unitShort(uid),items:byUnit[uid].sort(function(a,b){return (a.person.full_name||'').localeCompare(b.person.full_name||'','vi')})};
+  }).sort(function(a,b){return a.unitName.localeCompare(b.unitName,'vi')});
+}
+
+async function exportMonthlyLogExcel(period){
+  var scope;
+  try{scope=await fetchMonthlyLogsScope(period)}catch(e){showToast('Lỗi: '+e.message);return}
+  var groups=monthlyLogExportGroups(scope);
+  var workbook=new ExcelJS.Workbook();
+  var sheet=workbook.addWorksheet('Nhật ký',{pageSetup:{orientation:'landscape',fitToPage:true}});
+  sheet.columns=[{width:5},{width:12},{width:22},{width:34},{width:34},{width:10},{width:10},{width:14}];
+  var r=1;
+  sheet.mergeCells('A'+r+':H'+r);
+  sheet.getCell('A'+r).value='NHẬT KÝ CÔNG TÁC CHI TIẾT THÁNG '+Number(period.split('-')[1])+'/'+period.split('-')[0];
+  sheet.getCell('A'+r).font={bold:true,size:13,name:'Times New Roman'};
+  sheet.getCell('A'+r).alignment={horizontal:'center'};
+  r+=2;
+  groups.forEach(function(g){
+    sheet.mergeCells('A'+r+':H'+r);
+    sheet.getCell('A'+r).value=g.unitName;
+    sheet.getCell('A'+r).font={bold:true,name:'Times New Roman',size:12};
+    sheet.getCell('A'+r).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFEFEFEF'}};
+    r++;
+    g.items.forEach(function(x){
+      sheet.mergeCells('A'+r+':H'+r);
+      sheet.getCell('A'+r).value=x.person.full_name+(x.person.title?(' - '+x.person.title):'')+' ('+x.logs.length+' nhật ký)';
+      sheet.getCell('A'+r).font={bold:true,italic:true,name:'Times New Roman',size:11};
+      r++;
+      var headRow=sheet.getRow(r);
+      headRow.values=['STT','Ngày','Lĩnh vực','Nội dung công việc','Kết quả','Độ phức tạp','Chất lượng','Trạng thái'];
+      headRow.eachCell(function(cell){cell.font={bold:true,name:'Times New Roman',size:10.5};cell.border=EXCEL_BORDER;cell.alignment={horizontal:'center',vertical:'middle',wrapText:true}});
+      r++;
+      if(!x.logs.length){
+        sheet.mergeCells('A'+r+':H'+r);
+        sheet.getCell('A'+r).value='Chưa ghi nhật ký nào trong tháng này.';
+        sheet.getCell('A'+r).font={italic:true,name:'Times New Roman',size:10.5,color:{argb:'FF888888'}};
+        r++;
+      }else{
+        x.logs.forEach(function(l,idx){
+          var row=sheet.getRow(r);
+          row.values=[idx+1,fullDate(l.log_date),catName(l.category_id),l.title||'',l.result||'',l.complexity_score!=null?l.complexity_score:'',l.quality_score!=null?l.quality_score:'',STATUS_LABEL[l.status]||l.status];
+          row.eachCell(function(cell){cell.font={name:'Times New Roman',size:10.5};cell.border=EXCEL_BORDER;cell.alignment={vertical:'top',wrapText:true}});
+          row.getCell(1).alignment={horizontal:'center',vertical:'top'};
+          row.getCell(2).alignment={horizontal:'center',vertical:'top'};
+          row.getCell(6).alignment={horizontal:'center',vertical:'top'};
+          row.getCell(7).alignment={horizontal:'center',vertical:'top'};
+          row.getCell(8).alignment={horizontal:'center',vertical:'top'};
+          r++;
+        });
+      }
+      r++;
+    });
+  });
+  var buffer=await workbook.xlsx.writeBuffer();
+  var blob=new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');a.href=url;a.download='nhat-ky-chi-tiet-'+period+'.xlsx';a.click();
+  URL.revokeObjectURL(url);
+  showToast('Đã xuất file Excel.');
+}
+
+function monthlyLogReportBodyHtml(period,groups){
+  var periodParts=period.split('-'),reportYear=periodParts[0],reportMonth=periodParts[1];
+  var bodyHtml=groups.map(function(g){
+    var unitHeader='<tr class="section-row"><td colspan="8">'+esc(g.unitName)+'</td></tr>';
+    var peopleHtml=g.items.map(function(x){
+      var personHeader='<tr class="person-row"><td colspan="8">'+esc(x.person.full_name)+(x.person.title?(' - '+esc(x.person.title)):'')+' ('+x.logs.length+' nhật ký)</td></tr>';
+      var rowsHtml=x.logs.length?x.logs.map(function(l,idx){
+        return '<tr><td class="c">'+(idx+1)+'</td><td class="c">'+esc(fullDate(l.log_date))+'</td><td>'+esc(catName(l.category_id))+'</td><td>'+esc(l.title||'')+'</td><td>'+esc(l.result||'')+'</td><td class="c">'+(l.complexity_score!=null?l.complexity_score:'')+'</td><td class="c">'+(l.quality_score!=null?l.quality_score:'')+'</td><td class="c">'+esc(STATUS_LABEL[l.status]||l.status)+'</td></tr>';
+      }).join(''):'<tr><td colspan="8" style="font-style:italic;color:#888">Chưa ghi nhật ký nào trong tháng này.</td></tr>';
+      return personHeader+rowsHtml;
+    }).join('');
+    return unitHeader+peopleHtml;
+  }).join('');
+  return ''
+    +'<div class="letterhead">'
+    +'<div><strong>VIỆN KIỂM SÁT NHÂN DÂN TỐI CAO</strong><span>VIỆN KIỂM SÁT NHÂN DÂN TỈNH BẮC NINH</span></div>'
+    +'<div><strong>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><span style="text-decoration:underline">Độc lập - Tự do - Hạnh phúc</span></div>'
+    +'</div>'
+    +'<h1>NHẬT KÝ CÔNG TÁC CHI TIẾT</h1>'
+    +'<div class="period">tháng '+Number(reportMonth)+' năm '+reportYear+'</div>'
+    +'<table>'
+    +'<thead><tr><th>Số TT</th><th>Ngày</th><th>Lĩnh vực công tác</th><th>Nội dung công việc</th><th>Kết quả/sản phẩm</th><th>Độ phức tạp</th><th>Chất lượng</th><th>Trạng thái</th></tr></thead>'
+    +'<tbody>'+bodyHtml+'</tbody>'
+    +'</table>';
+}
+
+async function exportMonthlyLogPdf(period){
+  if(typeof html2canvas==='undefined'||typeof window.jspdf==='undefined'){showToast('Chưa tải được thư viện xuất PDF, thử lại sau.');return}
+  var scope;
+  try{scope=await fetchMonthlyLogsScope(period)}catch(e){showToast('Lỗi: '+e.message);return}
+  var groups=monthlyLogExportGroups(scope);
+  var styleEl=$('pdfExportStyle');
+  if(!styleEl){
+    styleEl=document.createElement('style');
+    styleEl.id='pdfExportStyle';
+    styleEl.textContent=PDF_EXPORT_CSS;
+    document.head.appendChild(styleEl);
+  }
+  var container=document.createElement('div');
+  container.className='pdf-export-root';
+  container.style.position='fixed';
+  container.style.left='0';
+  container.style.top='0';
+  container.style.zIndex='-1';
+  container.style.width='1600px';
+  container.innerHTML=monthlyLogReportBodyHtml(period,groups);
+  document.body.appendChild(container);
+  try{
+    var canvas=await html2canvas(container,{scale:2,useCORS:true});
+    var imgData=canvas.toDataURL('image/jpeg',0.98);
+    var pdf=new window.jspdf.jsPDF({unit:'mm',format:'a3',orientation:'landscape'});
+    var pageWidth=pdf.internal.pageSize.getWidth();
+    var pageHeight=pdf.internal.pageSize.getHeight();
+    var imgWidthMm=pageWidth;
+    var imgHeightMm=canvas.height*imgWidthMm/canvas.width;
+    var heightLeft=imgHeightMm;
+    var position=0;
+    pdf.addImage(imgData,'JPEG',0,position,imgWidthMm,imgHeightMm);
+    heightLeft-=pageHeight;
+    while(heightLeft>0){
+      position=heightLeft-imgHeightMm;
+      pdf.addPage();
+      pdf.addImage(imgData,'JPEG',0,position,imgWidthMm,imgHeightMm);
+      heightLeft-=pageHeight;
+    }
+    pdf.save('nhat-ky-chi-tiet-'+period+'.pdf');
     showToast('Đã xuất file PDF.');
   }catch(e){
     showToast('Lỗi khi xuất PDF: '+e.message);
@@ -4592,9 +4782,11 @@ document.addEventListener('DOMContentLoaded',function(){
   $('copyJournalSearch').addEventListener('input',function(e){renderCopyJournalList(e.target.value)});
   document.querySelectorAll('[data-close-export]').forEach(function(b){b.addEventListener('click',closeExportModal)});
   $('exportModal').addEventListener('click',function(e){if(e.target.id==='exportModal')closeExportModal()});
-  $('exportPeriodSelect').addEventListener('change',function(e){renderExportSummary(e.target.value)});
+  $('exportPeriodSelect').addEventListener('change',function(e){if(!$('exportScoreSection').hidden)renderExportSummary(e.target.value)});
   $('exportExcelButton').addEventListener('click',function(){exportMonthlyExcel($('exportPeriodSelect').value)});
   $('exportPdfButton').addEventListener('click',function(){exportMonthlyPdf($('exportPeriodSelect').value)});
+  $('exportLogExcelButton').addEventListener('click',function(){exportMonthlyLogExcel($('exportPeriodSelect').value)});
+  $('exportLogPdfButton').addEventListener('click',function(){exportMonthlyLogPdf($('exportPeriodSelect').value)});
   document.querySelectorAll('[data-close-note]').forEach(function(b){b.addEventListener('click',closeNoteModal)});
   $('noteModal').addEventListener('click',function(e){if(e.target.id==='noteModal')closeNoteModal()});
   $('noteForm').addEventListener('submit',submitNote);

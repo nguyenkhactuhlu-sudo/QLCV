@@ -185,7 +185,7 @@
             <option>Công tác tham mưu, tổng hợp</option>
             <option>Công tác công nghệ thông tin &amp; chuyển đổi số</option>
             <option>Công tác quản lý án hình sự</option>
-            <option>Kế toán</option>
+            <option>Kế toán, đầu tư xây dựng cơ bản</option>
             <option>Quản lý, chỉ đạo điều hành</option>
           </select>
         </label>
@@ -405,11 +405,20 @@
       </div>
       <div class="form-grid" style="padding:0 24px 24px">
         <label class="field field-wide"><span>Kỳ xuất báo cáo</span><select id="exportPeriodSelect"></select></label>
-        <div class="field-wide" id="exportSummary"></div>
-        <div class="field-wide" id="exportIncompleteGroups"></div>
-        <div class="form-actions field-wide">
-          <button type="button" class="button button-secondary" id="exportExcelButton">Xuất Excel (chỉnh sửa được)</button>
-          <button type="button" class="button button-primary" id="exportPdfButton">Xuất PDF (file lưu trữ)</button>
+        <div class="field-wide" id="exportScoreSection">
+          <div class="field-wide" id="exportSummary"></div>
+          <div class="field-wide" id="exportIncompleteGroups"></div>
+          <div class="form-actions field-wide">
+            <button type="button" class="button button-secondary" id="exportExcelButton">Xuất Excel (chỉnh sửa được)</button>
+            <button type="button" class="button button-primary" id="exportPdfButton">Xuất PDF (file lưu trữ)</button>
+          </div>
+        </div>
+        <div class="field-wide" id="exportLogSection">
+          <span class="field-label">Nhật ký chi tiết trong kỳ (liệt kê từng nhật ký, nhóm theo người)</span>
+          <div class="form-actions field-wide">
+            <button type="button" class="button button-secondary" id="exportLogExcelButton">Xuất Excel</button>
+            <button type="button" class="button button-primary" id="exportLogPdfButton">Xuất PDF</button>
+          </div>
         </div>
       </div>
     </section>

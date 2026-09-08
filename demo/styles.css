@@ -859,6 +859,11 @@ details.uj-day-card .uj-day-card-logs .journal-card:first-child { margin-top: 12
 .field > span { font-size: 12px; font-weight: 650; }
 .field em { color: var(--muted); font-weight: 400; }
 .field-label { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 650; }
+/* Khu "Xuat nhat ky chi tiet" trong modal xuat bao cao thang - phan tach
+   ro voi khu "Bao cao tong hop diem" o tren khi ca 2 cung hien (lanh dao),
+   khong can vien khi chi hien 1 minh (nhan vien thuong). */
+#exportLogSection { padding-top: 14px; margin-top: 4px; border-top: 1px solid var(--line); }
+#exportScoreSection[hidden] + #exportLogSection { padding-top: 0; margin-top: 0; border-top: none; }
 /* O ngay/gio "Han goi y", "Dat han"... ghep 1 o Ngay + 1 o Gio, moi o la
    1 khoi go tay gon (xem .date-field-wrap/.time-field-input ben duoi) -
    thay cho input[type=datetime-local] cua trinh duyet (hien 12h
