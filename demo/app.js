@@ -1962,7 +1962,7 @@ function reviewDetail(log) {
       <div class="rating-control"><div class="rating-head"><div><h3>Độ phức tạp</h3><span class="metric-context">Bản chất và phạm vi công việc</span></div><span class="rating-value" id="complexityValue">${complexity}</span></div><input id="complexityRange" type="range" min="1" max="10" value="${complexity}" aria-label="Điểm độ phức tạp"><div class="range-labels"><span>Đơn giản</span><span>Đặc biệt phức tạp</span></div>${scoringGuideMarkup("complexity", complexity)}</div>
       <div class="rating-control"><div class="rating-head"><div><h3>Chất lượng</h3><span class="metric-context">Đúng, đủ, kịp thời và sử dụng được</span></div><span class="rating-value" id="qualityValue">${quality}</span></div><input id="qualityRange" type="range" min="1" max="10" value="${quality}" aria-label="Điểm chất lượng"><div class="range-labels"><span>Không đạt</span><span>Rất tốt</span></div>${scoringGuideMarkup("quality", quality)}</div>
     </div></div>
-    <div class="detail-section"><label class="field"><span>Nhận xét của lãnh đạo</span><textarea id="reviewComment" rows="3" placeholder="Bắt buộc khi điểm chất lượng dưới 5 hoặc từ 9 trở lên"></textarea></label><div class="review-actions"><button class="button button-danger" id="requestRevision">Yêu cầu bổ sung</button><button class="button button-primary" id="approveLog">Xác nhận kết quả</button></div></div>`;
+    <div class="detail-section"><label class="field"><span>Nhận xét của lãnh đạo</span><textarea id="reviewComment" rows="3" placeholder="Bắt buộc khi điểm chất lượng dưới 5 hoặc khi yêu cầu bổ sung"></textarea></label><div class="review-actions"><button class="button button-danger" id="requestRevision">Yêu cầu bổ sung</button><button class="button button-primary" id="approveLog">Xác nhận kết quả</button></div></div>`;
 }
 
 function bindReviewActions(log) {
@@ -2008,7 +2008,7 @@ function applyReview(log, status) {
   const complexity = Number(document.getElementById("complexityRange").value);
   const quality = Number(document.getElementById("qualityRange").value);
   const comment = document.getElementById("reviewComment").value.trim();
-  if ((quality < 5 || quality >= 9 || status === "revision") && !comment) {
+  if ((quality < 5 || status === "revision") && !comment) {
     showToast("Vui lòng nhập nhận xét cho mức điểm hoặc quyết định này.");
     document.getElementById("reviewComment").focus();
     return;

@@ -94,6 +94,7 @@ var STATUS_CLASS={pending:'status-pending',approved:'status-approved',revision:'
 // mang nay.
 // ============================================
 var CHANGELOG=[
+  {date:'2026-09-09',type:'improve',text:'Bỏ yêu cầu bắt buộc nhận xét khi lãnh đạo chấm điểm chất lượng từ 9 trở lên (chỉ còn bắt buộc khi dưới 5 hoặc khi yêu cầu bổ sung) - cho phù hợp quy tắc chấm điểm mới, không còn coi mức 9-10 là thành tích đặc biệt cần giải trình.'},
   {date:'2026-09-09',type:'improve',text:'Điều chỉnh gợi ý thang điểm chất lượng: mức 7-8 đổi thành "Hoàn thành yêu cầu nhưng còn thiếu sót", mức 9-10 đổi thành "Kết quả đúng - đủ - kịp thời - rõ ràng" (không yêu cầu phải có sáng kiến/thành tích đặc biệt mới đạt điểm cao); bổ sung ghi chú nhắc dùng mục điểm cộng/trừ đột xuất khi chọn điểm 10 hoặc điểm 1.'},
   {date:'2026-09-09',type:'fix',text:'Sửa lỗi ô "Nộp cho lãnh đạo" vẫn hiện ra ở form ghi nhật ký của Viện trưởng tỉnh dù đã ẩn (nguyên nhân: 1 quy tắc CSS chung của khung nhập liệu vô tình mạnh hơn thao tác ẩn bằng JavaScript, đã bổ sung override còn thiếu).'},
   {date:'2026-09-09',type:'fix',text:'Chấm điểm tháng: sửa lỗi trang trống ("không có dữ liệu") khi ô lọc "Đơn vị" (chỉ dành cho Viện trưởng tỉnh/Quản trị) bị lưu lại từ tài khoản khác dùng chung trình duyệt, vô tình lọc mất luôn đơn vị của Trưởng/Phó phòng đang đăng nhập.'},
@@ -2774,7 +2775,7 @@ function reviewDetailHtml(log){
     +'<div class="rating-control"><div class="rating-head"><div><h3>Độ phức tạp</h3><span class="metric-context">Bản chất và phạm vi công việc</span></div><span class="rating-value" id="complexityValue">'+complexity+'</span></div><input id="complexityRange" type="range" min="1" max="10" value="'+complexity+'" aria-label="Điểm độ phức tạp"><div class="range-labels"><span>Đơn giản</span><span>Đặc biệt phức tạp</span></div>'+scoringGuideMarkup('complexity',complexity)+'</div>'
     +'<div class="rating-control"><div class="rating-head"><div><h3>Chất lượng</h3><span class="metric-context">Đúng, đủ, kịp thời và sử dụng được</span></div><span class="rating-value" id="qualityValue">'+quality+'</span></div><input id="qualityRange" type="range" min="1" max="10" value="'+quality+'" aria-label="Điểm chất lượng"><div class="range-labels"><span>Không đạt</span><span>Rất tốt</span></div>'+scoringGuideMarkup('quality',quality)+'</div>'
     +'</div></div>'
-    +'<div class="detail-section"><label class="field"><span>Nhận xét của lãnh đạo</span><textarea id="reviewComment" rows="3" placeholder="Bắt buộc khi điểm chất lượng dưới 5 hoặc từ 9 trở lên, hoặc khi yêu cầu bổ sung"></textarea></label><div class="review-actions"><button class="button button-danger" id="requestRevision">Yêu cầu bổ sung</button><button class="button button-primary" id="approveLog">Xác nhận kết quả</button></div></div>';
+    +'<div class="detail-section"><label class="field"><span>Nhận xét của lãnh đạo</span><textarea id="reviewComment" rows="3" placeholder="Bắt buộc khi điểm chất lượng dưới 5 hoặc khi yêu cầu bổ sung"></textarea></label><div class="review-actions"><button class="button button-danger" id="requestRevision">Yêu cầu bổ sung</button><button class="button button-primary" id="approveLog">Xác nhận kết quả</button></div></div>';
 }
 
 var scoringGuides={
@@ -2871,7 +2872,7 @@ async function applyReview(log,status){
   var complexity=Number($('complexityRange').value);
   var quality=Number($('qualityRange').value);
   var comment=$('reviewComment').value.trim();
-  if((quality<5||quality>=9||status==='revision')&&!comment){
+  if((quality<5||status==='revision')&&!comment){
     showToast('Vui lòng nhập nhận xét cho mức điểm hoặc quyết định này.');
     $('reviewComment').focus();
     return;
