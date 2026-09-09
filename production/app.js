@@ -94,6 +94,8 @@ var STATUS_CLASS={pending:'status-pending',approved:'status-approved',revision:'
 // mang nay.
 // ============================================
 var CHANGELOG=[
+  {date:'2026-09-09',type:'improve',text:'Đổi "Viện KSND tỉnh Bắc Ninh" thành "VKSND tỉnh Bắc Ninh" ở tên hệ thống trên góc trên và cuối thanh điều hướng.'},
+  {date:'2026-09-09',type:'improve',text:'Nhật ký công tác của đơn vị: bổ sung chức vụ, chức danh, năm sinh ở 2 chế độ xem "Theo thời gian" và "Theo ngày" (trước đây chỉ có ở "Theo người").'},
   {date:'2026-09-08',type:'feature',text:'Danh sách người (Nhật ký công tác đơn vị, Chấm điểm tháng, Cơ cấu & phân quyền, Giao việc) nay hiện thêm chức vụ, chức danh và năm sinh của từng người - lãnh đạo nắm sơ bộ thông tin ngay không cần tra cứu riêng.'},
   {date:'2026-09-07',type:'feature',text:'Giao việc: "Sửa việc đã giao" nay sửa được TOÀN BỘ thông tin, kể cả đổi người chủ trì/phối hợp (trước đây chỉ sửa được tên việc/mô tả/hạn). Nếu người bị đổi/rút khỏi việc đã lỡ nộp nhật ký báo cáo rồi, nhật ký và dữ liệu đó vẫn được giữ nguyên trên tài khoản của họ, chỉ không còn thuộc danh sách đang hoạt động của việc đó nữa (có ghi chú "Đã rút khỏi việc này" để lãnh đạo biết). Chuông thông báo nay báo đầy đủ khi được giao việc mới, bị rút khỏi việc, hoặc việc được cập nhật nội dung.'},
   {date:'2026-09-07',type:'improve',text:'Giao việc: tách danh sách "Công việc đã giao" thành 2 khu riêng - "Đang thực hiện" và "Đã hoàn thành", mỗi khu có ô tìm kiếm riêng - tránh danh sách dài, khó tìm.'},
@@ -3039,7 +3041,9 @@ function groupLogsByDate(logsList){
 
 function ujAuthorName(id){
   var p=UJ_PEOPLE.find(function(x){return x.id===id});
-  return p?p.full_name:'Không xác định';
+  if(!p)return 'Không xác định';
+  var bio=personBioLine(p);
+  return bio?p.full_name+' · '+bio:p.full_name;
 }
 
 // Khoang ngay hop le cua UJ_PERIOD ("YYYY-MM") - dung de gioi han o chon
@@ -3197,14 +3201,14 @@ function ujDateGroupHtml(g,showAuthor){
 function ujDaySubmittedCardHtml(entry){
   var p=entry.person,logs=entry.logs;
   var itemsHtml=logs.map(function(l){return journalCardHtml(l,ujLogCardOpts(l,false))}).join('');
-  return '<details class="uj-day-card"><summary><span class="uj-day-card-name">'+esc(p.full_name)+'</span><span class="uj-day-card-meta">'+esc(p.title||'')+' · '+esc(unitShort(p.unit_id))+'</span><span class="meta-tag">'+logs.length+' nhật ký</span></summary><div class="uj-day-card-logs">'+itemsHtml+'</div></details>';
+  var bio1=personBioLine(p);return '<details class="uj-day-card"><summary><span class="uj-day-card-name">'+esc(p.full_name)+'</span><span class="uj-day-card-meta">'+(bio1?esc(bio1)+' · ':'')+esc(unitShort(p.unit_id))+'</span><span class="meta-tag">'+logs.length+' nhật ký</span></summary><div class="uj-day-card-logs">'+itemsHtml+'</div></details>';
 }
 function ujDayLeaveCardHtml(entry){
   var p=entry.person;
-  return '<div class="uj-day-card is-static"><span class="uj-day-card-name">'+esc(p.full_name)+'</span><span class="uj-day-card-meta">'+esc(p.title||'')+' · '+esc(unitShort(p.unit_id))+'</span></div>';
+  var bio2=personBioLine(p);return '<div class="uj-day-card is-static"><span class="uj-day-card-name">'+esc(p.full_name)+'</span><span class="uj-day-card-meta">'+(bio2?esc(bio2)+' · ':'')+esc(unitShort(p.unit_id))+'</span></div>';
 }
 function ujDayMissingCardHtml(p){
-  return '<button type="button" class="uj-day-card is-missing" data-uj-jump-person="'+p.id+'"><span class="uj-day-card-name">'+esc(p.full_name)+'</span><span class="uj-day-card-meta">'+esc(p.title||'')+' · '+esc(unitShort(p.unit_id))+'</span></button>';
+  var bio3=personBioLine(p);return '<button type="button" class="uj-day-card is-missing" data-uj-jump-person="'+p.id+'"><span class="uj-day-card-name">'+esc(p.full_name)+'</span><span class="uj-day-card-meta">'+(bio3?esc(bio3)+' · ':'')+esc(unitShort(p.unit_id))+'</span></button>';
 }
 
 function renderUjDayHtml(){

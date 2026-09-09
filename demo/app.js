@@ -2242,7 +2242,9 @@ function groupLogsByDate(logsList) {
 
 function ujAuthorName(id) {
   const p = userById(id);
-  return p ? p.name : "Không xác định";
+  if (!p) return "Không xác định";
+  const bio = personBioLine(p);
+  return bio ? `${p.name} · ${bio}` : p.name;
 }
 
 // Ngay day du "dd/mm/yyyy" tu chuoi "YYYY-MM-DD", ghep truc tiep - tranh
@@ -2330,13 +2332,13 @@ function renderUnitJournalContent() {
 // ============================================
 function ujDaySubmittedCardHtml(entry) {
   const itemsHtml = entry.logs.map(log => journalCard(log, { readOnly: true })).join("");
-  return `<details class="uj-day-card"><summary><span class="uj-day-card-name">${entry.person.name}</span><span class="uj-day-card-meta">${entry.person.title} · ${unitById(entry.person.unitId).short}</span><span class="meta-tag">${entry.logs.length} nhật ký</span></summary><div class="uj-day-card-logs">${itemsHtml}</div></details>`;
+  const bio1 = personBioLine(entry.person); return `<details class="uj-day-card"><summary><span class="uj-day-card-name">${entry.person.name}</span><span class="uj-day-card-meta">${bio1 ? bio1 + " · " : ""}${unitById(entry.person.unitId).short}</span><span class="meta-tag">${entry.logs.length} nhật ký</span></summary><div class="uj-day-card-logs">${itemsHtml}</div></details>`;
 }
 function ujDayLeaveCardHtml(entry) {
-  return `<div class="uj-day-card is-static"><span class="uj-day-card-name">${entry.person.name}</span><span class="uj-day-card-meta">${entry.person.title} · ${unitById(entry.person.unitId).short}</span></div>`;
+  const bio2 = personBioLine(entry.person); return `<div class="uj-day-card is-static"><span class="uj-day-card-name">${entry.person.name}</span><span class="uj-day-card-meta">${bio2 ? bio2 + " · " : ""}${unitById(entry.person.unitId).short}</span></div>`;
 }
 function ujDayMissingCardHtml(p) {
-  return `<button type="button" class="uj-day-card is-missing" data-uj-jump-person="${p.id}"><span class="uj-day-card-name">${p.name}</span><span class="uj-day-card-meta">${p.title} · ${unitById(p.unitId).short}</span></button>`;
+  const bio3 = personBioLine(p); return `<button type="button" class="uj-day-card is-missing" data-uj-jump-person="${p.id}"><span class="uj-day-card-name">${p.name}</span><span class="uj-day-card-meta">${bio3 ? bio3 + " · " : ""}${unitById(p.unitId).short}</span></button>`;
 }
 
 function renderUjDayHtml() {
