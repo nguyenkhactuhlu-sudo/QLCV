@@ -1879,10 +1879,21 @@ const scoringGuides = {
     { max: 2, title: "Không đạt", text: "Có sai sót nghiêm trọng, kết quả chưa sử dụng được hoặc phải làm lại." },
     { max: 4, title: "Cần bổ sung", text: "Kết quả chưa đầy đủ và cần chỉnh sửa đáng kể trước khi sử dụng." },
     { max: 6, title: "Đạt yêu cầu", text: "Hoàn thành yêu cầu cơ bản, kết quả có thể sử dụng." },
-    { max: 8, title: "Tốt", text: "Kết quả đúng, đầy đủ, kịp thời và trình bày rõ ràng." },
-    { max: 10, title: "Rất tốt", text: "Kết quả nổi bật, hiệu quả cao hoặc có sáng kiến mang lại giá trị." }
+    { max: 8, title: "Khá", text: "Hoàn thành yêu cầu nhưng còn thiếu sót." },
+    { max: 10, title: "Rất tốt", text: "Kết quả đúng - đủ - kịp thời - rõ ràng." }
   ]
 };
+
+// Ghi chu them cho 2 dau muc thang diem chat luong (10 va 1) - nhac nguoi
+// cham rang thanh tich noi bat/vi pham nghiem trong da co kenh rieng (diem
+// dieu chinh dot xuat), tranh hieu nham phai "gong" ca thang 1-10 nay.
+function scoringGuideNote(type, value) {
+  if (type !== "quality") return "";
+  const v = Number(value);
+  if (v >= 10) return " (Trường hợp có thành tích nổi bật thì cho vào mục điểm cộng đột xuất)";
+  if (v <= 1) return " (Trường hợp có vi phạm nghiêm trọng thì xem xét cho vào mục điểm trừ đột xuất)";
+  return "";
+}
 
 function scoringGuide(type, value) {
   const numericValue = Number(value);
@@ -1892,7 +1903,7 @@ function scoringGuide(type, value) {
 function scoringGuideMarkup(type, value) {
   const guide = scoringGuide(type, value);
   const band = Number(value) <= 4 ? "low" : Number(value) <= 8 ? "standard" : "high";
-  return `<div class="score-guide" id="${type}Guide" data-type="${type}" data-band="${band}" aria-live="polite"><strong id="${type}GuideTitle">Mức ${value} · ${guide.title}</strong><span id="${type}GuideText">${guide.text}</span></div>`;
+  return `<div class="score-guide" id="${type}Guide" data-type="${type}" data-band="${band}" aria-live="polite"><strong id="${type}GuideTitle">Mức ${value} · ${guide.title}</strong><span id="${type}GuideText">${guide.text}${scoringGuideNote(type, value)}</span></div>`;
 }
 
 function updateScoringGuide(type, value) {
@@ -1900,7 +1911,7 @@ function updateScoringGuide(type, value) {
   const guideElement = document.getElementById(`${type}Guide`);
   document.getElementById(`${type}Value`).textContent = value;
   document.getElementById(`${type}GuideTitle`).textContent = `Mức ${value} · ${guide.title}`;
-  document.getElementById(`${type}GuideText`).textContent = guide.text;
+  document.getElementById(`${type}GuideText`).textContent = guide.text + scoringGuideNote(type, value);
   guideElement.dataset.band = Number(value) <= 4 ? "low" : Number(value) <= 8 ? "standard" : "high";
 }
 
@@ -4746,7 +4757,7 @@ function updateSelfScoreGuide(kind, value) {
   const type = kind === "Complexity" ? "complexity" : "quality";
   const guide = scoringGuide(type, value);
   titleEl.textContent = `Mức ${value} · ${guide.title}`;
-  textEl.textContent = guide.text;
+  textEl.textContent = guide.text + scoringGuideNote(type, value);
   guideEl.dataset.band = Number(value) <= 4 ? "low" : Number(value) <= 8 ? "standard" : "high";
 }
 

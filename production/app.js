@@ -94,6 +94,7 @@ var STATUS_CLASS={pending:'status-pending',approved:'status-approved',revision:'
 // mang nay.
 // ============================================
 var CHANGELOG=[
+  {date:'2026-09-09',type:'improve',text:'Điều chỉnh gợi ý thang điểm chất lượng: mức 7-8 đổi thành "Hoàn thành yêu cầu nhưng còn thiếu sót", mức 9-10 đổi thành "Kết quả đúng - đủ - kịp thời - rõ ràng" (không yêu cầu phải có sáng kiến/thành tích đặc biệt mới đạt điểm cao); bổ sung ghi chú nhắc dùng mục điểm cộng/trừ đột xuất khi chọn điểm 10 hoặc điểm 1.'},
   {date:'2026-09-09',type:'fix',text:'Sửa lỗi ô "Nộp cho lãnh đạo" vẫn hiện ra ở form ghi nhật ký của Viện trưởng tỉnh dù đã ẩn (nguyên nhân: 1 quy tắc CSS chung của khung nhập liệu vô tình mạnh hơn thao tác ẩn bằng JavaScript, đã bổ sung override còn thiếu).'},
   {date:'2026-09-09',type:'fix',text:'Chấm điểm tháng: sửa lỗi trang trống ("không có dữ liệu") khi ô lọc "Đơn vị" (chỉ dành cho Viện trưởng tỉnh/Quản trị) bị lưu lại từ tài khoản khác dùng chung trình duyệt, vô tình lọc mất luôn đơn vị của Trưởng/Phó phòng đang đăng nhập.'},
   {date:'2026-09-09',type:'improve',text:'Chấm điểm tháng: khi mở trang lần đầu, panel chi tiết bên phải nay mặc định hiện đúng hồ sơ của chính người đang đăng nhập (trước đây hiện ngẫu nhiên 1 người đầu danh sách).'},
@@ -1141,7 +1142,7 @@ function updateSelfScoreGuide(kind,value){
   var type=kind==='Complexity'?'complexity':'quality';
   var guide=scoringGuide(type,value);
   titleEl.textContent='Mức '+value+' · '+guide.title;
-  textEl.textContent=guide.text;
+  textEl.textContent=guide.text+scoringGuideNote(type,value);
   guideEl.dataset.band=Number(value)<=4?'low':Number(value)<=8?'standard':'high';
 }
 
@@ -2788,10 +2789,21 @@ var scoringGuides={
     {max:2,title:'Không đạt',text:'Có sai sót nghiêm trọng, kết quả chưa sử dụng được hoặc phải làm lại.'},
     {max:4,title:'Cần bổ sung',text:'Kết quả chưa đầy đủ và cần chỉnh sửa đáng kể trước khi sử dụng.'},
     {max:6,title:'Đạt yêu cầu',text:'Hoàn thành yêu cầu cơ bản, kết quả có thể sử dụng.'},
-    {max:8,title:'Tốt',text:'Kết quả đúng, đầy đủ, kịp thời và trình bày rõ ràng.'},
-    {max:10,title:'Rất tốt',text:'Kết quả nổi bật, hiệu quả cao hoặc có sáng kiến mang lại giá trị.'}
+    {max:8,title:'Khá',text:'Hoàn thành yêu cầu nhưng còn thiếu sót.'},
+    {max:10,title:'Rất tốt',text:'Kết quả đúng - đủ - kịp thời - rõ ràng.'}
   ]
 };
+// Ghi chu them cho 2 dau muc thang diem chat luong (10 va 1) - nhac nguoi
+// cham rang thanh tich noi bat/vi pham nghiem trong da co kenh rieng (diem
+// dieu chinh dot xuat - xem score_adjustments/create_score_adjustment), tranh
+// hieu nham phai "gong" ca thang 1-10 nay de phan anh nhung truong hop do.
+function scoringGuideNote(type,value){
+  if(type!=='quality')return '';
+  var v=Number(value);
+  if(v>=10)return ' (Trường hợp có thành tích nổi bật thì cho vào mục điểm cộng đột xuất)';
+  if(v<=1)return ' (Trường hợp có vi phạm nghiêm trọng thì xem xét cho vào mục điểm trừ đột xuất)';
+  return '';
+}
 function scoringGuide(type,value){
   var v=Number(value);
   var list=scoringGuides[type];
@@ -2801,14 +2813,14 @@ function scoringGuide(type,value){
 function scoringGuideMarkup(type,value){
   var guide=scoringGuide(type,value);
   var band=Number(value)<=4?'low':Number(value)<=8?'standard':'high';
-  return '<div class="score-guide" id="'+type+'Guide" data-type="'+type+'" data-band="'+band+'" aria-live="polite"><strong id="'+type+'GuideTitle">Mức '+value+' · '+guide.title+'</strong><span id="'+type+'GuideText">'+guide.text+'</span></div>';
+  return '<div class="score-guide" id="'+type+'Guide" data-type="'+type+'" data-band="'+band+'" aria-live="polite"><strong id="'+type+'GuideTitle">Mức '+value+' · '+guide.title+'</strong><span id="'+type+'GuideText">'+guide.text+scoringGuideNote(type,value)+'</span></div>';
 }
 function updateScoringGuide(type,value){
   var guide=scoringGuide(type,value);
   var guideEl=$(type+'Guide');
   $(type+'Value').textContent=value;
   $(type+'GuideTitle').textContent='Mức '+value+' · '+guide.title;
-  $(type+'GuideText').textContent=guide.text;
+  $(type+'GuideText').textContent=guide.text+scoringGuideNote(type,value);
   guideEl.dataset.band=Number(value)<=4?'low':Number(value)<=8?'standard':'high';
 }
 
