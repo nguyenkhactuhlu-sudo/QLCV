@@ -2426,7 +2426,16 @@ function monthlyScope() {
   if (user.role === "staff" || user.role === "support_staff") scopedUsers = scopedUsers.filter(person => person.id === user.id);
   if (user.role === "unit_head" || user.role === "unit_deputy") scopedUsers = scopedUsers.filter(person => person.unitId === user.unitId && isVisibleInUnitScope(person, user));
   if (user.role === "province_deputy") scopedUsers = scopedUsers.filter(person => person.role === "unit_head" && (user.assignedUnits || []).includes(person.unitId));
-  if (state.monthlyUnit !== "all") scopedUsers = scopedUsers.filter(person => person.unitId === state.monthlyUnit);
+  // O loc "Don vi" CHI hien voi Vien truong tinh/Quan tri - nhung
+  // state.monthlyUnit luu chung 1 cho o localStorage cho MOI tai khoan
+  // dung CUNG trinh duyet. Neu truoc do 1 tai khoan Vien truong tinh da
+  // loc theo 1 don vi CU THE, gia tri do se "dinh lai" va bi ap dung
+  // nham cho ca Truong phong/Pho phong dang nhap sau (du ho khong he
+  // thay o loc nay) - loc mat luon ca don vi cua chinh ho, ra trang
+  // trong hoan toan. Chi ap dung o loc khi ROLE THUC SU co quyen dung no
+  // (yeu cau nguoi dung, 2026-09-09).
+  const provinceScopeForFilter = ["province_head", "administrator"].includes(user.role);
+  if (provinceScopeForFilter && state.monthlyUnit !== "all") scopedUsers = scopedUsers.filter(person => person.unitId === state.monthlyUnit);
   return monthlyReviews.filter(review => review.period === state.monthlyPeriod && scopedUsers.some(person => person.id === review.userId));
 }
 
@@ -2482,7 +2491,16 @@ function renderMonthly() {
   const provinceScope = ["province_head", "administrator"].includes(user.role);
   const visibleUnits = units.filter(unit => unit.id !== "province" && visibleUnitIds(user).includes(unit.id));
   const unitFilter = provinceScope ? `<label class="filter-field"><span>Đơn vị</span><select id="monthlyUnitFilter"><option value="all">Tất cả đơn vị</option>${visibleUnits.map(unit => `<option value="${unit.id}" ${state.monthlyUnit === unit.id ? "selected" : ""}>${unit.short}</option>`).join("")}</select></label>` : "";
-  if (!state.selectedMonthlyUserId || !rows.some(row => row.userId === state.selectedMonthlyUserId)) state.selectedMonthlyUserId = rows[0]?.userId || null;
+  // Lan dau mo trang (chua chon ai) - uu tien mac dinh chon DUNG chinh
+  // minh (neu nam trong pham vi dang xem) thay vi nguoi DAU TIEN trong
+  // mang (thu tu khong lien quan gi den nguoi dang dang nhap) - truoc day
+  // lanh dao mo trang len de thay ho so cua 1 nguoi ngau nhien (thuong 0
+  // nhat ky) thay vi cua chinh minh, tuong nham la loi "khong hien nhat
+  // ky cua ban than" (yeu cau nguoi dung, 2026-09-09).
+  if (!state.selectedMonthlyUserId || !rows.some(row => row.userId === state.selectedMonthlyUserId)) {
+    const selfRow = rows.find(row => row.userId === user.id);
+    state.selectedMonthlyUserId = selfRow ? selfRow.userId : (rows[0]?.userId || null);
+  }
   const selected = rows.find(row => row.userId === state.selectedMonthlyUserId);
 
   updateChrome("Chấm điểm và xếp loại tháng", `KẾT QUẢ ${periodLabel(state.monthlyPeriod).toUpperCase()}`);
@@ -4648,7 +4666,19 @@ function refreshSubmitToOptions(selectId, presetId) {
   if (presetId) select.value = presetId;
   else if (fixedSingle) select.value = leaders[0].id;
 }
+// Vien truong tinh KHONG co ai o tren de nop/cham diem - nhat ky cua ho
+// chi de tu luu lai (van co diem tu danh gia) - an han truong "Nop cho
+// lanh dao" thay vi de trong khong dung vao dau (yeu cau nguoi dung,
+// 2026-09-09).
 function refreshJournalSubmitToOptions(editingLog) {
+  const field = document.getElementById("journalSubmitToField");
+  const isProvinceHead = currentUser().role === "province_head";
+  if (field) field.hidden = isProvinceHead;
+  if (isProvinceHead) {
+    const sel = document.getElementById("journalSubmitToSelect");
+    if (sel) { sel.required = false; sel.innerHTML = ""; }
+    return;
+  }
   refreshSubmitToOptions("journalSubmitToSelect", editingLog && editingLog.submittedToId);
 }
 
@@ -4776,6 +4806,10 @@ function submitJournal(event) {
   // Doc truc tiep tu DOM (khong qua FormData) vi o nay co the bi disable
   // khi khoa theo viec duoc giao - truong "disabled" bi FormData bo qua.
   const submittedToId = event.currentTarget.elements.submittedToId.value || null;
+  // Vien truong tinh khong co ai o tren de nop/cham diem - tu ghi nhan
+  // luon (khong nam "Cho danh gia" mai mai), dung diem tu danh gia lam
+  // diem chinh thuc luon (yeu cau nguoi dung, 2026-09-09).
+  const isProvinceHead = user.role === "province_head";
   const workDate = readDateOnly("journalWorkDate", "ngày thực hiện");
   if (workDate === undefined) return; // da chon 1 phan, readDateOnly da bao loi
   if (!workDate) { showToast("Vui lòng chọn ngày thực hiện."); return; }
@@ -4811,15 +4845,18 @@ function submitJournal(event) {
       previousResult: editingLog.result,
       resubmittedAt: now
     }] : (editingLog.reviewHistory || []);
+    const selfComplexity = Number(data.get("selfComplexity")), selfQuality = Number(data.get("selfQuality"));
     Object.assign(editingLog, {
       date: workDate, category: data.get("category"), title: data.get("title"), result: data.get("result"),
       workRole: data.get("workRole"), duration: data.get("duration"), evidence: data.get("evidence"),
-      selfComplexity: Number(data.get("selfComplexity")), selfQuality: Number(data.get("selfQuality")),
-      submittedToId: submittedToId || editingLog.submittedToId,
+      selfComplexity, selfQuality,
+      submittedToId: isProvinceHead ? null : (submittedToId || editingLog.submittedToId),
       rangeStartDate,
-      status: "pending", updatedAt: now
+      status: isProvinceHead ? "approved" : "pending", updatedAt: now
     });
-    if (wasRevision) {
+    if (isProvinceHead) {
+      Object.assign(editingLog, { complexity: selfComplexity, quality: selfQuality, reviewedAt: now });
+    } else if (wasRevision) {
       Object.assign(editingLog, { complexity: null, quality: null, reviewerId: null, comment: "", reviewedAt: null, resubmittedAt: now, revisionCount: reviewHistory.length, reviewHistory });
     }
     saveLogs();
@@ -4840,13 +4877,16 @@ function submitJournal(event) {
   // Neu co gan voi 1 viec duoc giao, luon "nop" cho DUNG nguoi da giao
   // viec do (khong tin o "Nop cho lanh dao" - da bi khoa o giao dien,
   // nhung van tinh toan lai o day cho chac chan, phong khi bi can thiep).
+  const newSelfComplexity = Number(data.get("selfComplexity")), newSelfQuality = Number(data.get("selfQuality"));
   logs.push({
     id: nextId, authorId: user.id, unitId: user.unitId, date: workDate, category: data.get("category"),
     title: data.get("title"), result: data.get("result"), workRole: data.get("workRole"), duration: data.get("duration"), evidence: data.get("evidence"),
-    selfComplexity: Number(data.get("selfComplexity")), selfQuality: Number(data.get("selfQuality")),
-    submittedToId: linkedTask ? linkedTask.assignerId : submittedToId,
+    selfComplexity: newSelfComplexity, selfQuality: newSelfQuality,
+    submittedToId: isProvinceHead ? null : (linkedTask ? linkedTask.assignerId : submittedToId),
     rangeStartDate,
-    status: "pending", complexity: null, quality: null, reviewerId: null, comment: "", createdAt: new Date().toISOString(), reviewedAt: null,
+    status: isProvinceHead ? "approved" : "pending",
+    complexity: isProvinceHead ? newSelfComplexity : null, quality: isProvinceHead ? newSelfQuality : null,
+    reviewerId: null, comment: "", createdAt: new Date().toISOString(), reviewedAt: isProvinceHead ? new Date().toISOString() : null,
     taskAssignmentId, isClone: false, cloneGroupId: null
   });
   if (linkedTask) { linkedTask.linkedLogId = nextId; linkedTask.status = "reported"; saveTaskAssignments(); }
@@ -4859,7 +4899,7 @@ function submitJournal(event) {
   }
   closeJournalModal();
   clearJournalDraft();
-  showToast("Đã gửi nhật ký đến người đứng đầu đơn vị.");
+  showToast(isProvinceHead ? "Đã ghi nhật ký (tự lưu, không cần chấm điểm)." : "Đã gửi nhật ký đến người đứng đầu đơn vị.");
   renderJournal();
 }
 

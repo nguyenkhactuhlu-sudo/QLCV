@@ -94,6 +94,9 @@ var STATUS_CLASS={pending:'status-pending',approved:'status-approved',revision:'
 // mang nay.
 // ============================================
 var CHANGELOG=[
+  {date:'2026-09-09',type:'fix',text:'Chấm điểm tháng: sửa lỗi trang trống ("không có dữ liệu") khi ô lọc "Đơn vị" (chỉ dành cho Viện trưởng tỉnh/Quản trị) bị lưu lại từ tài khoản khác dùng chung trình duyệt, vô tình lọc mất luôn đơn vị của Trưởng/Phó phòng đang đăng nhập.'},
+  {date:'2026-09-09',type:'improve',text:'Chấm điểm tháng: khi mở trang lần đầu, panel chi tiết bên phải nay mặc định hiện đúng hồ sơ của chính người đang đăng nhập (trước đây hiện ngẫu nhiên 1 người đầu danh sách).'},
+  {date:'2026-09-09',type:'improve',text:'Nhật ký của Viện trưởng tỉnh nay tự lưu ngay (dùng điểm tự chấm làm điểm chính thức), không còn ô "Nộp cho lãnh đạo" vì không có ai ở trên để trình/chấm điểm.'},
   {date:'2026-09-09',type:'improve',text:'Đổi "Viện KSND tỉnh Bắc Ninh" thành "VKSND tỉnh Bắc Ninh" ở tên hệ thống trên góc trên và cuối thanh điều hướng.'},
   {date:'2026-09-09',type:'improve',text:'Nhật ký công tác của đơn vị: bổ sung chức vụ, chức danh, năm sinh ở 2 chế độ xem "Theo thời gian" và "Theo ngày" (trước đây chỉ có ở "Theo người").'},
   {date:'2026-09-08',type:'feature',text:'Danh sách người (Nhật ký công tác đơn vị, Chấm điểm tháng, Cơ cấu & phân quyền, Giao việc) nay hiện thêm chức vụ, chức danh và năm sinh của từng người - lãnh đạo nắm sơ bộ thông tin ngay không cần tra cứu riêng.'},
@@ -1068,7 +1071,19 @@ async function refreshSubmitToOptions(selectId,presetId){
   if(presetId)select.value=presetId;
   else if(fixedSingle)select.value=leaders[0].id;
 }
-function refreshJournalSubmitToOptions(editingLog){
+// Vien truong tinh KHONG co ai o tren de nop/cham diem - nhat ky cua ho
+// chi de tu luu lai (van co diem tu danh gia, xem sj()) - an han truong
+// "Nop cho lanh dao" thay vi de trong khong dung vao dau (yeu cau nguoi
+// dung, 2026-09-09).
+async function refreshJournalSubmitToOptions(editingLog){
+  var field=$('journalSubmitToField');
+  var isProvinceHead=(U.rl==='province_head');
+  if(field)field.hidden=isProvinceHead;
+  if(isProvinceHead){
+    var sel=$('journalSubmitToSelect');
+    if(sel){sel.required=false;sel.innerHTML=''}
+    return;
+  }
   return refreshSubmitToOptions('journalSubmitToSelect',editingLog&&editingLog.submitted_to_id);
 }
 
@@ -1204,6 +1219,16 @@ async function sj(e){
     self_quality_score:Number(f.get('selfQuality')),
     range_start_date:rangeStartDate
   };
+  // Vien truong tinh khong co ai o tren de nop/cham diem - tu ghi nhan
+  // luon (khong nam "Cho danh gia" mai mai vi khong ai duyet duoc), dung
+  // diem tu danh gia lam diem chinh thuc luon (yeu cau nguoi dung,
+  // 2026-09-09).
+  var isProvinceHead=(U.rl==='province_head');
+  if(isProvinceHead){
+    payload.complexity_score=payload.self_complexity_score;
+    payload.quality_score=payload.self_quality_score;
+    payload.reviewed_at=new Date().toISOString();
+  }
   if(!payload.category_id){showToast('Vui lòng chọn lĩnh vực công tác');return}
   var btn=$('journalSubmitButton');btn.disabled=true;
   try{
@@ -1214,9 +1239,12 @@ async function sj(e){
       // nhat ky con "Cho danh gia" (chua ai cham) chi la sua binh thuong,
       // khong phai trinh lai sau khi bi tra ve.
       var wasRevision=existing&&existing.status==='revision';
-      payload.status='pending';
-      payload.submitted_to_id=submittedToId||(existing?existing.submitted_to_id:null);
-      if(wasRevision){
+      // Vien truong tinh: nhat ky cu (tao truoc khi co tinh nang nay) neu
+      // con "Cho danh gia" ma duoc sua lai thi cung tu duyet luon, khong de
+      // "pending" mai mai (khong ai duyet duoc).
+      payload.status=isProvinceHead?'approved':'pending';
+      payload.submitted_to_id=isProvinceHead?null:(submittedToId||(existing?existing.submitted_to_id:null));
+      if(wasRevision&&!isProvinceHead){
         payload.reviewer_id=null;payload.reviewed_at=null;payload.review_comment=null;
         payload.revision_count=(existing?existing.revision_count:0)+1;
       }
@@ -1229,8 +1257,9 @@ async function sj(e){
       }
       showToast(wasRevision?'Đã chỉnh sửa và trình lại lãnh đạo chấm điểm.':'Đã lưu thay đổi nhật ký.');
     }else{
-      payload.author_id=U.id;payload.unit_id=U.uid;payload.status='pending';
-      payload.submitted_to_id=submittedToId;
+      payload.author_id=U.id;payload.unit_id=U.uid;
+      payload.status=isProvinceHead?'approved':'pending';
+      payload.submitted_to_id=isProvinceHead?null:submittedToId;
       var taskId=f.get('taskAssignmentId')||null;
       var r2=await fetch(API+'work_logs',{method:'POST',headers:authHeaders({'Content-Type':'application/json','Prefer':taskId?'return=representation':'return=minimal'}),body:JSON.stringify(payload)});
       if(!r2.ok)throw new Error('HTTP '+r2.status);
@@ -1251,7 +1280,7 @@ async function sj(e){
           if(cachedNote)cachedNote.is_done=true;
         }catch(e){}
       }
-      showToast('Đã gửi nhật ký.');
+      showToast(isProvinceHead?'Đã ghi nhật ký (tự lưu, không cần chấm điểm).':'Đã gửi nhật ký.');
     }
     cj();
     rj();
@@ -3346,7 +3375,16 @@ async function rm(){
   $('appView').innerHTML='<div class="empty-state"><strong>Đang tải...</strong></div>';
   var people;
   try{people=await fetchMonthlyScopeProfiles()}catch(e){$('appView').innerHTML='<div class="empty-state"><strong>Lỗi tải danh sách</strong><span>'+esc(e.message)+'</span></div>';return}
-  if(MONTHLY_UNIT_FILTER!=='all')people=people.filter(function(p){return p.unit_id===MONTHLY_UNIT_FILTER});
+  // O loc "Don vi" CHI hien voi Vien truong tinh/Quan tri (xem isProvinceScope
+  // ben duoi) - nhung gia tri MONTHLY_UNIT_FILTER lai luu chung 1 cho o
+  // localStorage cho MOI tai khoan dung CUNG trinh duyet. Neu truoc do 1
+  // tai khoan Vien truong tinh da loc theo 1 don vi CU THE, gia tri do se
+  // "dinh lai" va bi ap dung nham cho ca Truong phong/Pho phong dang nhap
+  // sau (du ho khong he thay o loc nay) - loc mat luon ca don vi cua chinh
+  // ho, ra trang trong hoan toan. Chi ap dung o loc khi ROLE THUC SU co
+  // quyen dung no (yeu cau nguoi dung, 2026-09-09).
+  var isProvinceScope=(U.rl==='province_head'||U.rl==='administrator');
+  if(isProvinceScope&&MONTHLY_UNIT_FILTER!=='all')people=people.filter(function(p){return p.unit_id===MONTHLY_UNIT_FILTER});
 
   var ids=people.map(function(p){return p.id});
   var reviews=[];
@@ -3365,7 +3403,6 @@ async function rm(){
   var deltas=approved.filter(function(x){return x.review.self_score!=null&&x.review.official_score!=null}).map(function(x){return Math.abs(x.review.official_score-x.review.self_score)});
   var avgDelta=deltas.length?deltas.reduce(function(a,b){return a+b},0)/deltas.length:0;
 
-  var isProvinceScope=(U.rl==='province_head'||U.rl==='administrator');
   var unitFilterHtml='';
   if(isProvinceScope){
     unitFilterHtml='<label class="filter-field"><span>Đơn vị</span><select id="monthlyUnitFilter"><option value="all">Tất cả đơn vị</option>'
@@ -3373,7 +3410,16 @@ async function rm(){
       +'</select></label>';
   }
 
-  if(!SELECTED_MONTHLY_ID||!rows.some(function(x){return x.person.id===SELECTED_MONTHLY_ID})){SELECTED_MONTHLY_ID=rows[0]?rows[0].person.id:null}
+  // Lan dau mo trang (chua chon ai) - uu tien mac dinh chon DUNG chinh
+  // minh (neu nam trong pham vi dang xem) thay vi nguoi DAU TIEN server
+  // tra ve (thu tu khong on dinh, khong lien quan gi den nguoi dang dang
+  // nhap) - truoc day lanh dao mo trang len de thay ho so cua 1 nguoi
+  // ngau nhien (thuong 0 nhat ky) thay vi cua chinh minh, tuong nham la
+  // loi "khong hien nhat ky cua ban than" (yeu cau nguoi dung, 2026-09-09).
+  if(!SELECTED_MONTHLY_ID||!rows.some(function(x){return x.person.id===SELECTED_MONTHLY_ID})){
+    var selfRow=rows.find(function(x){return x.person.id===U.id});
+    SELECTED_MONTHLY_ID=selfRow?selfRow.person.id:(rows[0]?rows[0].person.id:null);
+  }
   var selected=rows.find(function(x){return x.person.id===SELECTED_MONTHLY_ID});
   var evidence=selected?await monthlyEvidence(selected.person.id):null;
   var adjustments=selected?await fetchScoreAdjustmentsFor(selected.person.id,CURRENT_PERIOD):[];
