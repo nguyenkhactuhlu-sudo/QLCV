@@ -7,6 +7,7 @@ const PERSONAL_NOTES_STORAGE_KEY = "vks-personal-notes-demo-v1";
 const STICKY_NOTES_STORAGE_KEY = "vks-sticky-notes-demo-v1";
 const SYSTEM_NOTIFICATIONS_STORAGE_KEY = "vks-override-notifications-demo-v1";
 const DELEGATIONS_STORAGE_KEY = "vks-delegations-demo-v1";
+const MONTHLY_REPORT_DELEGATIONS_STORAGE_KEY = "vks-monthly-report-delegations-demo-v1";
 const TASK_ASSIGNMENTS_STORAGE_KEY = "vks-task-assignments-demo-v1";
 const SCORE_ADJUSTMENTS_STORAGE_KEY = "vks-score-adjustments-demo-v1";
 
@@ -92,6 +93,15 @@ const sampleMonthly = [
 // thoi diem cho 1 nguoi uy quyen (xem grantDelegation()).
 const sampleDelegations = [
   { id: "DEL001", delegatorId: "u03", delegateId: "u04", unitId: "p1", startsAt: "2026-08-01", endsAt: "2026-08-31", status: "active" }
+];
+
+// Uy quyen xem/xuat bao cao tong hop thang - KHAC uy quyen tren: khong gan
+// 1 don vi cu the, VO THOI HAN (khong co endsAt), chi cap 1 quyen duy nhat
+// (xem/xuat "Cham diem thang" pham vi toan tinh nhu Vien truong, khong
+// duyet/sua diem ai). Yeu cau nguoi dung 2026-09-09 (Phong 15 - tham muu
+// nhan su - can trich xuat bieu tong hop thang).
+const sampleMonthlyReportDelegations = [
+  { id: "MRD001", delegatorId: "u01", delegateId: "u12", grantedAt: "2026-09-01", status: "active" }
 ];
 
 // Giao viec: lanh dao giao viec cho cap duoi trong pham vi duyet duoc
@@ -349,6 +359,7 @@ let personalNotes = loadJson(PERSONAL_NOTES_STORAGE_KEY, samplePersonalNotes);
 let stickyNotes = loadJson(STICKY_NOTES_STORAGE_KEY, []);
 let systemNotifications = loadJson(SYSTEM_NOTIFICATIONS_STORAGE_KEY, []);
 let delegations = loadJson(DELEGATIONS_STORAGE_KEY, sampleDelegations);
+let monthlyReportDelegations = loadJson(MONTHLY_REPORT_DELEGATIONS_STORAGE_KEY, sampleMonthlyReportDelegations);
 let taskAssignments = loadJson(TASK_ASSIGNMENTS_STORAGE_KEY, sampleTaskAssignments);
 let scoreAdjustments = loadJson(SCORE_ADJUSTMENTS_STORAGE_KEY, sampleScoreAdjustments);
 let auditEvents = loadJson(AUDIT_STORAGE_KEY, [
@@ -423,6 +434,14 @@ function autoGrowTextarea(el) {
 
 function saveDelegations() {
   localStorage.setItem(DELEGATIONS_STORAGE_KEY, JSON.stringify(delegations));
+}
+
+function saveMonthlyReportDelegations() {
+  localStorage.setItem(MONTHLY_REPORT_DELEGATIONS_STORAGE_KEY, JSON.stringify(monthlyReportDelegations));
+}
+
+function hasMonthlyReportDelegation(userId) {
+  return monthlyReportDelegations.some(d => d.delegateId === userId && d.status === "active");
 }
 
 function saveTaskAssignments() {
@@ -2434,18 +2453,24 @@ function ujDateGroupHtml(g, showAuthor) {
 function monthlyScope() {
   const user = currentUser();
   let scopedUsers = users.filter(person => person.role !== "administrator");
-  if (user.role === "staff" || user.role === "support_staff") scopedUsers = scopedUsers.filter(person => person.id === user.id);
-  if (user.role === "unit_head" || user.role === "unit_deputy") scopedUsers = scopedUsers.filter(person => person.unitId === user.unitId && isVisibleInUnitScope(person, user));
-  if (user.role === "province_deputy") scopedUsers = scopedUsers.filter(person => person.role === "unit_head" && (user.assignedUnits || []).includes(person.unitId));
-  // O loc "Don vi" CHI hien voi Vien truong tinh/Quan tri - nhung
-  // state.monthlyUnit luu chung 1 cho o localStorage cho MOI tai khoan
-  // dung CUNG trinh duyet. Neu truoc do 1 tai khoan Vien truong tinh da
-  // loc theo 1 don vi CU THE, gia tri do se "dinh lai" va bi ap dung
-  // nham cho ca Truong phong/Pho phong dang nhap sau (du ho khong he
-  // thay o loc nay) - loc mat luon ca don vi cua chinh ho, ra trang
-  // trong hoan toan. Chi ap dung o loc khi ROLE THUC SU co quyen dung no
-  // (yeu cau nguoi dung, 2026-09-09).
-  const provinceScopeForFilter = ["province_head", "administrator"].includes(user.role);
+  // Uy quyen xem/xuat bao cao tong hop thang: xem toan tinh nhu Vien
+  // truong, bat ke vai tro goc, kiem tra TRUOC moi nhanh khac (yeu cau
+  // nguoi dung 2026-09-09) - giu nguyen vai tro goc o moi man hinh khac.
+  if (hasMonthlyReportDelegation(user.id)) {
+    // khong loc gi them - giu nguyen scopedUsers = toan bo (tru Quan tri).
+  } else if (user.role === "staff" || user.role === "support_staff") scopedUsers = scopedUsers.filter(person => person.id === user.id);
+  else if (user.role === "unit_head" || user.role === "unit_deputy") scopedUsers = scopedUsers.filter(person => person.unitId === user.unitId && isVisibleInUnitScope(person, user));
+  else if (user.role === "province_deputy") scopedUsers = scopedUsers.filter(person => person.role === "unit_head" && (user.assignedUnits || []).includes(person.unitId));
+  // O loc "Don vi" CHI hien voi Vien truong tinh/Quan tri (hoac nguoi dang
+  // giu uy quyen xem bao cao toan tinh) - nhung state.monthlyUnit luu
+  // chung 1 cho o localStorage cho MOI tai khoan dung CUNG trinh duyet.
+  // Neu truoc do 1 tai khoan Vien truong tinh da loc theo 1 don vi CU
+  // THE, gia tri do se "dinh lai" va bi ap dung nham cho ca Truong
+  // phong/Pho phong dang nhap sau (du ho khong he thay o loc nay) - loc
+  // mat luon ca don vi cua chinh ho, ra trang trong hoan toan. Chi ap
+  // dung o loc khi ROLE THUC SU co quyen dung no (yeu cau nguoi dung,
+  // 2026-09-09).
+  const provinceScopeForFilter = ["province_head", "administrator"].includes(user.role) || hasMonthlyReportDelegation(user.id);
   if (provinceScopeForFilter && state.monthlyUnit !== "all") scopedUsers = scopedUsers.filter(person => person.unitId === state.monthlyUnit);
   return monthlyReviews.filter(review => review.period === state.monthlyPeriod && scopedUsers.some(person => person.id === review.userId));
 }
@@ -2499,8 +2524,13 @@ function renderMonthly() {
   const counts = ["A", "B", "C"].reduce((result, grade) => ({ ...result, [grade]: approved.filter(row => row.classification === grade).length }), {});
   const deltas = approved.filter(row => Number.isFinite(row.selfScore)).map(row => Math.abs(row.officialScore - row.selfScore));
   const averageDelta = deltas.length ? average(deltas) : 0;
-  const provinceScope = ["province_head", "administrator"].includes(user.role);
-  const visibleUnits = units.filter(unit => unit.id !== "province" && visibleUnitIds(user).includes(unit.id));
+  const provinceScope = ["province_head", "administrator"].includes(user.role) || hasMonthlyReportDelegation(user.id);
+  // Rieng man hinh nay dung provinceScope (khong dung thang visibleUnitIds()
+  // nhu cac man khac) de danh sach don vi loc dung toan tinh cho ca nguoi
+  // dang giu uy quyen xem bao cao - visibleUnitIds() dung chung cho ca
+  // Tong quan/Nhat ky don vi nen KHONG mo rong o do (dung y "chi them
+  // quyen o man Cham diem thang", khong doi cac man khac).
+  const visibleUnits = provinceScope ? units.filter(unit => unit.id !== "province") : units.filter(unit => unit.id !== "province" && visibleUnitIds(user).includes(unit.id));
   const unitFilter = provinceScope ? `<label class="filter-field"><span>Đơn vị</span><select id="monthlyUnitFilter"><option value="all">Tất cả đơn vị</option>${visibleUnits.map(unit => `<option value="${unit.id}" ${state.monthlyUnit === unit.id ? "selected" : ""}>${unit.short}</option>`).join("")}</select></label>` : "";
   // Lan dau mo trang (chua chon ai) - uu tien mac dinh chon DUNG chinh
   // minh (neu nam trong pham vi dang xem) thay vi nguoi DAU TIEN trong
@@ -2519,7 +2549,7 @@ function renderMonthly() {
     <div class="demo-notice"><strong>Dữ liệu tham chiếu</strong><span>Danh mục và điểm ${periodLabel(state.monthlyPeriod).toLowerCase()} lấy từ bảng tổng hợp đã cung cấp (hoặc mô phỏng cho các kỳ khác). Demo đang nạp 32 hồ sơ đại diện trong tổng số 428 cán bộ, công chức và người lao động.</span></div>
     <div class="toolbar">
       <label class="filter-field"><span>Kỳ đánh giá</span><select id="monthlyPeriodFilter">${recentPeriods().map(period => `<option value="${period}" ${state.monthlyPeriod === period ? "selected" : ""}>${periodLabel(period)}${period === recentPeriods()[0] ? " · Đang chấm" : " · Đã chốt"}</option>`).join("")}</select></label>
-      ${unitFilter}<label class="field"><span>Tìm theo tên</span><input type="text" id="monthlySearchInput" value="${state.monthlySearch}" placeholder="Nhập tên..."></label><div class="spacer"></div><button class="button button-secondary" id="exportMonthly">${(currentUser().role === "staff" || currentUser().role === "support_staff") ? "Xuất nhật ký tháng" : "Xuất báo cáo tháng"}</button>
+      ${unitFilter}<label class="field"><span>Tìm theo tên</span><input type="text" id="monthlySearchInput" value="${state.monthlySearch}" placeholder="Nhập tên..."></label><div class="spacer"></div><button class="button button-secondary" id="exportMonthly">${(currentUser().role === "staff" || currentUser().role === "support_staff") && !hasMonthlyReportDelegation(user.id) ? "Xuất nhật ký tháng" : "Xuất báo cáo tháng"}</button>
     </div>
     <div class="metric-grid">
       ${metricCard("Hồ sơ trong phạm vi", rows.length, `${approved.length} hồ sơ đã duyệt`, "")}
@@ -2885,12 +2915,16 @@ function deleteScoreAdjustment(id) {
 function monthlyExportScope(period) {
   const user = currentUser();
   let scopedUsers = users.filter(person => person.role !== "administrator");
-  if (user.role === "staff" || user.role === "support_staff") scopedUsers = scopedUsers.filter(person => person.id === user.id);
-  if (user.role === "unit_head" || user.role === "unit_deputy") scopedUsers = scopedUsers.filter(person => person.unitId === user.unitId && isVisibleInUnitScope(person, user));
+  // Uy quyen xem/xuat bao cao tong hop thang: xuat toan tinh nhu Vien
+  // truong, bat ke vai tro goc (yeu cau nguoi dung 2026-09-09).
+  if (hasMonthlyReportDelegation(user.id)) {
+    // giu nguyen scopedUsers = toan bo (tru Quan tri).
+  } else if (user.role === "staff" || user.role === "support_staff") scopedUsers = scopedUsers.filter(person => person.id === user.id);
+  else if (user.role === "unit_head" || user.role === "unit_deputy") scopedUsers = scopedUsers.filter(person => person.unitId === user.unitId && isVisibleInUnitScope(person, user));
   // Pho Vien truong dang duoc uy quyen thay mat toan tinh thi xuat toan bo
   // giong Vien truong, khong chi rieng don vi phan cong co dinh (yeu cau
   // nguoi dung, 2026-09-08).
-  if (user.role === "province_deputy" && !hasActiveDelegation(user.id)) scopedUsers = scopedUsers.filter(person => person.role === "unit_head" && (user.assignedUnits || []).includes(person.unitId));
+  else if (user.role === "province_deputy" && !hasActiveDelegation(user.id)) scopedUsers = scopedUsers.filter(person => person.role === "unit_head" && (user.assignedUnits || []).includes(person.unitId));
   return scopedUsers.map(person => ({ person, review: monthlyReviews.find(r => r.period === period && r.userId === person.id) || null }));
 }
 
@@ -2938,7 +2972,7 @@ function monthlyExportCompleteness(period) {
 // 2026-09-08).
 function openExportModal() {
   const user = currentUser();
-  const isIndividual = user.role === "staff" || user.role === "support_staff";
+  const isIndividual = (user.role === "staff" || user.role === "support_staff") && !hasMonthlyReportDelegation(user.id);
   document.getElementById("exportModalTitle").textContent = isIndividual ? "Xuất nhật ký tháng" : "Xuất báo cáo chấm điểm tháng";
   document.getElementById("exportScoreSection").hidden = isIndividual;
   const select = document.getElementById("exportPeriodSelect");
@@ -3584,12 +3618,20 @@ function renderAdministration() {
         ${delegationGrantFormHtml()}
         ${delegationsTableHtml()}
       </section>`;
+  if (user.role === "province_head") {
+    html += `<section class="panel panel-wide"><div class="panel-header"><div><h2>Ủy quyền xem/xuất báo cáo tổng hợp tháng</h2><p>Cho 1 người xem và xuất "Chấm điểm tháng" phạm vi toàn tỉnh như Viện trưởng - không cấp quyền duyệt/sửa điểm ai. Vô thời hạn, chỉ hết hiệu lực khi bị thu hồi</p></div></div>
+        ${monthlyReportDelegationFormHtml()}
+        ${monthlyReportDelegationsTableHtml()}
+      </section>`;
+  }
   if (fullAccess) html += `<section class="panel panel-wide"><div class="panel-header"><div><h2>Nhật ký thay đổi</h2><p>Không xóa lịch sử thay đổi nhân sự và phân quyền</p></div></div><div class="audit-list">${auditEvents.slice().reverse().map(event => `<div class="audit-row"><span class="audit-time">${new Date(event.at).toLocaleString("vi-VN")}</span><div><strong>${event.action}</strong><p>${event.detail}</p></div><span>${event.actor}</span></div>`).join("")}</div></section>`;
   html += `</div>`;
   document.getElementById("appView").innerHTML = html;
   if (fullAccess) document.getElementById("applyTransfer").addEventListener("click", applyPersonnelTransfer);
   bindDelegationForm();
   document.querySelectorAll("[data-revoke-delegation]").forEach(button => button.addEventListener("click", () => revokeDelegation(button.dataset.revokeDelegation)));
+  bindMonthlyReportDelegationForm();
+  document.querySelectorAll("[data-revoke-monthly-report-delegation]").forEach(button => button.addEventListener("click", () => revokeMonthlyReportDelegation(button.dataset.revokeMonthlyReportDelegation)));
 }
 
 function applyPersonnelTransfer() {
@@ -3721,6 +3763,88 @@ function revokeDelegation(id) {
       title: "Ủy quyền chấm điểm đã bị thu hồi",
       message: `${currentUser().name} đã thu hồi ủy quyền chấm điểm của bạn.`,
       view: "unitJournal",
+      createdAt: new Date().toISOString()
+    });
+    saveSystemNotifications();
+  }
+  showToast("Đã thu hồi ủy quyền.");
+  renderAdministration();
+}
+
+// ============================================
+// UY QUYEN XEM/XUAT BAO CAO TONG HOP THANG - KHAC "uy quyen co thoi han"
+// o tren: khong gan 1 don vi cu the, VO THOI HAN (khong endsAt), CHI cap 1
+// quyen duy nhat (xem/xuat "Cham diem thang" pham vi toan tinh nhu Vien
+// truong) - khong doi vai tro/quyen duyet-sua diem o bat ky man hinh nao
+// khac. Yeu cau nguoi dung 2026-09-09 (Phong 15 - tham muu nhan su - can
+// trich xuat bieu tong hop thang).
+// ============================================
+function monthlyReportDelegationFormHtml() {
+  const user = currentUser();
+  if (user.role !== "province_head") {
+    return `<div class="empty-state compact-empty"><strong>Chỉ Viện trưởng tỉnh mới cấp được ủy quyền này</strong></div>`;
+  }
+  const candidates = users.filter(person => person.role !== "administrator" && person.id !== user.id);
+  return `<div class="form-grid compact-form">
+    <label class="field field-wide"><span>Người được ủy quyền</span><select id="monthlyReportDelegatePerson">${candidates.map(p => `<option value="${p.id}">${p.name} · ${ROLE_LABELS[p.role] || p.role} · ${unitById(p.unitId).short}</option>`).join("")}</select></label>
+    <p class="metric-context field-wide">Người được chọn sẽ xem và xuất được báo cáo tổng hợp chấm điểm tháng của <strong>toàn tỉnh</strong> (kể cả Viện trưởng, Phó Viện trưởng) - giống hệt phạm vi xem của Viện trưởng, nhưng <strong>không</strong> có quyền duyệt/sửa điểm của ai. Các quyền khác của họ giữ nguyên như cũ. Có hiệu lực ngay, không có ngày hết hạn - chỉ mất hiệu lực khi bị thu hồi ở bảng bên dưới.</p>
+  </div><div class="review-actions"><button class="button button-primary" id="grantMonthlyReportDelegation">Cấp ủy quyền</button></div>`;
+}
+
+function monthlyReportDelegationsTableHtml() {
+  if (!monthlyReportDelegations.length) return `<div class="empty-state compact-empty"><strong>Chưa cấp ủy quyền nào</strong></div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>Người được ủy quyền</th><th>Đơn vị</th><th>Cấp lúc</th><th>Trạng thái</th><th></th></tr></thead><tbody>${monthlyReportDelegations.slice().reverse().map(d => {
+    const person = userById(d.delegateId);
+    const active = d.status === "active";
+    return `<tr><td><strong>${person ? person.name : "—"}</strong></td><td>${person ? unitById(person.unitId).short : "—"}</td><td>${formatDate(d.grantedAt)}</td><td><span class="status-pill ${active ? "status-approved" : "status-revision"}">${active ? "Đang hiệu lực" : "Đã thu hồi"}</span></td><td class="numeric">${active ? `<button class="button button-danger button-small" data-revoke-monthly-report-delegation="${d.id}">Thu hồi</button>` : ""}</td></tr>`;
+  }).join("")}</tbody></table></div>`;
+}
+
+function bindMonthlyReportDelegationForm() {
+  const grantButton = document.getElementById("grantMonthlyReportDelegation");
+  if (!grantButton) return;
+  grantButton.addEventListener("click", grantMonthlyReportDelegation);
+}
+
+function grantMonthlyReportDelegation() {
+  const select = document.getElementById("monthlyReportDelegatePerson");
+  const person = select ? userById(select.value) : null;
+  if (!person) return showToast("Vui lòng chọn người được ủy quyền.");
+  const grantedBy = currentUser();
+  if (monthlyReportDelegations.some(d => d.delegateId === person.id && d.status === "active")) {
+    return showToast("Người này đang có ủy quyền còn hiệu lực.");
+  }
+  monthlyReportDelegations.push({ id: `MRD-${Date.now()}`, delegatorId: grantedBy.id, delegateId: person.id, grantedAt: DEMO_TODAY, status: "active" });
+  saveMonthlyReportDelegations();
+  auditEvents.push({ at: new Date().toISOString(), actor: grantedBy.name, action: "Cấp ủy quyền xem/xuất báo cáo tháng", detail: `${person.name} · Xem/xuất toàn tỉnh · Vô thời hạn` });
+  localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(auditEvents));
+  systemNotifications.push({
+    id: `ON-${Date.now()}-${person.id}`, userId: person.id, type: "monthly_report_delegation_granted",
+    title: "Bạn được ủy quyền xem/xuất báo cáo tổng hợp tháng toàn tỉnh",
+    message: `${grantedBy.name} đã ủy quyền cho bạn xem và xuất báo cáo tổng hợp chấm điểm tháng của toàn tỉnh - có hiệu lực ngay, không có ngày hết hạn, chỉ mất hiệu lực khi bị thu hồi.`,
+    view: "monthly",
+    createdAt: new Date().toISOString()
+  });
+  saveSystemNotifications();
+  showToast("Đã cấp ủy quyền xem/xuất báo cáo tổng hợp tháng.");
+  renderAdministration();
+}
+
+function revokeMonthlyReportDelegation(id) {
+  const delegation = monthlyReportDelegations.find(d => d.id === id);
+  if (!delegation) return;
+  if (!confirm("Thu hồi ủy quyền xem/xuất báo cáo tổng hợp tháng này?")) return;
+  delegation.status = "revoked";
+  saveMonthlyReportDelegations();
+  const person = userById(delegation.delegateId);
+  auditEvents.push({ at: new Date().toISOString(), actor: currentUser().name, action: "Thu hồi ủy quyền xem/xuất báo cáo tháng", detail: person ? person.name : "—" });
+  localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(auditEvents));
+  if (person) {
+    systemNotifications.push({
+      id: `ON-${Date.now()}-${person.id}`, userId: person.id, type: "monthly_report_delegation_revoked",
+      title: "Ủy quyền xem/xuất báo cáo tổng hợp tháng đã bị thu hồi",
+      message: `${currentUser().name} đã thu hồi ủy quyền xem/xuất báo cáo tổng hợp tháng toàn tỉnh của bạn.`,
+      view: "monthly",
       createdAt: new Date().toISOString()
     });
     saveSystemNotifications();
@@ -4980,6 +5104,7 @@ function resetDemo() {
   stickyNotes = [];
   systemNotifications = [];
   delegations = structuredClone(sampleDelegations);
+  monthlyReportDelegations = structuredClone(sampleMonthlyReportDelegations);
   taskAssignments = structuredClone(sampleTaskAssignments);
   monthlyReviews = structuredClone(sampleMonthly.concat(generateMonthlyHistory()));
   scoreAdjustments = structuredClone(sampleScoreAdjustments);
@@ -4996,6 +5121,7 @@ function resetDemo() {
   saveStickyNotes();
   saveSystemNotifications();
   saveDelegations();
+  saveMonthlyReportDelegations();
   saveTaskAssignments();
   localStorage.setItem(MONTHLY_STORAGE_KEY, JSON.stringify(monthlyReviews));
   saveScoreAdjustments();

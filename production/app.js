@@ -94,6 +94,7 @@ var STATUS_CLASS={pending:'status-pending',approved:'status-approved',revision:'
 // mang nay.
 // ============================================
 var CHANGELOG=[
+  {date:'2026-09-09',type:'feature',text:'Thêm tính năng "Ủy quyền xem/xuất báo cáo tổng hợp tháng": Viện trưởng có thể ủy quyền cho 1 người (vào mục Quản trị) xem và xuất báo cáo "Chấm điểm tháng" phạm vi toàn tỉnh như Viện trưởng - không cấp quyền duyệt/sửa điểm, vô thời hạn cho đến khi bị thu hồi.'},
   {date:'2026-09-09',type:'fix',text:'Sửa lỗi chuông thông báo không đồng bộ trạng thái "đã đọc" giữa điện thoại và máy tính (trước đây chỉ lưu trên từng máy/trình duyệt) - nay lưu lên hệ thống, đăng nhập ở đâu cũng thấy đúng tin nào đã xem, tin nào chưa.'},
   {date:'2026-09-09',type:'improve',text:'Bỏ yêu cầu bắt buộc nhận xét khi lãnh đạo chấm điểm chất lượng từ 9 trở lên (chỉ còn bắt buộc khi dưới 5 hoặc khi yêu cầu bổ sung) - cho phù hợp quy tắc chấm điểm mới, không còn coi mức 9-10 là thành tích đặc biệt cần giải trình.'},
   {date:'2026-09-09',type:'improve',text:'Điều chỉnh gợi ý thang điểm chất lượng: mức 7-8 đổi thành "Hoàn thành yêu cầu nhưng còn thiếu sót", mức 9-10 đổi thành "Kết quả đúng - đủ - kịp thời - rõ ràng" (không yêu cầu phải có sáng kiến/thành tích đặc biệt mới đạt điểm cao); bổ sung ghi chú nhắc dùng mục điểm cộng/trừ đột xuất khi chọn điểm 10 hoặc điểm 1.'},
@@ -239,6 +240,12 @@ async function initU(t,uid,em){
     var delr=await fetch(API+'delegations?delegate_id=eq.'+uid+'&status=eq.active&starts_at=lte.'+nowIso+'&ends_at=gte.'+nowIso+'&select=id&limit=1',{headers:{'apikey':KEY,'Authorization':'Bearer '+t}});
     var del=delr.ok?await delr.json():[];
     U.hasFullDelegation=Array.isArray(del)&&del.length>0;
+    // Uy quyen xem/xuat bao cao tong hop thang (migration 00077) - KHAC
+    // uy quyen tren, vo thoi han (khong co ends_at) nen chi can kiem tra
+    // status='active'.
+    var mrdr=await fetch(API+'monthly_report_delegations?delegate_id=eq.'+uid+'&status=eq.active&select=id&limit=1',{headers:{'apikey':KEY,'Authorization':'Bearer '+t}});
+    var mrd=mrdr.ok?await mrdr.json():[];
+    U.hasMonthlyReportDelegation=Array.isArray(mrd)&&mrd.length>0;
   }catch(e){}
   $('loginScreen').hidden=true;$('appShell').hidden=false;document.body.classList.remove('login-active');
   ub();V='dashboard';render();showToast('Đăng nhập thành công!');
@@ -3320,6 +3327,16 @@ function canApproveMonthly(person){
 
 async function fetchMonthlyScopeProfiles(){
   var sel='id,full_name,title,professional_title,birth_year,role,unit_id,initials';
+  // Uy quyen xem/xuat bao cao tong hop thang (migration 00077) - kiem tra
+  // TRUOC MOI nhanh vai tro khac: dung y "them 1 quyen xem toan tinh", giu
+  // nguyen vai tro goc o moi man hinh khac (khong doi U.rl) nhung rieng
+  // man hinh nay (va man xuat bao cao dung chung ham nay) luon xem duoc
+  // toan tinh nhu Vien truong, bat ke vai tro goc la gi.
+  if(U.hasMonthlyReportDelegation){
+    var rD=await fetch(API+'profiles?role=neq.administrator&select='+sel,{headers:authHeaders()});
+    if(!rD.ok)throw new Error('HTTP '+rD.status);
+    return await rD.json();
+  }
   if(U.rl==='staff'||U.rl==='support_staff'){
     return [{id:U.id,full_name:U.n,title:U.tl,professional_title:'',role:U.rl,unit_id:U.uid,initials:U.in}];
   }
@@ -3398,7 +3415,7 @@ async function rm(){
   // sau (du ho khong he thay o loc nay) - loc mat luon ca don vi cua chinh
   // ho, ra trang trong hoan toan. Chi ap dung o loc khi ROLE THUC SU co
   // quyen dung no (yeu cau nguoi dung, 2026-09-09).
-  var isProvinceScope=(U.rl==='province_head'||U.rl==='administrator');
+  var isProvinceScope=(U.rl==='province_head'||U.rl==='administrator'||U.hasMonthlyReportDelegation);
   if(isProvinceScope&&MONTHLY_UNIT_FILTER!=='all')people=people.filter(function(p){return p.unit_id===MONTHLY_UNIT_FILTER});
 
   var ids=people.map(function(p){return p.id});
@@ -3441,7 +3458,7 @@ async function rm(){
 
   var h='<div class="toolbar"><label class="filter-field"><span>Kỳ đánh giá</span><select id="monthlyPeriodSelect">'
     +recentPeriods().map(function(p){return '<option value="'+p+'" '+(p===CURRENT_PERIOD?'selected':'')+'>'+esc(periodLabel(p))+'</option>'}).join('')
-    +'</select></label>'+unitFilterHtml+'<label class="field"><span>Tìm theo tên</span><input type="text" id="monthlySearchInput" value="'+esc(MONTHLY_SEARCH)+'" placeholder="Nhập tên..."></label><div class="spacer"></div><button class="button button-secondary" id="exportMonthly">'+((U.rl==='staff'||U.rl==='support_staff')?'Xuất nhật ký tháng':'Xuất báo cáo tháng')+'</button></div>';
+    +'</select></label>'+unitFilterHtml+'<label class="field"><span>Tìm theo tên</span><input type="text" id="monthlySearchInput" value="'+esc(MONTHLY_SEARCH)+'" placeholder="Nhập tên..."></label><div class="spacer"></div><button class="button button-secondary" id="exportMonthly">'+((U.rl==='staff'||U.rl==='support_staff')&&!U.hasMonthlyReportDelegation?'Xuất nhật ký tháng':'Xuất báo cáo tháng')+'</button></div>';
   h+='<div class="metric-grid">'
     +metricCard('Hồ sơ trong phạm vi',rows.length,approved.length+' hồ sơ đã duyệt','')
     +metricCard('Xếp loại A',counts.A,counts.B+' xếp loại B','green')
@@ -3863,7 +3880,7 @@ function monthlyExportCompleteness(scope){
 // khu "Bao cao tong hop diem" chi hien cho lanh dao (yeu cau nguoi dung,
 // 2026-09-08).
 async function openExportModal(){
-  var isIndividual=(U.rl==='staff'||U.rl==='support_staff');
+  var isIndividual=(U.rl==='staff'||U.rl==='support_staff')&&!U.hasMonthlyReportDelegation;
   $('exportModalTitle').textContent=isIndividual?'Xuất nhật ký tháng':'Xuất báo cáo chấm điểm tháng';
   $('exportScoreSection').hidden=isIndividual;
   var select=$('exportPeriodSelect');
@@ -4400,7 +4417,9 @@ async function fetchNotifications(){
       // khoan hien tai cua chinh minh. leave_acknowledged = ve "Nhat ky cua
       // toi" de xem lai don nghi phep vua duoc xac nhan.
       // monthly_self_score_submitted = gui cho nguoi duyet -> ve "Cham diem
-      // thang" de duyet luon.
+      // thang" de duyet luon. monthly_report_delegation_granted/_revoked
+      // (migration 00077) = gui cho nguoi duoc/thoi khong con duoc uy quyen
+      // xem/xuat bao cao tong hop thang toan tinh -> ve "Cham diem thang".
       var view=n.type==='score_overridden_by_senior'?'journal'
         :n.type==='work_log_deleted_by_leader'?'journal'
         :n.type==='leave_acknowledged'?'journal'
@@ -4411,6 +4430,8 @@ async function fetchNotifications(){
         :n.type==='score_adjustment_added'?'monthly'
         :n.type==='score_adjustment_removed'?'monthly'
         :n.type==='monthly_self_score_submitted'?'monthly'
+        :n.type==='monthly_report_delegation_granted'?'monthly'
+        :n.type==='monthly_report_delegation_revoked'?'monthly'
         :(n.type==='task_assigned'||n.type==='task_unassigned'||n.type==='task_updated'||n.type==='task_deleted'||n.type==='task_due_date_set')?'tasks'
         :(n.type==='account_role_changed'||n.type==='account_scope_changed'||n.type==='account_active_changed')?'settings'
         :'unitJournal';
@@ -4544,6 +4565,7 @@ async function openNotificationItem(button){
 // don vi. KHONG con co che tu dang ky/ma dang ky theo don vi nua.
 // ============================================
 var ADMIN_DELEGATION_PEOPLE=[],ADMIN_DELEGATIONS=[];
+var ADMIN_MRD_PEOPLE=[],ADMIN_MRD_DELEGATIONS=[];
 
 // Quan tri toan phan (tao tai khoan, audit log) chi danh cho Quan tri
 // vien/Vien truong tinh. Rieng "Uy quyen co thoi han" con
@@ -4578,6 +4600,22 @@ async function ra(){
   }catch(e){}
   ADMIN_DELEGATION_PEOPLE=people;ADMIN_DELEGATIONS=delegationRows;
 
+  var mrdPeople=[],mrdRows=[];
+  if(U.rl==='province_head'){
+    try{
+      // Bat ky ai (tru Quan tri vien) deu chon duoc lam nguoi duoc uy quyen
+      // xem/xuat bao cao tong hop thang - khac uy quyen "thay mat 100%" o
+      // tren (chi gioi han Pho Vien truong tinh).
+      var mrpUrl=API+'profiles?role=neq.administrator&is_active=eq.true&select=id,full_name,role,unit_id&order=full_name';
+      var mrpr=await fetch(mrpUrl,{headers:authHeaders()});
+      mrdPeople=mrpr.ok?await mrpr.json():[];
+      var mrdUrl=API+'monthly_report_delegations?select=id,delegator_id,delegate_id,status,granted_at&order=granted_at.desc';
+      var mrdr=await fetch(mrdUrl,{headers:authHeaders()});
+      mrdRows=mrdr.ok?await mrdr.json():[];
+    }catch(e){}
+  }
+  ADMIN_MRD_PEOPLE=mrdPeople;ADMIN_MRD_DELEGATIONS=mrdRows;
+
   var activeDelegationsCount=delegationRows.filter(isDelegationActiveRow).length;
   var h=credentialNoticeHtml();
   h+=fullAccess?('<div class="metric-grid">'
@@ -4589,6 +4627,10 @@ async function ra(){
   }
   h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Ủy quyền có thời hạn</h2><p>'+(U.rl==='province_head'?'Ủy quyền cho Phó Viện trưởng tỉnh thay mặt chấm điểm toàn tỉnh':'Ủy quyền cho 1 Phó phòng/Phó Viện trưởng KV thay mặt chấm điểm toàn bộ đơn vị'+(fullAccess?'':' (đơn vị của bạn)'))+', trong một khoảng thời gian</p></div></div>'
     +delegationGrantFormHtml(people,delegationRows)+delegationsTableHtml(delegationRows,people)+'</section>';
+  if(U.rl==='province_head'){
+    h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Ủy quyền xem/xuất báo cáo tổng hợp tháng</h2><p>Cho 1 người xem và xuất "Chấm điểm tháng" phạm vi toàn tỉnh như Viện trưởng - không cấp quyền duyệt/sửa điểm ai. Vô thời hạn, chỉ hết hiệu lực khi bị thu hồi</p></div></div>'
+      +monthlyReportDelegationFormHtml(mrdPeople,mrdRows)+monthlyReportDelegationsTableHtml(mrdRows,mrdPeople)+'</section>';
+  }
   if(fullAccess&&U.rl==='administrator'){
     h+='<section class="panel panel-wide"><div class="panel-header"><div><h2>Nhật ký kiểm toán</h2><p>50 thay đổi gần nhất đối với điểm số, trạng thái, quyền hạn và nhân sự</p></div></div>'+auditLogTableHtml(auditLogs)+'</section>';
   }
@@ -4599,6 +4641,8 @@ async function ra(){
   bindCredentialNoticeDismiss();
   bindDelegationForm();
   document.querySelectorAll('[data-revoke-delegation]').forEach(function(b){b.addEventListener('click',function(){revokeDelegation(b.dataset.revokeDelegation)})});
+  bindMonthlyReportDelegationForm();
+  document.querySelectorAll('[data-revoke-monthly-report-delegation]').forEach(function(b){b.addEventListener('click',function(){revokeMonthlyReportDelegation(b.dataset.revokeMonthlyReportDelegation)})});
 }
 
 // ============================================
@@ -4745,8 +4789,67 @@ async function revokeDelegation(id){
   }catch(e){showToast('Lỗi: '+e.message)}
 }
 
+// ============================================
+// UY QUYEN XEM/XUAT BAO CAO TONG HOP THANG - KHAC "uy quyen co thoi han"
+// o tren: khong gan 1 don vi cu the, VO THOI HAN (khong ends_at), CHI cap
+// 1 quyen duy nhat (xem/xuat "Cham diem thang" pham vi toan tinh nhu Vien
+// truong) - khong doi vai tro/quyen duyet-sua diem o bat ky man hinh nao
+// khac (migration 00077, yeu cau nguoi dung 2026-09-09 - Phong 15 tham
+// muu nhan su can trich xuat bieu tong hop thang).
+function monthlyReportDelegationFormHtml(people,delegations){
+  var candidates=people.filter(function(p){return p.id!==U.id});
+  var options=candidates.map(function(p){return '<option value="'+p.id+'">'+esc(p.full_name)+' · '+esc(ROLE_LABELS[p.role]||p.role)+' · '+esc(unitShort(p.unit_id))+'</option>'}).join('');
+  return '<div class="form-grid compact-form">'
+    +'<label class="field field-wide"><span>Người được ủy quyền</span><select id="monthlyReportDelegatePerson">'+options+'</select></label>'
+    +'<p class="metric-context field-wide">Người được chọn sẽ xem và xuất được báo cáo tổng hợp chấm điểm tháng của <strong>toàn tỉnh</strong> (kể cả Viện trưởng, Phó Viện trưởng) - giống hệt phạm vi xem của Viện trưởng, nhưng <strong>không</strong> có quyền duyệt/sửa điểm của ai. Các quyền khác của họ (giao việc, duyệt nhật ký đơn vị mình...) giữ nguyên như cũ. Có hiệu lực ngay, không có ngày hết hạn - chỉ mất hiệu lực khi bị thu hồi ở bảng bên dưới.</p>'
+    +'</div><div class="review-actions"><button class="button button-primary" id="grantMonthlyReportDelegation">Cấp ủy quyền</button></div>';
+}
+
+function monthlyReportDelegationsTableHtml(delegations,people){
+  if(!delegations.length)return '<div class="empty-state compact-empty"><strong>Chưa cấp ủy quyền nào</strong></div>';
+  function personById(id){return people.find(function(p){return p.id===id})}
+  return '<div class="table-wrap"><table><thead><tr><th>Người được ủy quyền</th><th>Đơn vị</th><th>Cấp lúc</th><th>Trạng thái</th><th></th></tr></thead><tbody>'+delegations.map(function(d){
+    var person=personById(d.delegate_id);
+    var active=d.status==='active';
+    return '<tr><td><strong>'+(person?esc(person.full_name):'—')+'</strong></td><td>'+(person?esc(unitShort(person.unit_id)):'—')+'</td><td>'+new Date(d.granted_at).toLocaleDateString('vi-VN')+'</td><td><span class="status-pill '+(active?'status-approved':'status-revision')+'">'+(active?'Đang hiệu lực':'Đã thu hồi')+'</span></td><td class="numeric">'+(active?'<button class="button button-danger button-small" data-revoke-monthly-report-delegation="'+d.id+'">Thu hồi</button>':'')+'</td></tr>';
+  }).join('')+'</tbody></table></div>';
+}
+
+function bindMonthlyReportDelegationForm(){
+  var btn=$('grantMonthlyReportDelegation');
+  if(!btn)return;
+  btn.addEventListener('click',grantMonthlyReportDelegationClick);
+}
+
+async function grantMonthlyReportDelegationClick(){
+  if(!requireActive())return;
+  var select=$('monthlyReportDelegatePerson');
+  var personId=select?select.value:'';
+  if(!personId){showToast('Vui lòng chọn người được ủy quyền.');return}
+  var btn=$('grantMonthlyReportDelegation');btn.disabled=true;
+  try{
+    var r=await fetch(API+'rpc/grant_monthly_report_delegation',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_delegate_id:personId})});
+    var data=await r.json();
+    if(!r.ok||data.success===false){showToast('Lỗi: '+(data.error||'HTTP '+r.status));btn.disabled=false;return}
+    showToast('Đã cấp ủy quyền xem/xuất báo cáo tổng hợp tháng.');
+    ra();
+  }catch(e){showToast('Lỗi: '+e.message);btn.disabled=false}
+}
+
+async function revokeMonthlyReportDelegation(id){
+  if(!requireActive())return;
+  if(!confirm('Thu hồi ủy quyền xem/xuất báo cáo tổng hợp tháng này?'))return;
+  try{
+    var r=await fetch(API+'rpc/revoke_monthly_report_delegation',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_id:id})});
+    var data=await r.json();
+    if(!r.ok||data.success===false){showToast('Lỗi: '+(data.error||'HTTP '+r.status));return}
+    showToast('Đã thu hồi ủy quyền.');
+    ra();
+  }catch(e){showToast('Lỗi: '+e.message)}
+}
+
 var AUDIT_ACTION_LABELS={INSERT:'Tạo mới',UPDATE:'Cập nhật',DELETE:'Xoá'};
-var AUDIT_ENTITY_LABELS={work_logs:'Nhật ký công việc',profiles:'Hồ sơ tài khoản',delegations:'Ủy quyền',monthly_reviews:'Đánh giá tháng'};
+var AUDIT_ENTITY_LABELS={work_logs:'Nhật ký công việc',profiles:'Hồ sơ tài khoản',delegations:'Ủy quyền',monthly_reviews:'Đánh giá tháng',monthly_report_delegations:'Ủy quyền xem/xuất báo cáo tháng'};
 
 function auditLogTableHtml(logs){
   if(!logs.length)return '<div class="empty-state compact-empty"><strong>Chưa có thay đổi nào được ghi nhận</strong></div>';
