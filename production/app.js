@@ -94,6 +94,7 @@ var STATUS_CLASS={pending:'status-pending',approved:'status-approved',revision:'
 // mang nay.
 // ============================================
 var CHANGELOG=[
+  {date:'2026-09-09',type:'fix',text:'Sửa lỗi chuông thông báo không đồng bộ trạng thái "đã đọc" giữa điện thoại và máy tính (trước đây chỉ lưu trên từng máy/trình duyệt) - nay lưu lên hệ thống, đăng nhập ở đâu cũng thấy đúng tin nào đã xem, tin nào chưa.'},
   {date:'2026-09-09',type:'improve',text:'Bỏ yêu cầu bắt buộc nhận xét khi lãnh đạo chấm điểm chất lượng từ 9 trở lên (chỉ còn bắt buộc khi dưới 5 hoặc khi yêu cầu bổ sung) - cho phù hợp quy tắc chấm điểm mới, không còn coi mức 9-10 là thành tích đặc biệt cần giải trình.'},
   {date:'2026-09-09',type:'improve',text:'Điều chỉnh gợi ý thang điểm chất lượng: mức 7-8 đổi thành "Hoàn thành yêu cầu nhưng còn thiếu sót", mức 9-10 đổi thành "Kết quả đúng - đủ - kịp thời - rõ ràng" (không yêu cầu phải có sáng kiến/thành tích đặc biệt mới đạt điểm cao); bổ sung ghi chú nhắc dùng mục điểm cộng/trừ đột xuất khi chọn điểm 10 hoặc điểm 1.'},
   {date:'2026-09-09',type:'fix',text:'Sửa lỗi ô "Nộp cho lãnh đạo" vẫn hiện ra ở form ghi nhật ký của Viện trưởng tỉnh dù đã ẩn (nguyên nhân: 1 quy tắc CSS chung của khung nhập liệu vô tình mạnh hơn thao tác ẩn bằng JavaScript, đã bổ sung override còn thiếu).'},
@@ -4329,10 +4330,29 @@ async function exportMonthlyLogPdf(period){
 // ============================================
 // TRUNG TAM THONG BAO
 // ============================================
-function notifStorageKey(){return 'qlcv-notif-read-'+U.id}
-function readNotificationIds(){try{return JSON.parse(localStorage.getItem(notifStorageKey())||'[]')}catch(e){return []}}
-function saveNotificationReadIds(ids){localStorage.setItem(notifStorageKey(),JSON.stringify(ids.slice(-100)))}
-function markNotificationRead(id){var ids=readNotificationIds();if(ids.indexOf(id)<0){ids.push(id);saveNotificationReadIds(ids)}}
+// Truoc day trang thai "da doc" chi luu localStorage tren tung may/trinh
+// duyet - dang nhap tren dien thoai roi mo lai tren may tinh van thay
+// "chua doc" (va nguoc lai). Tu 2026-09-09 chuyen sang luu server (bang
+// notification_reads, migration 00075) de dong bo that qua nhieu thiet bi.
+// SESSION_READ_ID_CACHE chi la lop "lac quan" tam thoi trong phien lam
+// viec hien tai (vd vua bam vao 1 thong bao thi phai thay ngay la "da doc"
+// tren man hinh, khong the doi round-trip len server xong moi cap nhat UI
+// duoc) - nguon du lieu that van la server, doc lai moi lan renderNotificationsUI().
+var SESSION_READ_ID_CACHE={};
+async function fetchReadNotificationIds(){
+  try{
+    var r=await fetch(API+'notification_reads?user_id=eq.'+U.id+'&select=notification_key',{headers:authHeaders()});
+    var rows=r.ok?await r.json():[];
+    return rows.map(function(x){return x.notification_key});
+  }catch(e){return []}
+}
+async function markNotificationRead(id){
+  if(SESSION_READ_ID_CACHE[id])return;
+  SESSION_READ_ID_CACHE[id]=true;
+  try{
+    await fetch(API+'notification_reads?on_conflict=user_id,notification_key',{method:'POST',headers:authHeaders({'Content-Type':'application/json','Prefer':'resolution=ignore-duplicates'}),body:JSON.stringify({user_id:U.id,notification_key:id})});
+  }catch(e){}
+}
 
 async function fetchNotifications(){
   var list=[];
@@ -4460,9 +4480,15 @@ async function fetchNotifications(){
 }
 
 async function renderNotificationsUI(){
-  var notifications;
-  try{notifications=await fetchNotifications()}catch(e){notifications=[]}
-  var readIds=readNotificationIds();
+  var notifications,readIds;
+  try{
+    var results=await Promise.all([fetchNotifications(),fetchReadNotificationIds()]);
+    notifications=results[0];readIds=results[1];
+  }catch(e){notifications=[];readIds=[]}
+  // Gop them cache lac quan trong phien hien tai (xem ghi chu o
+  // SESSION_READ_ID_CACHE phia tren) de tin vua bam vao doi ngay UI, khong
+  // can cho round-trip len server.
+  readIds=readIds.concat(Object.keys(SESSION_READ_ID_CACHE));
   var unread=notifications.filter(function(n){return readIds.indexOf(n.id)<0});
   var badge=$('notificationBadge');
   badge.hidden=unread.length===0;
@@ -4478,8 +4504,11 @@ async function renderNotificationsUI(){
 
 function markAllNotificationsRead(){
   fetchNotifications().then(function(list){
-    saveNotificationReadIds(list.map(function(n){return n.id}));
+    if(!list.length){renderNotificationsUI();return}
+    list.forEach(function(n){SESSION_READ_ID_CACHE[n.id]=true});
     renderNotificationsUI();
+    var rows=list.map(function(n){return {user_id:U.id,notification_key:n.id}});
+    fetch(API+'notification_reads?on_conflict=user_id,notification_key',{method:'POST',headers:authHeaders({'Content-Type':'application/json','Prefer':'resolution=ignore-duplicates'}),body:JSON.stringify(rows)}).catch(function(){});
   });
 }
 
@@ -4850,7 +4879,7 @@ async function submitAccountPassword(e){
 }
 
 function showToast(m){var t=$('toast');if(t){t.textContent=m;t.classList.add('is-visible');setTimeout(function(){t.classList.remove('is-visible')},3000)}}
-function x(){closeNotificationPanel();cj();stopNotificationPolling();localStorage.removeItem('st');sessionStorage.removeItem('st');U=null;$('appShell').hidden=true;$('loginScreen').hidden=false;document.body.classList.add('login-active')}
+function x(){closeNotificationPanel();cj();stopNotificationPolling();localStorage.removeItem('st');sessionStorage.removeItem('st');SESSION_READ_ID_CACHE={};U=null;$('appShell').hidden=true;$('loginScreen').hidden=false;document.body.classList.add('login-active')}
 
 // Cho supabase-auth.js goi vao sau khi dang nhap/khoi phuc phien, khong can qua su kien rieng
 window.QLCV_afterLogin=initU;
