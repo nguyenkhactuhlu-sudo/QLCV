@@ -1226,8 +1226,9 @@ details.uj-day-card .uj-day-card-logs .journal-card:first-child { margin-top: 12
 .field-warning[hidden] { display: none; }
 /* .field mac dinh "display:grid" manh hon thuoc tinh [hidden] cua trinh
    duyet (cung do dac ta) - can override rieng cho cac o dieu kien hien/an
-   bang JS (Bat dau tu ngay, Gan voi viec duoc giao) thi moi thuc su an. */
-#journalRangeStartField[hidden], #journalTaskField[hidden] { display: none; }
+   bang JS (Bat dau tu ngay, Gan voi viec duoc giao, Nop cho lanh dao -
+   rieng o nay khi la Vien truong tinh) thi moi thuc su an. */
+#journalRangeStartField[hidden], #journalTaskField[hidden], #journalSubmitToField[hidden] { display: none; }
 
 /* Nhac nho tieu chi (vd do dai mat khau) - trung tinh, khac mau vang cua
    ".field-warning" (danh cho canh bao that su, khong phai chi dan truoc). */

@@ -94,6 +94,7 @@ var STATUS_CLASS={pending:'status-pending',approved:'status-approved',revision:'
 // mang nay.
 // ============================================
 var CHANGELOG=[
+  {date:'2026-09-09',type:'fix',text:'Sửa lỗi ô "Nộp cho lãnh đạo" vẫn hiện ra ở form ghi nhật ký của Viện trưởng tỉnh dù đã ẩn (nguyên nhân: 1 quy tắc CSS chung của khung nhập liệu vô tình mạnh hơn thao tác ẩn bằng JavaScript, đã bổ sung override còn thiếu).'},
   {date:'2026-09-09',type:'fix',text:'Chấm điểm tháng: sửa lỗi trang trống ("không có dữ liệu") khi ô lọc "Đơn vị" (chỉ dành cho Viện trưởng tỉnh/Quản trị) bị lưu lại từ tài khoản khác dùng chung trình duyệt, vô tình lọc mất luôn đơn vị của Trưởng/Phó phòng đang đăng nhập.'},
   {date:'2026-09-09',type:'improve',text:'Chấm điểm tháng: khi mở trang lần đầu, panel chi tiết bên phải nay mặc định hiện đúng hồ sơ của chính người đang đăng nhập (trước đây hiện ngẫu nhiên 1 người đầu danh sách).'},
   {date:'2026-09-09',type:'improve',text:'Nhật ký của Viện trưởng tỉnh nay tự lưu ngay (dùng điểm tự chấm làm điểm chính thức), không còn ô "Nộp cho lãnh đạo" vì không có ai ở trên để trình/chấm điểm.'},
