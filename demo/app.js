@@ -129,7 +129,7 @@ const sampleLogs = [
   ["NK008","u03","p1","2026-08-19","Công tác tham mưu, tổng hợp","Chủ trì họp rà soát án phức tạp của phòng","Kết luận phân công xử lý 6 vụ án có khó khăn, vướng mắc","Chủ trì","4 giờ - 1 ngày","BB-19-08","pending",null,null,null],
 
   ["NK009","u10","kv1","2026-08-22","THQCT & KS giải quyết vụ án hình sự","Chuẩn bị đề cương xét hỏi phiên tòa hình sự","Đề cương xét hỏi và dự kiến tình huống tranh tụng","Chủ trì","2–4 giờ","HS-KV1-031","approved",7,8,"u08"],
-  ["NK010","u11","kv1","2026-08-22","Khiếu nại, tố cáo","Phân loại và tham mưu xử lý đơn khiếu nại","Phiếu phân loại và dự thảo văn bản trả lời","Chủ trì","2–4 giờ","Đ-2026-044","approved",5,9,"u08"],
+  ["NK010","u11","kv1","2026-08-22","Giải quyết đơn thư","Phân loại và tham mưu xử lý đơn khiếu nại","Phiếu phân loại và dự thảo văn bản trả lời","Chủ trì","2–4 giờ","Đ-2026-044","approved",5,9,"u08"],
   ["NK011","u09","kv1","2026-08-21","THQCT & KS giải quyết vụ án hình sự","Kiểm tra tiến độ giải quyết nguồn tin về tội phạm","Báo cáo 8 nguồn tin, đề xuất đôn đốc 2 trường hợp","Chủ trì","4 giờ - 1 ngày","BC-KV1-08","pending",null,null,null],
   ["NK012","u10","kv1","2026-08-20","THQCT & KS giải quyết vụ án hình sự","Phê chuẩn quyết định khởi tố bị can","Báo cáo đề xuất phê chuẩn và dự thảo quyết định","Chủ trì","2–4 giờ","HS-KV1-028","approved",6,8,"u08"],
   ["NK013","u11","kv1","2026-08-19","Kiểm sát thi hành án","Kiểm sát trực tiếp hồ sơ thi hành án treo","Biên bản kiểm sát và 3 kiến nghị khắc phục","Phối hợp","4 giờ - 1 ngày","THA-2026-07","revision",7,4,"u08"],
@@ -143,7 +143,7 @@ const sampleLogs = [
   ["NK019","u14","vp","2026-08-20","Công tác tham mưu, tổng hợp","Xây dựng chương trình họp giao ban lãnh đạo","Chương trình, tài liệu và dự thảo kết luận giao ban","Chủ trì","4 giờ - 1 ngày","GB-08-2026","approved",7,9,"u01"],
 
   ["NK020","u17","kv2","2026-08-22","Kiểm sát việc giải quyết án dân sự, hành chính, KDTM, v.v.","Tham gia phiên tòa dân sự sơ thẩm","Báo cáo kết quả và dự thảo phát biểu của Kiểm sát viên","Chủ trì","4 giờ - 1 ngày","DS-KV2-016","approved",7,7,"u16"],
-  ["NK021","u17","kv2","2026-08-20","Khiếu nại, tố cáo","Xác minh nội dung đơn kiến nghị","Biên bản xác minh và dự thảo báo cáo đề xuất","Chủ trì","Nhiều ngày","Đ-KV2-021","revision",6,4,"u16"],
+  ["NK021","u17","kv2","2026-08-20","Giải quyết đơn thư","Xác minh nội dung đơn kiến nghị","Biên bản xác minh và dự thảo báo cáo đề xuất","Chủ trì","Nhiều ngày","Đ-KV2-021","revision",6,4,"u16"],
   ["NK022","u16","kv2","2026-08-19","Công tác tham mưu, tổng hợp","Rà soát chỉ tiêu nghiệp vụ 8 tháng","Báo cáo kết quả, xác định 3 chỉ tiêu cần tập trung","Chủ trì","4 giờ - 1 ngày","BC-KV2-08","approved",6,8,"u01"],
 
   ["NK023","u19","kv3","2026-08-22","THQCT & KS giải quyết vụ án hình sự","Nghiên cứu đề nghị gia hạn tạm giam","Báo cáo đề xuất và dự thảo quyết định phê chuẩn","Chủ trì","2–4 giờ","HS-KV3-012","approved",6,8,"u18"],
@@ -163,7 +163,7 @@ const demoWorkTemplates = [
   ["THQCT & KS giải quyết vụ án hình sự", "Nghiên cứu hồ sơ và xây dựng văn bản tố tụng", "Hoàn thành phiếu nghiên cứu, dự thảo văn bản và đề xuất hướng giải quyết vụ án"],
   ["Kiểm sát việc giải quyết án dân sự, hành chính, KDTM, v.v.", "Nghiên cứu hồ sơ vụ án và chuẩn bị nội dung tham gia phiên tòa", "Hoàn thành phiếu nghiên cứu và dự thảo phát biểu của Kiểm sát viên"],
   ["Kiểm sát thi hành án", "Rà soát hồ sơ thi hành án", "Lập bảng đối chiếu hồ sơ và kiến nghị xử lý các nội dung còn thiếu"],
-  ["Khiếu nại, tố cáo", "Phân loại và tham mưu xử lý đơn", "Hoàn thành phiếu phân loại cùng dự thảo văn bản trả lời"],
+  ["Giải quyết đơn thư", "Phân loại và tham mưu xử lý đơn", "Hoàn thành phiếu phân loại cùng dự thảo văn bản trả lời"],
   ["Công tác quản lý án hình sự", "Rà soát tiến độ và dữ liệu quản lý án hình sự", "Hoàn thành báo cáo thống kê, đối chiếu hồ sơ và đề xuất xử lý"],
   ["Công tác tham mưu, tổng hợp", "Tổng hợp số liệu phục vụ báo cáo định kỳ", "Hoàn thành báo cáo và phụ lục đối chiếu số liệu các đơn vị"],
   ["Công tác công nghệ thông tin & chuyển đổi số", "Cập nhật dữ liệu trên hệ thống nghiệp vụ", "Đối chiếu, chuẩn hóa dữ liệu và ghi nhận kết quả cập nhật"],
