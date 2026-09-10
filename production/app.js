@@ -94,6 +94,7 @@ var STATUS_CLASS={pending:'status-pending',approved:'status-approved',revision:'
 // mang nay.
 // ============================================
 var CHANGELOG=[
+  {date:'2026-09-10',type:'fix',text:'Sửa số ở chuông báo cho đúng: (1) số nhật ký chờ duyệt ở "Duyệt và chấm điểm" nay chỉ đếm nhật ký nộp thẳng cho mình, không gộp phần "đang chờ người khác xử lý"; (2) số việc quá hạn ở "Giao việc" nay đếm theo VIỆC (1 việc giao cho nhiều người chỉ tính 1), bỏ qua người đã rút khỏi việc - trước đây bị đếm trùng.'},
   {date:'2026-09-10',type:'feature',text:'(Tạm thời) Mở tính năng "Sửa điểm đã chấm": lãnh đạo tự sửa lại điểm chính mình đã chấm cho cán bộ/KSV, chỉ với nhật ký trong tháng hiện tại - phục vụ đợt điều chỉnh theo cơ cấu chấm điểm mới. Nút nằm trong Nhật ký công tác của đơn vị.'},
   {date:'2026-09-10',type:'improve',text:'Thêm tag "Tự chấm: Phức tạp X · Chất lượng Y" ngay trên mỗi thẻ nhật ký (cạnh các tag lĩnh vực, vai trò, thời lượng...) - dễ đối chiếu với điểm chính thức lãnh đạo đã chấm mà không cần mở chi tiết.'},
   {date:'2026-09-10',type:'feature',text:'Thêm nút "Trả để chấm điểm lại" (cạnh "Điều chỉnh điểm" trong Nhật ký công tác của đơn vị) - lãnh đạo từ Trưởng phòng/Viện trưởng khu vực trở lên (kể cả Phó Viện trưởng tỉnh với Trưởng phòng) trả 1 nhật ký đã duyệt về đúng người đã chấm trước đó để chấm lại, kèm lời nhắn bắt buộc - dùng cho trường hợp bấm nhầm "Xác nhận kết quả" trong khi ý định là "Yêu cầu bổ sung".'},
@@ -1575,7 +1576,14 @@ async function rt(){
     +'<div class="task-list">'+(TASKS_TO_ME.length?TASKS_TO_ME.map(function(t){return taskCardHtml(t,'assignee')}).join(''):'<div class="empty-state compact-empty"><strong>Chưa có việc được giao</strong></div>')+'</div></section>';
   h+='</div>';
   $('appView').innerHTML=h;
-  updateTaskOverdueBadge(TASKS_BY_ME.concat(TASKS_TO_ME).filter(isTaskOverdue).length);
+  // Dem so VIEC (task_group) qua han, khong dem tung dong theo nguoi
+  // nhan, bo qua nguoi da rut khoi viec (removed_at) - khop voi so viec
+  // hien tren man hinh (yeu cau nguoi dung 2026-09-10).
+  var overdueTaskGroups={};
+  TASKS_BY_ME.concat(TASKS_TO_ME).forEach(function(t){
+    if(!t.removed_at&&isTaskOverdue(t))overdueTaskGroups[t.task_group_id||t.id]=true;
+  });
+  updateTaskOverdueBadge(Object.keys(overdueTaskGroups).length);
   document.querySelectorAll('[data-set-due-form]').forEach(function(form){form.addEventListener('submit',submitTaskDueDate)});
   document.querySelectorAll('[data-report-task]').forEach(function(b){b.addEventListener('click',function(){oj(null,b.dataset.reportTask)})});
   bindTaskGroupCardActions(document);
@@ -2556,7 +2564,12 @@ async function resetPasswordFor(id,name){
 function updatePendingBadge(n){var el=$('pendingNavCount');if(el)el.textContent=n}
 async function refreshPendingBadge(){
   if(!isLeader())return;
-  try{var q=await fetchReviewQueue();updatePendingBadge(q.length)}catch(e){}
+  // Chi dem nhat ky NOP THANG CHO MINH (hoac khong chi dinh ai) - dung
+  // "myQueue" nhu man Duyet & cham diem. Nhat ky KSV nop dich danh cho 1
+  // Pho khac ("Dang cho nguoi khac xu ly") KHONG tinh vao so nay - lanh
+  // dao xem/can thiep duoc nhung khong phai viec cua minh (yeu cau nguoi
+  // dung 2026-09-10: so o chuong bao khong khop so viec thuc su phai lam).
+  try{var q=await fetchReviewQueue();updatePendingBadge(q.filter(function(l){return !isQueueItemForOthers(l)}).length)}catch(e){}
 }
 
 function updateTaskOverdueBadge(n){var el=$('taskOverdueNavCount');if(el){el.textContent=n;el.hidden=n===0}}
@@ -2564,15 +2577,21 @@ async function refreshTaskOverdueBadge(){
   if(U.rl==='administrator')return;
   try{
     var now=new Date();
-    var r1=await fetch(API+'task_assignments?assignee_id=eq.'+U.id+'&status=neq.done&select=suggested_due_date,actual_due_date',{headers:authHeaders()});
+    // removed_at=is.null: bo qua nguoi da bi rut khoi viec (dong cu van
+    // con status khac 'done'). Dem theo task_group_id (1 VIEC) chu khong
+    // theo tung dong nguoi nhan - 1 viec giao cho 3 nguoi truoc day bi
+    // tinh 3 lan (yeu cau nguoi dung 2026-09-10: so chuong bao khong khop
+    // so viec that).
+    var r1=await fetch(API+'task_assignments?assignee_id=eq.'+U.id+'&status=neq.done&removed_at=is.null&select=task_group_id,suggested_due_date,actual_due_date',{headers:authHeaders()});
     var mine=r1.ok?await r1.json():[];
-    var r2=await fetch(API+'task_assignments?assigner_id=eq.'+U.id+'&status=neq.done&select=suggested_due_date,actual_due_date',{headers:authHeaders()});
+    var r2=await fetch(API+'task_assignments?assigner_id=eq.'+U.id+'&status=neq.done&removed_at=is.null&select=task_group_id,suggested_due_date,actual_due_date',{headers:authHeaders()});
     var given=r2.ok?await r2.json():[];
-    // So sanh timestamp DAY DU (gio:phut), dung thoi gian THUC TE - han
-    // giao viec gio la mot moc thoi gian that (TIMESTAMPTZ), khong con la
-    // 1 "ngay" nen khong the so sanh chuoi ngay nhu truoc.
-    var count=mine.concat(given).filter(function(t){var due=t.actual_due_date||t.suggested_due_date;return due&&new Date(due)<now}).length;
-    updateTaskOverdueBadge(count);
+    var overdueGroups={};
+    mine.concat(given).forEach(function(t){
+      var due=t.actual_due_date||t.suggested_due_date;
+      if(due&&new Date(due)<now)overdueGroups[t.task_group_id||('x-'+due)]=true;
+    });
+    updateTaskOverdueBadge(Object.keys(overdueGroups).length);
   }catch(e){}
 }
 
@@ -2730,7 +2749,6 @@ async function rr(){
   var queue;
   try{queue=await fetchReviewQueue()}catch(e){$('appView').innerHTML='<div class="empty-state"><strong>Không tải được hàng chờ</strong><span>'+esc(e.message)+'</span></div>';return}
   REVIEW_QUEUE=queue;
-  updatePendingBadge(queue.length);
   if(!SELECTED_REVIEW_ID||!queue.some(function(l){return l.id===SELECTED_REVIEW_ID})){SELECTED_REVIEW_ID=queue[0]?queue[0].id:null}
   var selected=queue.find(function(l){return l.id===SELECTED_REVIEW_ID});
   // Tach 2 khu de tranh "gianh" duyet nham phan da nop dich danh cho nguoi
@@ -2741,6 +2759,10 @@ async function rr(){
   // khac - van xem/can thiep duoc, chi khong nam lan trong hang chinh.
   var myQueue=queue.filter(function(l){return !isQueueItemForOthers(l)});
   var othersQueue=queue.filter(isQueueItemForOthers);
+  // So o chuong bao ("Duyet va cham diem") = so nhat ky NOP THANG CHO
+  // MINH, khong gom "Dang cho nguoi khac xu ly" (yeu cau nguoi dung
+  // 2026-09-10). Tieu de tren man hinh van hien tong so (queue.length).
+  updatePendingBadge(myQueue.length);
   var h='<div class="toolbar"><div><h2>'+queue.length+' nhật ký chờ đánh giá</h2><p class="metric-context">Chỉ hiển thị nhật ký thuộc phạm vi được phân công.</p></div></div>';
   h+='<div class="review-layout"><section>';
   h+='<details class="review-queue-details" '+(REVIEW_QUEUE_COLLAPSED?'':'open')+'><summary>Nhật ký nộp cho tôi ('+myQueue.length+') <span class="review-queue-hint">(bấm để thu gọn/mở rộng)</span></summary><div class="review-queue">';
@@ -4565,7 +4587,7 @@ async function fetchNotifications(){
   // truyen 1 timestamp day du vao).
   try{
     var nowT=new Date();
-    var tar=await fetch(API+'task_assignments?assignee_id=eq.'+U.id+'&status=neq.done&select=id,title,suggested_due_date,actual_due_date',{headers:authHeaders()});
+    var tar=await fetch(API+'task_assignments?assignee_id=eq.'+U.id+'&status=neq.done&removed_at=is.null&select=id,title,suggested_due_date,actual_due_date',{headers:authHeaders()});
     (tar.ok?await tar.json():[]).forEach(function(t){
       var due=t.actual_due_date||t.suggested_due_date;
       if(due&&new Date(due)<nowT)list.push({id:'task-overdue-assignee-'+t.id,tone:'escalation',title:'Việc được giao đã quá hạn',message:t.title+' — hạn '+formatDateTime(due),time:formatDateTime(due),view:'tasks',_t:new Date(due).getTime()});
@@ -4573,10 +4595,18 @@ async function fetchNotifications(){
   }catch(e){}
   try{
     var nowT2=new Date();
-    var tbr=await fetch(API+'task_assignments?assigner_id=eq.'+U.id+'&status=neq.done&select=id,title,suggested_due_date,actual_due_date,assignee:assignee_id(full_name)',{headers:authHeaders()});
+    // 1 viec giao cho nhieu nguoi = nhieu dong cung task_group_id - chi
+    // bao 1 lan cho ca viec (truoc day bao lap lai theo tung nguoi nhan),
+    // bo qua nguoi da rut khoi viec (yeu cau nguoi dung 2026-09-10).
+    var tbr=await fetch(API+'task_assignments?assigner_id=eq.'+U.id+'&status=neq.done&removed_at=is.null&select=id,task_group_id,title,suggested_due_date,actual_due_date',{headers:authHeaders()});
+    var seenOverdueGroup={};
     (tbr.ok?await tbr.json():[]).forEach(function(t){
       var due=t.actual_due_date||t.suggested_due_date;
-      if(due&&new Date(due)<nowT2)list.push({id:'task-overdue-assigner-'+t.id,tone:'escalation',title:'Việc đã giao quá hạn chưa hoàn thành',message:((t.assignee&&t.assignee.full_name)||'Cán bộ')+': '+t.title,time:formatDateTime(due),view:'tasks',_t:new Date(due).getTime()});
+      if(!due||new Date(due)>=nowT2)return;
+      var gk=t.task_group_id||t.id;
+      if(seenOverdueGroup[gk])return;
+      seenOverdueGroup[gk]=true;
+      list.push({id:'task-overdue-assigner-'+gk,tone:'escalation',title:'Việc đã giao quá hạn chưa hoàn thành',message:t.title+' — hạn '+formatDateTime(due),time:formatDateTime(due),view:'tasks',_t:new Date(due).getTime()});
     });
   }catch(e){}
   // Nhac han ghi chu cong viec (chi ap dung cho ghi chu da chon "Nhac toi

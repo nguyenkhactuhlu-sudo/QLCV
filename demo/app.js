@@ -155,6 +155,10 @@ const sampleLogs = [
 ].map(([id,authorId,unitId,date,category,title,result,workRole,duration,evidence,status,complexity,quality,reviewerId]) => ({
   id, authorId, unitId, date, category, title, result, workRole, duration, evidence,
   status, complexity, quality, reviewerId,
+  // Nop dich danh cho ai: mac dinh la nguoi da cham (reviewerId) neu co,
+  // hoac Truong phong cua don vi tac gia - de man Duyet & cham diem tach
+  // dung 2 khu "nop cho toi" / "dang cho nguoi khac xu ly".
+  submittedToId: reviewerId || (users.find(u => u.unitId === unitId && u.role === "unit_head") || {}).id || null,
   comment: status === "revision" ? "Cần bổ sung căn cứ và làm rõ kết quả xử lý." : "",
   createdAt: `${date}T16:30:00`, reviewedAt: reviewerId ? `${date}T18:00:00` : null
 }));
@@ -168,8 +172,8 @@ const demoWorkTemplates = [
   ["Công tác tham mưu, tổng hợp", "Tổng hợp số liệu phục vụ báo cáo định kỳ", "Hoàn thành báo cáo và phụ lục đối chiếu số liệu các đơn vị"],
   ["Công tác công nghệ thông tin & chuyển đổi số", "Cập nhật dữ liệu trên hệ thống nghiệp vụ", "Đối chiếu, chuẩn hóa dữ liệu và ghi nhận kết quả cập nhật"],
   ["Kiểm sát tạm giữ, tạm giam", "Kiểm tra hồ sơ quản lý người bị tạm giữ", "Hoàn thành biên bản kiểm sát và tổng hợp nội dung cần khắc phục"],
-  ["Công tác xây dựng ngành", "Rà soát tiến độ thực hiện nhiệm vụ trọng tâm", "Hoàn thành bảng theo dõi, xác định nhiệm vụ cần đôn đốc"],
-  ["Phối hợp liên ngành", "Chuẩn bị nội dung cuộc họp liên ngành", "Hoàn thành tài liệu họp, dự thảo kết luận và phân công thực hiện"]
+  ["Công tác đảng đoàn thể", "Chuẩn bị nội dung sinh hoạt chi bộ và hoạt động đoàn thể", "Hoàn thành tài liệu sinh hoạt và phân công nhiệm vụ thực hiện"],
+  ["Quản lý, chỉ đạo điều hành", "Theo dõi, đôn đốc tiến độ thực hiện nhiệm vụ trọng tâm", "Hoàn thành bảng theo dõi, xác định nhiệm vụ cần đôn đốc và báo cáo lãnh đạo"]
 ];
 
 function generateDemoLogs(total = 1200) {
@@ -189,6 +193,14 @@ function generateDemoLogs(total = 1200) {
     const unitHead = users.find(user => user.unitId === author.unitId && user.role === "unit_head");
     const reviewer = author.role === "unit_head" || author.unitId === "province" ? users.find(user => user.role === "province_head") : unitHead;
     const sequence = String(index + 1).padStart(4, "0");
+    // Nop nhat ky DICH DANH cho ai: thuong la Truong phong; cu ~1/3 (theo
+    // index) thi KSV nop cho 1 Pho phong cung don vi - de demo the hien
+    // dung khu "Nhat ky nop cho toi" / "Dang cho nguoi khac xu ly" o man
+    // Duyet & cham diem (khi dang nhap tai khoan Truong phong).
+    const unitDeputy = users.find(user => user.unitId === author.unitId && user.role === "unit_deputy");
+    const submittedToId = author.role === "unit_head" || author.unitId === "province"
+      ? (users.find(user => user.role === "province_head") || {}).id
+      : (index % 3 === 0 && unitDeputy ? unitDeputy.id : (unitHead || {}).id) || null;
 
     return {
       id: `DM${sequence}`,
@@ -204,6 +216,7 @@ function generateDemoLogs(total = 1200) {
       status,
       complexity,
       quality,
+      submittedToId,
       reviewerId: status === "pending" ? null : reviewer?.id || "u01",
       comment: status === "revision" ? "Cần bổ sung căn cứ, tài liệu minh chứng và làm rõ kết quả xử lý." : "",
       createdAt: `${date}T16:30:00`,
@@ -906,12 +919,20 @@ function updateChrome(title, eyebrow) {
   document.getElementById("pageEyebrow").textContent = eyebrow;
   document.getElementById("sidebarUserName").textContent = user.name;
   document.getElementById("sidebarUserTitle").textContent = user.title || "";
-  document.getElementById("pendingNavCount").textContent = reviewQueue().length;
+  // So o chuong bao "Duyet & cham diem" = so nhat ky NOP THANG CHO MINH
+  // (myQueue), khong gom "Dang cho nguoi khac xu ly" - yeu cau nguoi dung
+  // 2026-09-10: so o chuong bao khong khop so viec thuc su phai lam.
+  document.getElementById("pendingNavCount").textContent = reviewQueue().filter(log => !isQueueItemForOthers(log)).length;
   const taskBadge = document.getElementById("taskOverdueNavCount");
   if (taskBadge) {
-    const overdueCount = taskAssignments.filter(task => (task.assignerId === user.id || task.assigneeId === user.id) && isTaskOverdue(task)).length;
-    taskBadge.textContent = overdueCount;
-    taskBadge.hidden = overdueCount === 0;
+    // Dem so VIEC (taskGroupId) qua han, khong dem tung dong theo nguoi
+    // nhan, bo qua nguoi da rut khoi viec (removedAt) - khop so viec that.
+    const overdueGroups = new Set();
+    taskAssignments.forEach(task => {
+      if ((task.assignerId === user.id || task.assigneeId === user.id) && !task.removedAt && isTaskOverdue(task)) overdueGroups.add(task.taskGroupId || task.id);
+    });
+    taskBadge.textContent = overdueGroups.size;
+    taskBadge.hidden = overdueGroups.size === 0;
   }
   renderNotifications();
 }
@@ -957,7 +978,7 @@ function notificationsForCurrentUser() {
   // Nhac qua han giao viec: hien cho CA NGUOI GIAO va NGUOI NHAN, dat ngay
   // sau canh bao chenh lech (cung la tin "su kien" rieng) va truoc hang
   // doi cho cham diem, vi ly do tranh bi ".slice(0, 20)" cat mat nhu tren.
-  taskAssignments.filter(task => task.assigneeId === user.id && isTaskOverdue(task)).forEach(task => {
+  taskAssignments.filter(task => task.assigneeId === user.id && !task.removedAt && isTaskOverdue(task)).forEach(task => {
     notifications.push({
       id: `task-overdue-assignee-${task.id}`,
       tone: "escalation",
@@ -968,13 +989,19 @@ function notificationsForCurrentUser() {
       _t: new Date(taskDueDate(task)).getTime()
     });
   });
-  taskAssignments.filter(task => task.assignerId === user.id && isTaskOverdue(task)).forEach(task => {
-    const assignee = userById(task.assigneeId);
+  // 1 viec giao cho nhieu nguoi = nhieu dong cung taskGroupId - chi bao 1
+  // lan cho ca viec (truoc day bao lap lai theo tung nguoi nhan), bo qua
+  // nguoi da rut khoi viec (yeu cau nguoi dung 2026-09-10).
+  const seenOverdueAssignerGroup = new Set();
+  taskAssignments.filter(task => task.assignerId === user.id && !task.removedAt && isTaskOverdue(task)).forEach(task => {
+    const gk = task.taskGroupId || task.id;
+    if (seenOverdueAssignerGroup.has(gk)) return;
+    seenOverdueAssignerGroup.add(gk);
     notifications.push({
-      id: `task-overdue-assigner-${task.id}`,
+      id: `task-overdue-assigner-${gk}`,
       tone: "escalation",
       title: "Việc đã giao quá hạn chưa hoàn thành",
-      message: `${assignee ? assignee.name : "Cán bộ"}: ${task.title}`,
+      message: `${task.title} — hạn ${formatDateTime(taskDueDate(task))}`,
       time: formatDateTime(taskDueDate(task)),
       view: "tasks",
       _t: new Date(taskDueDate(task)).getTime()
