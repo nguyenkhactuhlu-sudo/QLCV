@@ -925,14 +925,18 @@ function updateChrome(title, eyebrow) {
   document.getElementById("pendingNavCount").textContent = reviewQueue().length;
   const taskBadge = document.getElementById("taskOverdueNavCount");
   if (taskBadge) {
-    // Dem so VIEC (taskGroupId) qua han, khong dem tung dong theo nguoi
-    // nhan, bo qua nguoi da rut khoi viec (removedAt) - khop so viec that.
-    const overdueGroups = new Set();
-    taskAssignments.forEach(task => {
-      if ((task.assignerId === user.id || task.assigneeId === user.id) && !task.removedAt && isTaskOverdue(task)) overdueGroups.add(task.taskGroupId || task.id);
-    });
-    taskBadge.textContent = overdueGroups.size;
-    taskBadge.hidden = overdueGroups.size === 0;
+    // Nhan so tren "Giao viec" = so VIEC dang mo can theo doi: viec da
+    // giao dang thuc hien (khop so o khu "Cong viec da giao - dang thuc
+    // hien") + viec duoc giao minh chua lam xong. Dem theo VIEC
+    // (taskGroupId), bo qua nguoi da rut khoi viec (yeu cau nguoi dung
+    // 2026-09-10).
+    const attentionGroups = new Set();
+    const assignedByMe = {};
+    taskAssignments.filter(t => t.assignerId === user.id).forEach(t => { (assignedByMe[t.taskGroupId] = assignedByMe[t.taskGroupId] || []).push(t); });
+    Object.values(assignedByMe).forEach(rows => { if (!taskGroupIsDone(rows)) attentionGroups.add(rows[0].taskGroupId); });
+    taskAssignments.filter(t => t.assigneeId === user.id && !t.removedAt && t.status !== "done").forEach(t => attentionGroups.add(t.taskGroupId || t.id));
+    taskBadge.textContent = attentionGroups.size;
+    taskBadge.hidden = attentionGroups.size === 0;
   }
   renderNotifications();
 }

@@ -95,7 +95,7 @@ var STATUS_CLASS={pending:'status-pending',approved:'status-approved',revision:'
 // ============================================
 var CHANGELOG=[
   {date:'2026-09-10',type:'improve',text:'Màn "Duyệt và chấm điểm" nay chỉ hiển thị nhật ký nộp thẳng cho mình - bỏ hẳn khu "Đang chờ người khác xử lý" (nhật ký KSV nộp đích danh cho một cấp phó). Áp dụng cho mọi cấp trưởng.'},
-  {date:'2026-09-10',type:'fix',text:'Sửa số ở chuông báo cho đúng: (1) số nhật ký chờ duyệt ở "Duyệt và chấm điểm" nay chỉ đếm nhật ký nộp thẳng cho mình, không gộp phần "đang chờ người khác xử lý"; (2) số việc quá hạn ở "Giao việc" nay đếm theo VIỆC (1 việc giao cho nhiều người chỉ tính 1), bỏ qua người đã rút khỏi việc - trước đây bị đếm trùng.'},
+  {date:'2026-09-10',type:'fix',text:'Sửa số ở nhãn thông báo cạnh menu cho đúng: (1) số nhật ký chờ duyệt ở "Duyệt và chấm điểm" nay chỉ đếm nhật ký nộp thẳng cho mình; (2) số ở "Giao việc" nay là số VIỆC đang mở cần theo dõi (việc đã giao chưa hoàn thành + việc được giao chưa làm xong), đếm theo việc (1 việc giao cho nhiều người tính 1), bỏ qua người đã rút khỏi việc - khớp đúng với số việc hiển thị trên màn hình.'},
   {date:'2026-09-10',type:'feature',text:'(Tạm thời) Mở tính năng "Sửa điểm đã chấm": lãnh đạo tự sửa lại điểm chính mình đã chấm cho cán bộ/KSV, chỉ với nhật ký trong tháng hiện tại - phục vụ đợt điều chỉnh theo cơ cấu chấm điểm mới. Nút nằm trong Nhật ký công tác của đơn vị.'},
   {date:'2026-09-10',type:'improve',text:'Thêm tag "Tự chấm: Phức tạp X · Chất lượng Y" ngay trên mỗi thẻ nhật ký (cạnh các tag lĩnh vực, vai trò, thời lượng...) - dễ đối chiếu với điểm chính thức lãnh đạo đã chấm mà không cần mở chi tiết.'},
   {date:'2026-09-10',type:'feature',text:'Thêm nút "Trả để chấm điểm lại" (cạnh "Điều chỉnh điểm" trong Nhật ký công tác của đơn vị) - lãnh đạo từ Trưởng phòng/Viện trưởng khu vực trở lên (kể cả Phó Viện trưởng tỉnh với Trưởng phòng) trả 1 nhật ký đã duyệt về đúng người đã chấm trước đó để chấm lại, kèm lời nhắn bắt buộc - dùng cho trường hợp bấm nhầm "Xác nhận kết quả" trong khi ý định là "Yêu cầu bổ sung".'},
@@ -1577,14 +1577,14 @@ async function rt(){
     +'<div class="task-list">'+(TASKS_TO_ME.length?TASKS_TO_ME.map(function(t){return taskCardHtml(t,'assignee')}).join(''):'<div class="empty-state compact-empty"><strong>Chưa có việc được giao</strong></div>')+'</div></section>';
   h+='</div>';
   $('appView').innerHTML=h;
-  // Dem so VIEC (task_group) qua han, khong dem tung dong theo nguoi
-  // nhan, bo qua nguoi da rut khoi viec (removed_at) - khop voi so viec
-  // hien tren man hinh (yeu cau nguoi dung 2026-09-10).
-  var overdueTaskGroups={};
-  TASKS_BY_ME.concat(TASKS_TO_ME).forEach(function(t){
-    if(!t.removed_at&&isTaskOverdue(t))overdueTaskGroups[t.task_group_id||t.id]=true;
-  });
-  updateTaskOverdueBadge(Object.keys(overdueTaskGroups).length);
+  // Nhan so tren "Giao viec" = so VIEC dang mo can theo doi: viec da giao
+  // dang thuc hien (khop dung so o khu "Cong viec da giao - dang thuc
+  // hien") + viec duoc giao minh chua lam xong. Dem theo VIEC (task_group),
+  // bo qua nguoi da rut khoi viec (yeu cau nguoi dung 2026-09-10).
+  var attentionGroups={};
+  groupsInProgress.forEach(function(rows){var r=rows[0];if(r)attentionGroups[r.task_group_id||r.id]=true});
+  TASKS_TO_ME.forEach(function(t){if(!t.removed_at&&t.status!=='done')attentionGroups[t.task_group_id||t.id]=true});
+  updateTaskOverdueBadge(Object.keys(attentionGroups).length);
   document.querySelectorAll('[data-set-due-form]').forEach(function(form){form.addEventListener('submit',submitTaskDueDate)});
   document.querySelectorAll('[data-report-task]').forEach(function(b){b.addEventListener('click',function(){oj(null,b.dataset.reportTask)})});
   bindTaskGroupCardActions(document);
@@ -2573,22 +2573,16 @@ function updateTaskOverdueBadge(n){var el=$('taskOverdueNavCount');if(el){el.tex
 async function refreshTaskOverdueBadge(){
   if(U.rl==='administrator')return;
   try{
-    var now=new Date();
-    // removed_at=is.null: bo qua nguoi da bi rut khoi viec (dong cu van
-    // con status khac 'done'). Dem theo task_group_id (1 VIEC) chu khong
-    // theo tung dong nguoi nhan - 1 viec giao cho 3 nguoi truoc day bi
-    // tinh 3 lan (yeu cau nguoi dung 2026-09-10: so chuong bao khong khop
-    // so viec that).
-    var r1=await fetch(API+'task_assignments?assignee_id=eq.'+U.id+'&status=neq.done&removed_at=is.null&select=task_group_id,suggested_due_date,actual_due_date',{headers:authHeaders()});
-    var mine=r1.ok?await r1.json():[];
-    var r2=await fetch(API+'task_assignments?assigner_id=eq.'+U.id+'&status=neq.done&removed_at=is.null&select=task_group_id,suggested_due_date,actual_due_date',{headers:authHeaders()});
-    var given=r2.ok?await r2.json():[];
-    var overdueGroups={};
-    mine.concat(given).forEach(function(t){
-      var due=t.actual_due_date||t.suggested_due_date;
-      if(due&&new Date(due)<now)overdueGroups[t.task_group_id||('x-'+due)]=true;
-    });
-    updateTaskOverdueBadge(Object.keys(overdueGroups).length);
+    // Nhan so tren "Giao viec" = so VIEC dang mo can theo doi: viec minh
+    // GIAO chua hoan thanh + viec minh DUOC GIAO chua lam xong. Dem theo
+    // task_group_id (1 viec = 1 lan du giao cho nhieu nguoi), bo qua nguoi
+    // da rut khoi viec (removed_at). Yeu cau nguoi dung 2026-09-10.
+    var groups={};
+    var r1=await fetch(API+'task_assignments?assignee_id=eq.'+U.id+'&status=neq.done&removed_at=is.null&select=task_group_id',{headers:authHeaders()});
+    (r1.ok?await r1.json():[]).forEach(function(t){groups[t.task_group_id||('a-'+Math.random())]=true});
+    var r2=await fetch(API+'task_assignments?assigner_id=eq.'+U.id+'&status=neq.done&removed_at=is.null&select=task_group_id',{headers:authHeaders()});
+    (r2.ok?await r2.json():[]).forEach(function(t){groups[t.task_group_id||('b-'+Math.random())]=true});
+    updateTaskOverdueBadge(Object.keys(groups).length);
   }catch(e){}
 }
 
