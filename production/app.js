@@ -94,6 +94,9 @@ var STATUS_CLASS={pending:'status-pending',approved:'status-approved',revision:'
 // mang nay.
 // ============================================
 var CHANGELOG=[
+  {date:'2026-09-10',type:'feature',text:'Thêm nút "Trả để chấm điểm lại" (cạnh "Điều chỉnh điểm" trong Nhật ký công tác của đơn vị) - lãnh đạo từ Trưởng phòng/Viện trưởng khu vực trở lên (kể cả Phó Viện trưởng tỉnh với Trưởng phòng) trả 1 nhật ký đã duyệt về đúng người đã chấm trước đó để chấm lại, kèm lời nhắn bắt buộc - dùng cho trường hợp bấm nhầm "Xác nhận kết quả" trong khi ý định là "Yêu cầu bổ sung".'},
+  {date:'2026-09-10',type:'improve',text:'Đổi tên nút "Yêu cầu bổ sung" thành "Trả lại và yêu cầu bổ sung" cho rõ nghĩa hơn.'},
+  {date:'2026-09-10',type:'feature',text:'Thêm nút "Xác nhận, đồng thời ghi nhật ký của tôi" ở màn Duyệt & chấm điểm - hoạt động như "Giao việc và ghi nhật ký": xác nhận/chấm điểm xong, tự mở sẵn form ghi nhật ký cá nhân ghi nhận việc đã bỏ thời gian duyệt/đánh giá công tác này, chỉ cần bổ sung rồi tự gửi như bình thường.'},
   {date:'2026-09-09',type:'feature',text:'Thêm tính năng "Ủy quyền xem/xuất báo cáo tổng hợp tháng": Viện trưởng có thể ủy quyền cho 1 người (vào mục Quản trị) xem và xuất báo cáo "Chấm điểm tháng" phạm vi toàn tỉnh như Viện trưởng - không cấp quyền duyệt/sửa điểm, vô thời hạn cho đến khi bị thu hồi.'},
   {date:'2026-09-09',type:'fix',text:'Sửa lỗi chuông thông báo không đồng bộ trạng thái "đã đọc" giữa điện thoại và máy tính (trước đây chỉ lưu trên từng máy/trình duyệt) - nay lưu lên hệ thống, đăng nhập ở đâu cũng thấy đúng tin nào đã xem, tin nào chưa.'},
   {date:'2026-09-09',type:'improve',text:'Bỏ yêu cầu bắt buộc nhận xét khi lãnh đạo chấm điểm chất lượng từ 9 trở lên (chỉ còn bắt buộc khi dưới 5 hoặc khi yêu cầu bổ sung) - cho phù hợp quy tắc chấm điểm mới, không còn coi mức 9-10 là thành tích đặc biệt cần giải trình.'},
@@ -867,7 +870,7 @@ function journalCardHtml(log,opts){
     +'<div class="journal-meta">'+authorTag+'<span class="meta-tag">'+esc(catName(log.category_id))+'</span><span class="meta-tag">'+esc(WORK_ROLE_LABEL[log.work_role]||log.work_role)+'</span><span class="meta-tag">'+esc(DURATION_LABEL[log.duration]||log.duration)+'</span>'+submittedToTag+cloneTag+resubmission+overriddenTag+'<span class="status-pill '+(STATUS_CLASS[log.status]||'')+'">'+(STATUS_LABEL[log.status]||log.status)+'</span></div></div>'
     +'<div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>'+(log.complexity_score==null?'—':log.complexity_score)+'</strong></div><div class="score-box"><span>Chất lượng</span><strong>'+(log.quality_score==null?'—':log.quality_score)+'</strong></div></div>'
     +(canEdit?'<button type="button" class="button button-primary button-small" data-edit-journal="'+log.id+'">'+(log.status==='revision'?'Sửa và trình lại':'Sửa')+'</button>':'')
-    +(opts.canOverride?'<button type="button" class="button button-secondary button-small" data-override-score="'+log.id+'">Điều chỉnh điểm</button>':'')
+    +(opts.canOverride?'<button type="button" class="button button-secondary button-small" data-override-score="'+log.id+'">Điều chỉnh điểm</button><button type="button" class="button button-secondary button-small" data-return-rescoring="'+log.id+'">Trả để chấm điểm lại</button>':'')
     +(canDelete?'<button type="button" class="button button-danger button-small" data-delete-log="'+log.id+'" data-delete-self="'+(canDeleteSelf&&!opts.canDelete?'1':'0')+'">Xoá</button>':'')+'</div></article>';
 }
 
@@ -2625,6 +2628,7 @@ async function fetchReviewQueue(){
   var ids=Array.from(new Set(
     pending.map(function(l){return l.author_id})
       .concat(pending.map(function(l){return l.submitted_to_id}).filter(Boolean))
+      .concat(pending.map(function(l){return l.rescoring_requested_by}).filter(Boolean))
   )).join(',');
   var pr=await fetch(API+'profiles?id=in.('+ids+')&select=id,full_name,title,role,unit_id',{headers:authHeaders()});
   var people=pr.ok?await pr.json():[];
@@ -2632,6 +2636,7 @@ async function fetchReviewQueue(){
   return pending.filter(function(l){return canReviewLog(l,peopleMap[l.author_id])}).map(function(l){
     l._author=peopleMap[l.author_id];
     l._submittedTo=l.submitted_to_id?peopleMap[l.submitted_to_id]:null;
+    l._rescoringRequestedBy=l.rescoring_requested_by?peopleMap[l.rescoring_requested_by]:null;
     return l;
   });
 }
@@ -2775,15 +2780,20 @@ function reviewDetailHtml(log){
   var complexity=log.complexity_score||log.self_complexity_score||6;
   var quality=log.quality_score||log.self_quality_score||8;
   var resubmission=log.revision_count?'<div class="resubmission-context"><strong>Báo cáo đã được chỉnh sửa và trình lại lần '+log.revision_count+'</strong></div>':'';
+  // "Tra de cham diem lai" (migration 00080) - cap tren cua chinh nguoi
+  // dang xem (hoac cua nguoi se cham lai) vua tra ve pending. Chi nhat ky
+  // nao dung do RPC nay tao ra moi co ca 2: rescoring_requested_by + con
+  // review_comment (khac voi pending binh thuong chua ai cham lan nao).
+  var rescoringNotice=log.rescoring_requested_by?('<div class="resubmission-context"><strong>Lãnh đạo cấp trên yêu cầu chấm lại'+(log._rescoringRequestedBy?(' · '+esc(log._rescoringRequestedBy.full_name)):'')+'</strong><span>'+esc(log.review_comment||'')+'</span></div>'):'';
   var selfScoreNote=hasSelfScore?'<div class="self-score-note"><span>Cán bộ tự chấm: Độ phức tạp <strong>'+log.self_complexity_score+'</strong> · Chất lượng <strong>'+log.self_quality_score+'</strong></span><button type="button" class="button button-secondary button-small" id="acceptSelfScore">Đồng ý với tự chấm</button></div>':'';
   return '<div class="panel-header"><div><span class="eyebrow">'+shortDate(log.log_date)+'</span><h2>'+esc(log.title)+'</h2><p>'+esc(log._author.full_name||'')+' · '+esc(log._author.title||'')+' · '+esc(unitShort(log.unit_id))+'</p></div></div>'
-    +resubmission
+    +resubmission+rescoringNotice
     +'<div class="detail-section"><h3>Kết quả báo cáo</h3><p>'+esc(log.result)+'</p><div class="detail-grid"><div class="detail-item"><span>Lĩnh vực</span><strong>'+esc(catName(log.category_id))+'</strong></div><div class="detail-item"><span>Vai trò</span><strong>'+esc(WORK_ROLE_LABEL[log.work_role]||log.work_role)+'</strong></div><div class="detail-item"><span>Thời gian</span><strong>'+esc(DURATION_LABEL[log.duration]||log.duration)+'</strong></div><div class="detail-item"><span>Minh chứng</span><strong>'+esc(log.evidence||'Không có')+'</strong></div></div></div>'
     +'<div class="detail-section">'+selfScoreNote+'<div class="rating-grid">'
     +'<div class="rating-control"><div class="rating-head"><div><h3>Độ phức tạp</h3><span class="metric-context">Bản chất và phạm vi công việc</span></div><span class="rating-value" id="complexityValue">'+complexity+'</span></div><input id="complexityRange" type="range" min="1" max="10" value="'+complexity+'" aria-label="Điểm độ phức tạp"><div class="range-labels"><span>Đơn giản</span><span>Đặc biệt phức tạp</span></div>'+scoringGuideMarkup('complexity',complexity)+'</div>'
     +'<div class="rating-control"><div class="rating-head"><div><h3>Chất lượng</h3><span class="metric-context">Đúng, đủ, kịp thời và sử dụng được</span></div><span class="rating-value" id="qualityValue">'+quality+'</span></div><input id="qualityRange" type="range" min="1" max="10" value="'+quality+'" aria-label="Điểm chất lượng"><div class="range-labels"><span>Không đạt</span><span>Rất tốt</span></div>'+scoringGuideMarkup('quality',quality)+'</div>'
     +'</div></div>'
-    +'<div class="detail-section"><label class="field"><span>Nhận xét của lãnh đạo</span><textarea id="reviewComment" rows="3" placeholder="Bắt buộc khi điểm chất lượng dưới 5 hoặc khi yêu cầu bổ sung"></textarea></label><div class="review-actions"><button class="button button-danger" id="requestRevision">Yêu cầu bổ sung</button><button class="button button-primary" id="approveLog">Xác nhận kết quả</button></div></div>';
+    +'<div class="detail-section"><label class="field"><span>Nhận xét của lãnh đạo</span><textarea id="reviewComment" rows="3" placeholder="Bắt buộc khi điểm chất lượng dưới 5 hoặc khi yêu cầu bổ sung"></textarea></label><div class="review-actions"><button class="button button-danger" id="requestRevision">Trả lại và yêu cầu bổ sung</button><button class="button button-secondary" id="approveLogWithJournal">Xác nhận, đồng thời ghi nhật ký của tôi</button><button class="button button-primary" id="approveLog">Xác nhận kết quả</button></div></div>';
 }
 
 var scoringGuides={
@@ -2872,10 +2882,16 @@ function bindReviewActions(log){
     updateScoringGuide('quality',log.self_quality_score);
   });
   $('approveLog').addEventListener('click',function(){applyReview(log,'approved')});
+  $('approveLogWithJournal').addEventListener('click',function(){applyReview(log,'approved',true)});
   $('requestRevision').addEventListener('click',function(){applyReview(log,'revision')});
 }
 
-async function applyReview(log,status){
+// withJournal: nut "Xac nhan, dong thoi ghi nhat ky cua toi" - hoat dong
+// giong het "Giao viec va ghi nhat ky" (submitTaskAssignment) - xac nhan/
+// cham diem xong, tu mo san form Ghi nhat ky moi dien san noi dung the
+// hien lanh dao vua bo thoi gian duyet/danh gia cong tac nay, van phai tu
+// xem lai/cham diem va bam Gui nhu nhat ky binh thuong (khong tu dong gui).
+async function applyReview(log,status,withJournal){
   if(!requireActive())return;
   var complexity=Number($('complexityRange').value);
   var quality=Number($('qualityRange').value);
@@ -2889,7 +2905,7 @@ async function applyReview(log,status){
   var body=status==='approved'
     ?{p_log_id:log.id,p_complexity_score:complexity,p_quality_score:quality,p_comment:comment||null}
     :{p_log_id:log.id,p_comment:comment};
-  var btn=$(status==='approved'?'approveLog':'requestRevision');btn.disabled=true;
+  var btn=$(withJournal?'approveLogWithJournal':(status==='approved'?'approveLog':'requestRevision'));btn.disabled=true;
   try{
     var r=await fetch(API+'rpc/'+fn,{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify(body)});
     var d=await r.json();
@@ -2897,6 +2913,12 @@ async function applyReview(log,status){
     SELECTED_REVIEW_ID=null;
     showToast(status==='approved'?'Đã xác nhận và chấm điểm nhật ký.':'Đã gửi yêu cầu bổ sung.');
     rr();
+    if(withJournal){
+      var mgmtCat=CATS.find(function(c){return c.name==='Quản lý, chỉ đạo điều hành'});
+      var authorName=(log._author&&log._author.full_name)||'cán bộ';
+      var resultText='Đã xem xét, đánh giá và chấm điểm công việc "'+log.title+'" của '+authorName+' - độ phức tạp '+complexity+'/10, chất lượng '+quality+'/10.'+(comment?(' Nhận xét: '+comment):'');
+      await oj(null,null,null,{categoryId:mgmtCat?mgmtCat.id:'',title:'Duyệt và chấm điểm: '+log.title,result:resultText});
+    }
   }catch(e){showToast('Lỗi: '+e.message);btn.disabled=false}
 }
 
@@ -2938,6 +2960,45 @@ async function submitOverrideScore(e){
     if(!r.ok||d.success===false)throw new Error((d&&d.error)||('HTTP '+r.status));
     closeOverrideModal();
     showToast('Đã điều chỉnh điểm và gửi thông báo.');
+    ruj();
+  }catch(err){showToast('Lỗi: '+err.message)}
+  btn.disabled=false;
+}
+
+// ============================================
+// TRA DE CHAM DIEM LAI - cap tren (tu Truong phong/Vien truong khu vuc
+// tro len) tra 1 nhat ky DA DUYET ve dung nguoi da cham truoc do de cham
+// lai, kem 1 loi nhan bat buoc (vi du: bam nham "Xac nhan ket qua" trong
+// khi y dinh la "Yeu cau bo sung"). Dung CHUNG dieu kien hien nut voi
+// "Dieu chinh diem" (opts.canOverride o journalCardHtml) - RPC
+// return_work_log_for_rescoring tu kiem tra lai o server (migration 00080).
+// ============================================
+var RETURNING_RESCORING_LOG_ID=null;
+
+function openReturnRescoringModal(logId){
+  if(!requireActive())return;
+  RETURNING_RESCORING_LOG_ID=logId;
+  $('returnRescoringForm').reset();
+  $('returnRescoringModal').hidden=false;
+  $('returnRescoringForm').elements.returnRescoringComment.focus();
+}
+function closeReturnRescoringModal(){
+  RETURNING_RESCORING_LOG_ID=null;
+  $('returnRescoringModal').hidden=true;
+}
+
+async function submitReturnRescoring(e){
+  e.preventDefault();
+  if(!requireActive())return;
+  var comment=($('returnRescoringForm').elements.returnRescoringComment.value||'').trim();
+  if(!comment){showToast('Vui lòng nhập lời nhắn cho người chấm lại.');return}
+  var btn=$('returnRescoringForm').querySelector('button[type=submit]');btn.disabled=true;
+  try{
+    var r=await fetch(API+'rpc/return_work_log_for_rescoring',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_log_id:RETURNING_RESCORING_LOG_ID,p_comment:comment})});
+    var d=await r.json();
+    if(!r.ok||d.success===false)throw new Error((d&&d.error)||('HTTP '+r.status));
+    closeReturnRescoringModal();
+    showToast('Đã trả lại để chấm điểm lại.');
     ruj();
   }catch(err){showToast('Lỗi: '+err.message)}
   btn.disabled=false;
@@ -3169,6 +3230,7 @@ function renderUnitJournalContent(){
   var back=$('ujBackToList');if(back)back.addEventListener('click',function(){UJ_SELECTED_PERSON_ID=null;renderUnitJournalContent()});
   document.querySelectorAll('[data-uj-jump-person]').forEach(function(b){b.addEventListener('click',function(){UJ_MODE='person';UJ_SELECTED_PERSON_ID=b.dataset.ujJumpPerson;renderUnitJournalShell()})});
   document.querySelectorAll('[data-override-score]').forEach(function(b){b.addEventListener('click',function(){openOverrideModal(b.dataset.overrideScore)})});
+  document.querySelectorAll('[data-return-rescoring]').forEach(function(b){b.addEventListener('click',function(){openReturnRescoringModal(b.dataset.returnRescoring)})});
   document.querySelectorAll('[data-delete-log]').forEach(function(b){b.addEventListener('click',function(){handleDeleteLogClick(b)})});
 }
 
@@ -5043,6 +5105,9 @@ document.addEventListener('DOMContentLoaded',function(){
   document.querySelectorAll('[data-close-override]').forEach(function(b){b.addEventListener('click',closeOverrideModal)});
   $('overrideScoreModal').addEventListener('click',function(e){if(e.target.id==='overrideScoreModal')closeOverrideModal()});
   $('overrideScoreForm').addEventListener('submit',submitOverrideScore);
+  document.querySelectorAll('[data-close-return-rescoring]').forEach(function(b){b.addEventListener('click',closeReturnRescoringModal)});
+  $('returnRescoringModal').addEventListener('click',function(e){if(e.target.id==='returnRescoringModal')closeReturnRescoringModal()});
+  $('returnRescoringForm').addEventListener('submit',submitReturnRescoring);
   document.querySelectorAll('[data-close-delete-log]').forEach(function(b){b.addEventListener('click',closeDeleteLogModal)});
   $('deleteLogModal').addEventListener('click',function(e){if(e.target.id==='deleteLogModal')closeDeleteLogModal()});
   $('deleteLogForm').addEventListener('submit',submitDeleteLogForm);

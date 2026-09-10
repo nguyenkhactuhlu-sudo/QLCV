@@ -374,6 +374,26 @@
     </section>
   </div>
 
+  <div class="modal-backdrop" id="returnRescoringModal" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="returnRescoringModalTitle">
+      <div class="modal-header">
+        <div>
+          <span class="eyebrow">CẤP TRÊN TRẢ LẠI</span>
+          <h2 id="returnRescoringModalTitle">Trả để chấm điểm lại</h2>
+        </div>
+        <button class="icon-button" data-close-return-rescoring aria-label="Đóng">×</button>
+      </div>
+      <form id="returnRescoringForm" class="form-grid">
+        <p class="metric-context field-wide">Nhật ký sẽ quay về trạng thái "Chờ chấm điểm" cho đúng người đã chấm trước đó chấm lại. Điểm và nhận xét cũ sẽ bị xoá, thay bằng lời nhắn của bạn bên dưới.</p>
+        <label class="field field-wide"><span>Lời nhắn cho người chấm lại <em>(bắt buộc)</em></span><textarea name="returnRescoringComment" rows="3" required placeholder="Ví dụ: bấm nhầm Xác nhận kết quả trong khi ý định là Yêu cầu bổ sung, nhờ xem và chấm lại"></textarea></label>
+        <div class="form-actions field-wide">
+          <button type="button" class="button button-secondary" data-close-return-rescoring>Hủy</button>
+          <button type="submit" class="button button-primary">Trả để chấm điểm lại</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
   <div class="modal-backdrop" id="deleteLogModal" hidden>
     <section class="modal" role="dialog" aria-modal="true" aria-labelledby="deleteLogModalTitle">
       <div class="modal-header">

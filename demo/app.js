@@ -758,6 +758,11 @@ function initialize() {
     if (event.target.id === "overrideScoreModal") closeOverrideModal();
   });
   document.getElementById("overrideScoreForm").addEventListener("submit", submitOverrideScore);
+  document.querySelectorAll("[data-close-return-rescoring]").forEach(button => button.addEventListener("click", closeReturnRescoringModal));
+  document.getElementById("returnRescoringModal").addEventListener("click", event => {
+    if (event.target.id === "returnRescoringModal") closeReturnRescoringModal();
+  });
+  document.getElementById("returnRescoringForm").addEventListener("submit", submitReturnRescoring);
   document.querySelectorAll("[data-close-delete-log]").forEach(button => button.addEventListener("click", closeDeleteLogModal));
   document.getElementById("deleteLogModal").addEventListener("click", event => {
     if (event.target.id === "deleteLogModal") closeDeleteLogModal();
@@ -1521,7 +1526,7 @@ function journalCard(log, opts = {}) {
   const leaderComment = (log.status === "approved" && log.comment) ? `<div class="leader-comment"><strong>Nhận xét của lãnh đạo${reviewer ? " · " + reviewer.name : ""}</strong><span>${log.comment}</span></div>` : "";
   const authorTag = opts.authorName ? (opts.authorId ? `<button type="button" class="meta-tag journal-author-tag" data-uj-jump-person="${opts.authorId}">${opts.authorName}</button>` : `<span class="meta-tag journal-author-tag">${opts.authorName}</span>`) : "";
   const cloneTag = log.isClone ? `<span class="meta-tag">Tự động ghi nhận (công việc nhiều ngày)</span>` : "";
-  return `<article class="journal-card ${log.status === "revision" ? "is-revision" : ""}"><div class="journal-date"><strong>${shortDate(log.date)}</strong>${log.date.slice(0,4)}</div><div class="journal-body"><h3>${log.title}</h3><p>${log.result}</p>${revisionFeedback}${leaderComment}<div class="journal-meta">${authorTag}<span class="meta-tag">${log.category}</span><span class="meta-tag">${log.workRole}</span><span class="meta-tag">${log.duration}</span>${submittedToTag}${cloneTag}${resubmission}${overriddenTag}<span class="status-pill ${statusClass(log.status)}">${statusLabel(log.status)}</span></div></div><div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>${log.complexity ?? "—"}</strong></div><div class="score-box"><span>Chất lượng</span><strong>${log.quality ?? "—"}</strong></div></div>${canEdit ? `<button type="button" class="button button-primary button-small" data-edit-journal="${log.id}">${log.status === "revision" ? "Sửa và trình lại" : "Sửa"}</button>` : ""}${canOverride ? `<button type="button" class="button button-secondary button-small" data-override-score="${log.id}">Điều chỉnh điểm</button>` : ""}${canDelete ? `<button type="button" class="button button-danger button-small" data-delete-log="${log.id}" data-delete-self="${canDeleteSelf ? "1" : "0"}">Xoá</button>` : ""}</div></article>`;
+  return `<article class="journal-card ${log.status === "revision" ? "is-revision" : ""}"><div class="journal-date"><strong>${shortDate(log.date)}</strong>${log.date.slice(0,4)}</div><div class="journal-body"><h3>${log.title}</h3><p>${log.result}</p>${revisionFeedback}${leaderComment}<div class="journal-meta">${authorTag}<span class="meta-tag">${log.category}</span><span class="meta-tag">${log.workRole}</span><span class="meta-tag">${log.duration}</span>${submittedToTag}${cloneTag}${resubmission}${overriddenTag}<span class="status-pill ${statusClass(log.status)}">${statusLabel(log.status)}</span></div></div><div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>${log.complexity ?? "—"}</strong></div><div class="score-box"><span>Chất lượng</span><strong>${log.quality ?? "—"}</strong></div></div>${canEdit ? `<button type="button" class="button button-primary button-small" data-edit-journal="${log.id}">${log.status === "revision" ? "Sửa và trình lại" : "Sửa"}</button>` : ""}${canOverride ? `<button type="button" class="button button-secondary button-small" data-override-score="${log.id}">Điều chỉnh điểm</button><button type="button" class="button button-secondary button-small" data-return-rescoring="${log.id}">Trả để chấm điểm lại</button>` : ""}${canDelete ? `<button type="button" class="button button-danger button-small" data-delete-log="${log.id}" data-delete-self="${canDeleteSelf ? "1" : "0"}">Xoá</button>` : ""}</div></article>`;
 }
 
 // Gom danh sach cho duyet theo tung tac gia (KSV), xep theo lan nop gan
@@ -1974,14 +1979,18 @@ function reviewDetail(log) {
   const quality = log.quality || log.selfQuality || 8;
   const lastRevision = log.reviewHistory?.at(-1);
   const revisionContext = lastRevision ? `<div class="resubmission-context"><strong>Báo cáo đã được chỉnh sửa và trình lại lần ${log.revisionCount || log.reviewHistory.length}</strong><span>Yêu cầu trước: ${lastRevision.comment}</span></div>` : "";
+  // "Tra de cham diem lai" - cap tren cua chinh nguoi dang xem vua tra ve
+  // pending. Chi nhat ky nao dung nut nay moi co ca 2: rescoringRequestedBy
+  // + con comment (khac voi pending binh thuong chua ai cham lan nao).
+  const rescoringNotice = log.rescoringRequestedBy ? `<div class="resubmission-context"><strong>Lãnh đạo cấp trên yêu cầu chấm lại${userById(log.rescoringRequestedBy) ? " · " + userById(log.rescoringRequestedBy).name : ""}</strong><span>${log.comment || ""}</span></div>` : "";
   const selfScoreNote = hasSelfScore ? `<div class="self-score-note"><span>Cán bộ tự chấm: Độ phức tạp <strong>${log.selfComplexity}</strong> · Chất lượng <strong>${log.selfQuality}</strong></span><button type="button" class="button button-secondary button-small" id="acceptSelfScore">Đồng ý với tự chấm</button></div>` : "";
   return `<div class="panel-header"><div><span class="eyebrow">${log.id} · ${formatDate(log.date)}</span><h2>${log.title}</h2><p>${author.name} · ${author.title} · ${unitById(log.unitId).short}</p></div></div>
-    ${revisionContext}<div class="detail-section"><h3>Kết quả báo cáo</h3><p>${log.result}</p><div class="detail-grid"><div class="detail-item"><span>Lĩnh vực</span><strong>${log.category}</strong></div><div class="detail-item"><span>Vai trò</span><strong>${log.workRole}</strong></div><div class="detail-item"><span>Thời gian</span><strong>${log.duration}</strong></div><div class="detail-item"><span>Minh chứng</span><strong>${log.evidence || "Không có"}</strong></div></div></div>
+    ${revisionContext}${rescoringNotice}<div class="detail-section"><h3>Kết quả báo cáo</h3><p>${log.result}</p><div class="detail-grid"><div class="detail-item"><span>Lĩnh vực</span><strong>${log.category}</strong></div><div class="detail-item"><span>Vai trò</span><strong>${log.workRole}</strong></div><div class="detail-item"><span>Thời gian</span><strong>${log.duration}</strong></div><div class="detail-item"><span>Minh chứng</span><strong>${log.evidence || "Không có"}</strong></div></div></div>
     <div class="detail-section">${selfScoreNote}<div class="rating-grid">
       <div class="rating-control"><div class="rating-head"><div><h3>Độ phức tạp</h3><span class="metric-context">Bản chất và phạm vi công việc</span></div><span class="rating-value" id="complexityValue">${complexity}</span></div><input id="complexityRange" type="range" min="1" max="10" value="${complexity}" aria-label="Điểm độ phức tạp"><div class="range-labels"><span>Đơn giản</span><span>Đặc biệt phức tạp</span></div>${scoringGuideMarkup("complexity", complexity)}</div>
       <div class="rating-control"><div class="rating-head"><div><h3>Chất lượng</h3><span class="metric-context">Đúng, đủ, kịp thời và sử dụng được</span></div><span class="rating-value" id="qualityValue">${quality}</span></div><input id="qualityRange" type="range" min="1" max="10" value="${quality}" aria-label="Điểm chất lượng"><div class="range-labels"><span>Không đạt</span><span>Rất tốt</span></div>${scoringGuideMarkup("quality", quality)}</div>
     </div></div>
-    <div class="detail-section"><label class="field"><span>Nhận xét của lãnh đạo</span><textarea id="reviewComment" rows="3" placeholder="Bắt buộc khi điểm chất lượng dưới 5 hoặc khi yêu cầu bổ sung"></textarea></label><div class="review-actions"><button class="button button-danger" id="requestRevision">Yêu cầu bổ sung</button><button class="button button-primary" id="approveLog">Xác nhận kết quả</button></div></div>`;
+    <div class="detail-section"><label class="field"><span>Nhận xét của lãnh đạo</span><textarea id="reviewComment" rows="3" placeholder="Bắt buộc khi điểm chất lượng dưới 5 hoặc khi yêu cầu bổ sung"></textarea></label><div class="review-actions"><button class="button button-danger" id="requestRevision">Trả lại và yêu cầu bổ sung</button><button class="button button-secondary" id="approveLogWithJournal">Xác nhận, đồng thời ghi nhật ký của tôi</button><button class="button button-primary" id="approveLog">Xác nhận kết quả</button></div></div>`;
 }
 
 function bindReviewActions(log) {
@@ -1998,6 +2007,7 @@ function bindReviewActions(log) {
     updateScoringGuide("quality", log.selfQuality);
   });
   document.getElementById("approveLog").addEventListener("click", () => applyReview(log, "approved"));
+  document.getElementById("approveLogWithJournal").addEventListener("click", () => applyReview(log, "approved", true));
   document.getElementById("requestRevision").addEventListener("click", () => applyReview(log, "revision"));
 }
 
@@ -2023,7 +2033,12 @@ function createLogClones(primaryLog) {
   });
 }
 
-function applyReview(log, status) {
+// withJournal: nut "Xac nhan, dong thoi ghi nhat ky cua toi" - hoat dong
+// giong het "Giao viec va ghi nhat ky" - xac nhan/cham diem xong, tu mo
+// san form Ghi nhat ky moi dien san noi dung the hien lanh dao vua bo
+// thoi gian duyet/danh gia cong tac nay, van phai tu xem lai/cham diem va
+// bam Gui nhu nhat ky binh thuong (khong tu dong gui).
+function applyReview(log, status, withJournal) {
   const complexity = Number(document.getElementById("complexityRange").value);
   const quality = Number(document.getElementById("qualityRange").value);
   const comment = document.getElementById("reviewComment").value.trim();
@@ -2075,6 +2090,11 @@ function applyReview(log, status) {
   state.editingJournalId = null;
   showToast(status === "approved" ? "Đã xác nhận và chấm điểm nhật ký." : "Đã gửi yêu cầu bổ sung.");
   renderReviews();
+  if (withJournal) {
+    const authorName = userById(log.authorId)?.name || "cán bộ";
+    const resultText = `Đã xem xét, đánh giá và chấm điểm công việc "${log.title}" của ${authorName} - độ phức tạp ${complexity}/10, chất lượng ${quality}/10.${comment ? " Nhận xét: " + comment : ""}`;
+    openJournalModal(null, null, null, { category: "Quản lý, chỉ đạo điều hành", title: `Duyệt và chấm điểm: ${log.title}`, result: resultText });
+  }
 }
 
 // ============================================
@@ -2146,6 +2166,67 @@ function submitOverrideScore(event) {
   saveSystemNotifications();
   closeOverrideModal();
   showToast("Đã điều chỉnh điểm và gửi thông báo.");
+  renderUnitJournalContent();
+}
+
+// ============================================
+// TRA DE CHAM DIEM LAI - cap tren (tu Truong phong/Vien truong khu vuc tro
+// len) tra 1 nhat ky DA DUYET ve dung nguoi da cham truoc do de cham lai,
+// kem 1 loi nhan bat buoc (vi du: bam nham "Xac nhan ket qua" trong khi y
+// dinh la "Yeu cau bo sung"). Dung CHUNG dieu kien hien nut voi "Dieu
+// chinh diem" (canOverride trong journalCard).
+// ============================================
+let returningRescoringLogId = null;
+
+function openReturnRescoringModal(logId) {
+  returningRescoringLogId = logId;
+  const form = document.getElementById("returnRescoringForm");
+  form.reset();
+  document.getElementById("returnRescoringModal").hidden = false;
+  form.elements.returnRescoringComment.focus();
+}
+
+function closeReturnRescoringModal() {
+  returningRescoringLogId = null;
+  document.getElementById("returnRescoringModal").hidden = true;
+}
+
+function submitReturnRescoring(event) {
+  event.preventDefault();
+  const log = logs.find(item => item.id === returningRescoringLogId);
+  if (!log) { closeReturnRescoringModal(); return; }
+  const comment = String(new FormData(event.currentTarget).get("returnRescoringComment") || "").trim();
+  if (!comment) return showToast("Vui lòng nhập lời nhắn cho người chấm lại.");
+  const previousReviewer = userById(log.reviewerId);
+  const senior = currentUser();
+  // Neu la 1 phan cua "cong viec nhieu ngay" (dong goc hoac 1 dong nhan
+  // ban), xoa het ca nhom nhan ban truoc - se duoc sinh lai sach se khi
+  // dong goc duoc cham lai va duyet (giong het submitOverrideScore o tren
+  // xu ly nhom nhan ban, nhung o day la xoa thay vi dong bo diem).
+  const anchorId = log.cloneGroupId || log.id;
+  logs = logs.filter(other => !(other.id !== anchorId && other.cloneGroupId === anchorId));
+  const anchor = logs.find(item => item.id === anchorId);
+  if (!anchor) { closeReturnRescoringModal(); return; }
+  Object.assign(anchor, {
+    status: "pending", complexity: null, quality: null, comment,
+    reviewerId: null, reviewedAt: null, rescoringRequestedBy: senior.id
+  });
+  if (anchor.taskAssignmentId) {
+    const task = taskAssignments.find(item => item.id === anchor.taskAssignmentId);
+    if (task) { task.status = "pending"; saveTaskAssignments(); }
+  }
+  saveLogs();
+  const author = userById(anchor.authorId);
+  const notifyTargets = [
+    previousReviewer && { user: previousReviewer, type: "work_log_returned_for_rescoring", title: "Cấp trên yêu cầu bạn chấm lại 1 nhật ký", message: `Công việc "${anchor.title}" bạn đã chấm bị trả lại để chấm lại - lời nhắn: ${comment}`, view: "reviews" },
+    author && { user: author, type: "work_log_returned_for_rescoring_author_notice", title: "Nhật ký của bạn đang được chấm lại", message: `Công việc "${anchor.title}" đang được lãnh đạo cấp trên yêu cầu chấm lại điểm, kết quả tạm thời quay về trạng thái chờ chấm điểm.`, view: "journal" }
+  ].filter(Boolean);
+  notifyTargets.forEach(({ user: target, type, title, message, view }) => {
+    systemNotifications.push({ id: `ON-${Date.now()}-${target.id}`, userId: target.id, type, title, message, view, createdAt: new Date().toISOString() });
+  });
+  saveSystemNotifications();
+  closeReturnRescoringModal();
+  showToast("Đã trả lại để chấm điểm lại.");
   renderUnitJournalContent();
 }
 
@@ -2353,6 +2434,7 @@ function renderUnitJournalContent() {
   if (back) back.addEventListener("click", () => { state.ujSelectedPersonId = null; renderUnitJournalContent(); });
   document.querySelectorAll("[data-uj-jump-person]").forEach(b => b.addEventListener("click", () => { state.ujMode = "person"; state.ujSelectedPersonId = b.dataset.ujJumpPerson; renderUnitJournal(); }));
   document.querySelectorAll("[data-override-score]").forEach(b => b.addEventListener("click", () => openOverrideModal(b.dataset.overrideScore)));
+  document.querySelectorAll("[data-return-rescoring]").forEach(b => b.addEventListener("click", () => openReturnRescoringModal(b.dataset.returnRescoring)));
   document.querySelectorAll("[data-delete-log]").forEach(b => b.addEventListener("click", () => handleDeleteLogClick(b)));
 }
 
