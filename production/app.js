@@ -1,5 +1,5 @@
 // QLCV Production - Ket noi Supabase that, khong co du lieu demo
-var U=null,V='dashboard',LOGS=[],UNITS=[],CATS=[],EDITING_ID=null,PROVINCE_UNIT_ID=null,REVIEW_QUEUE=[],SELECTED_REVIEW_ID=null,REVIEW_QUEUE_COLLAPSED=false,REVIEW_QUEUE_OTHERS_COLLAPSED=true,JOURNAL_SOURCE_NOTE_ID=null;
+var U=null,V='dashboard',LOGS=[],UNITS=[],CATS=[],EDITING_ID=null,PROVINCE_UNIT_ID=null,REVIEW_QUEUE=[],SELECTED_REVIEW_ID=null,REVIEW_QUEUE_COLLAPSED=false,JOURNAL_SOURCE_NOTE_ID=null;
 function $(i){return document.getElementById(i)}
 // .sidebar va .nav-item co san "display:flex" trong styles.css, manh hon
 // thuoc tinh "hidden" mac dinh cua trinh duyet - phai ep display truc tiep
@@ -94,6 +94,7 @@ var STATUS_CLASS={pending:'status-pending',approved:'status-approved',revision:'
 // mang nay.
 // ============================================
 var CHANGELOG=[
+  {date:'2026-09-10',type:'improve',text:'Màn "Duyệt và chấm điểm" nay chỉ hiển thị nhật ký nộp thẳng cho mình - bỏ hẳn khu "Đang chờ người khác xử lý" (nhật ký KSV nộp đích danh cho một cấp phó). Áp dụng cho mọi cấp trưởng.'},
   {date:'2026-09-10',type:'fix',text:'Sửa số ở chuông báo cho đúng: (1) số nhật ký chờ duyệt ở "Duyệt và chấm điểm" nay chỉ đếm nhật ký nộp thẳng cho mình, không gộp phần "đang chờ người khác xử lý"; (2) số việc quá hạn ở "Giao việc" nay đếm theo VIỆC (1 việc giao cho nhiều người chỉ tính 1), bỏ qua người đã rút khỏi việc - trước đây bị đếm trùng.'},
   {date:'2026-09-10',type:'feature',text:'(Tạm thời) Mở tính năng "Sửa điểm đã chấm": lãnh đạo tự sửa lại điểm chính mình đã chấm cho cán bộ/KSV, chỉ với nhật ký trong tháng hiện tại - phục vụ đợt điều chỉnh theo cơ cấu chấm điểm mới. Nút nằm trong Nhật ký công tác của đơn vị.'},
   {date:'2026-09-10',type:'improve',text:'Thêm tag "Tự chấm: Phức tạp X · Chất lượng Y" ngay trên mỗi thẻ nhật ký (cạnh các tag lĩnh vực, vai trò, thời lượng...) - dễ đối chiếu với điểm chính thức lãnh đạo đã chấm mà không cần mở chi tiết.'},
@@ -2564,12 +2565,8 @@ async function resetPasswordFor(id,name){
 function updatePendingBadge(n){var el=$('pendingNavCount');if(el)el.textContent=n}
 async function refreshPendingBadge(){
   if(!isLeader())return;
-  // Chi dem nhat ky NOP THANG CHO MINH (hoac khong chi dinh ai) - dung
-  // "myQueue" nhu man Duyet & cham diem. Nhat ky KSV nop dich danh cho 1
-  // Pho khac ("Dang cho nguoi khac xu ly") KHONG tinh vao so nay - lanh
-  // dao xem/can thiep duoc nhung khong phai viec cua minh (yeu cau nguoi
-  // dung 2026-09-10: so o chuong bao khong khop so viec thuc su phai lam).
-  try{var q=await fetchReviewQueue();updatePendingBadge(q.filter(function(l){return !isQueueItemForOthers(l)}).length)}catch(e){}
+  // fetchReviewQueue() da loc chi con nhat ky nop thang cho minh.
+  try{var q=await fetchReviewQueue();updatePendingBadge(q.length)}catch(e){}
 }
 
 function updateTaskOverdueBadge(n){var el=$('taskOverdueNavCount');if(el){el.textContent=n;el.hidden=n===0}}
@@ -2648,9 +2645,6 @@ async function fetchReviewQueue(){
   if(!r.ok)throw new Error('HTTP '+r.status);
   var pending=(await r.json()).filter(function(l){return l.author_id!==U.id});
   if(!pending.length)return [];
-  // Lay chung ca tac gia LAN nguoi duoc nop cho (submitted_to_id) trong 1
-  // lan fetch - can ten cua ca 2 de tach khu "nop cho toi" / "nop cho
-  // nguoi khac" o rr() (xem groupQueueBySubmittedTo).
   var ids=Array.from(new Set(
     pending.map(function(l){return l.author_id})
       .concat(pending.map(function(l){return l.submitted_to_id}).filter(Boolean))
@@ -2659,12 +2653,20 @@ async function fetchReviewQueue(){
   var pr=await fetch(API+'profiles?id=in.('+ids+')&select=id,full_name,title,role,unit_id',{headers:authHeaders()});
   var people=pr.ok?await pr.json():[];
   var peopleMap={};people.forEach(function(a){peopleMap[a.id]=a});
-  return pending.filter(function(l){return canReviewLog(l,peopleMap[l.author_id])}).map(function(l){
-    l._author=peopleMap[l.author_id];
-    l._submittedTo=l.submitted_to_id?peopleMap[l.submitted_to_id]:null;
-    l._rescoringRequestedBy=l.rescoring_requested_by?peopleMap[l.rescoring_requested_by]:null;
-    return l;
-  });
+  // Man Duyet & cham diem CHI hien nhat ky nop THANG cho minh (hoac khong
+  // chi dinh ai) - nhat ky KSV nop dich danh cho 1 cap pho khong con hien
+  // o day nua cho MOI cap truong (yeu cau nguoi dung 2026-09-10: cap pho
+  // van cham diem duoc tren dien thoai nen cap truong khong can xem/cham
+  // ho). isQueueItemForOthers dung chung U.id nen dung cho moi vai tro.
+  return pending
+    .filter(function(l){return canReviewLog(l,peopleMap[l.author_id])})
+    .filter(function(l){return !isQueueItemForOthers(l)})
+    .map(function(l){
+      l._author=peopleMap[l.author_id];
+      l._submittedTo=l.submitted_to_id?peopleMap[l.submitted_to_id]:null;
+      l._rescoringRequestedBy=l.rescoring_requested_by?peopleMap[l.rescoring_requested_by]:null;
+      return l;
+    });
 }
 
 // Nhat ky KSV da nop DICH DANH cho nguoi khac (khong phai minh) nhung minh
@@ -2672,26 +2674,6 @@ async function fetchReviewQueue(){
 // dung de tach rieng khoi hang cho chinh, tranh "gianh" duyet nham phan
 // viec dang lam cua nguoi khac. Xem rr().
 function isQueueItemForOthers(l){return !!(l.submitted_to_id&&l.submitted_to_id!==U.id)}
-
-// Gom theo NGUOI DUOC NOP CHO (khac groupQueueByAuthor gom theo tac gia) -
-// dung cho khu phu "Dang cho nguoi khac xu ly", de thay ro tung nhat ky
-// dang cho DUNG Pho nao xu ly.
-function groupQueueBySubmittedTo(queue){
-  var order=[],byId={};
-  queue.forEach(function(l){
-    var key=l.submitted_to_id||'__unknown__';
-    if(!byId[key]){byId[key]={submittedTo:l._submittedTo||null,items:[]};order.push(key)}
-    byId[key].items.push(l);
-  });
-  var groups=order.map(function(key){return byId[key]});
-  groups.forEach(function(g){g.items.sort(function(a,b){return (submittedAtOf(b)||'').localeCompare(submittedAtOf(a)||'')})});
-  groups.sort(function(a,b){
-    var at=a.items[0]?submittedAtOf(a.items[0]):'';
-    var bt=b.items[0]?submittedAtOf(b.items[0]):'';
-    return (bt||'').localeCompare(at||'');
-  });
-  return groups;
-}
 
 // Gom danh sach cho duyet theo tung tac gia (KSV), xep theo lan nop gan
 // nhat cua tung nguoi; trong 1 nhom sap theo thoi gian nop moi nhat truoc.
@@ -2727,21 +2709,6 @@ function authorQueueGroupHtml(g){
   return '<div class="queue-group"><div class="queue-group-header"><strong>'+authorName+'</strong>'+(authorUnit?'<span>'+authorUnit+'</span>':'')+'</div>'+items+'</div>';
 }
 
-// Khu phu "Dang cho nguoi khac xu ly" - gom theo NGUOI DUOC NOP CHO, moi
-// nhat ky hien them ro tac gia (vi 1 nhom o day co the co nhieu KSV khac
-// nhau cung nop cho 1 Pho) + gio nop, de nguoi xem biet dung "dang cho ai".
-function othersQueueGroupHtml(g){
-  var toName=g.submittedTo?esc(g.submittedTo.full_name||''):'Không xác định';
-  var items=g.items.map(function(l,idx){
-    var authorName=l._author?esc(l._author.full_name||''):'—';
-    return '<button class="queue-item '+(l.id===SELECTED_REVIEW_ID?'is-selected':'')+'" data-review-id="'+l.id+'">'
-      +'<span class="queue-index">'+(idx+1)+'</span>'
-      +'<span class="queue-item-body"><p>'+esc(l.title)+'</p><span class="queue-meta"><span class="meta-tag">'+authorName+'</span>'+(l.revision_count?'<span class="resubmission-badge">Trình lại lần '+l.revision_count+'</span>':'')+'<span>Nộp lúc '+shortDateTime(submittedAtOf(l))+'</span></span></span>'
-      +'</button>';
-  }).join('');
-  return '<div class="queue-group"><div class="queue-group-header"><strong>Nộp cho: '+toName+'</strong></div>'+items+'</div>';
-}
-
 async function rr(){
   $('pageEyebrow').textContent='CHỜ DUYỆT';$('pageTitle').textContent='Duyệt và chấm điểm';
   if(!isLeader()){V='dashboard';render();return}
@@ -2751,35 +2718,20 @@ async function rr(){
   REVIEW_QUEUE=queue;
   if(!SELECTED_REVIEW_ID||!queue.some(function(l){return l.id===SELECTED_REVIEW_ID})){SELECTED_REVIEW_ID=queue[0]?queue[0].id:null}
   var selected=queue.find(function(l){return l.id===SELECTED_REVIEW_ID});
-  // Tach 2 khu de tranh "gianh" duyet nham phan da nop dich danh cho nguoi
-  // khac (vd Truong phong mo hang cho thay ca nhat ky KSV da nop cho 1
-  // Pho) - myQueue la phan nop thang cho chinh minh (hoac khong chi dinh
-  // ai), othersQueue la phan minh CO QUYEN xem/duyet (can_review_log van
-  // tra ve true, cap truong luon co toan quyen) nhung KSV da chon nguoi
-  // khac - van xem/can thiep duoc, chi khong nam lan trong hang chinh.
-  var myQueue=queue.filter(function(l){return !isQueueItemForOthers(l)});
-  var othersQueue=queue.filter(isQueueItemForOthers);
-  // So o chuong bao ("Duyet va cham diem") = so nhat ky NOP THANG CHO
-  // MINH, khong gom "Dang cho nguoi khac xu ly" (yeu cau nguoi dung
-  // 2026-09-10). Tieu de tren man hinh van hien tong so (queue.length).
-  updatePendingBadge(myQueue.length);
-  var h='<div class="toolbar"><div><h2>'+queue.length+' nhật ký chờ đánh giá</h2><p class="metric-context">Chỉ hiển thị nhật ký thuộc phạm vi được phân công.</p></div></div>';
+  // fetchReviewQueue() chi tra ve nhat ky NOP THANG CHO MINH (hoac khong
+  // chi dinh ai) - nhat ky KSV nop dich danh cho 1 cap pho khong hien o
+  // day (yeu cau nguoi dung 2026-09-10).
+  updatePendingBadge(queue.length);
+  var h='<div class="toolbar"><div><h2>'+queue.length+' nhật ký chờ đánh giá</h2><p class="metric-context">Chỉ hiển thị nhật ký nộp cho bạn.</p></div></div>';
   h+='<div class="review-layout"><section>';
-  h+='<details class="review-queue-details" '+(REVIEW_QUEUE_COLLAPSED?'':'open')+'><summary>Nhật ký nộp cho tôi ('+myQueue.length+') <span class="review-queue-hint">(bấm để thu gọn/mở rộng)</span></summary><div class="review-queue">';
-  h+=myQueue.length?groupQueueByAuthor(myQueue).map(authorQueueGroupHtml).join(''):'<div class="panel empty-state"><strong>Đã xử lý hết</strong><span>Không còn nhật ký nộp riêng cho bạn.</span></div>';
+  h+='<details class="review-queue-details" '+(REVIEW_QUEUE_COLLAPSED?'':'open')+'><summary>Nhật ký chờ chấm điểm ('+queue.length+') <span class="review-queue-hint">(bấm để thu gọn/mở rộng)</span></summary><div class="review-queue">';
+  h+=queue.length?groupQueueByAuthor(queue).map(authorQueueGroupHtml).join(''):'<div class="panel empty-state"><strong>Đã xử lý hết</strong><span>Không còn nhật ký nào chờ bạn chấm điểm.</span></div>';
   h+='</div></details>';
-  if(othersQueue.length){
-    h+='<details class="review-queue-details review-queue-others" '+(REVIEW_QUEUE_OTHERS_COLLAPSED?'':'open')+'><summary>Đang chờ người khác xử lý ('+othersQueue.length+') <span class="review-queue-hint">Nhật ký đã nộp đích danh cho người khác trong đơn vị — bạn vẫn xem/can thiệp được khi cần</span></summary><div class="review-queue">'
-      +groupQueueBySubmittedTo(othersQueue).map(othersQueueGroupHtml).join('')
-      +'</div></details>';
-  }
   h+='</section><section class="panel review-detail" id="reviewDetailSlot">'+(selected?reviewDetailHtml(selected):'<div class="empty-state"><strong>Không có nhật ký cần xử lý</strong><span>Hãy quay lại khi có nhật ký mới.</span></div>')+'</section></div>';
   $('appView').innerHTML=h;
   bindReviewQueueItemClicks();
   var queueDetails=$('appView').querySelector('.review-queue-details');
   if(queueDetails)queueDetails.addEventListener('toggle',function(){REVIEW_QUEUE_COLLAPSED=!queueDetails.open});
-  var othersDetails=$('appView').querySelector('.review-queue-others');
-  if(othersDetails)othersDetails.addEventListener('toggle',function(){REVIEW_QUEUE_OTHERS_COLLAPSED=!othersDetails.open});
   if(selected)bindReviewActions(selected);
 }
 

@@ -306,7 +306,6 @@ const state = {
   currentView: ["dashboard", "journal", "notes", "reviews", "unitJournal", "monthly", "scoreAdjustments", "organization", "administration", "settings"].includes(requestedView) ? requestedView : "dashboard",
   selectedReviewId: null,
   reviewQueueCollapsed: false,
-  reviewQueueOthersCollapsed: true,
   editingJournalId: null,
   journalSourceNoteId: null,
   taskSearchActive: "",
@@ -609,7 +608,10 @@ function canReviewLog(log, reviewer = currentUser()) {
 }
 
 function reviewQueue() {
-  return logs.filter(log => log.status === "pending" && canReviewLog(log)).sort((a, b) => {
+  // Man Duyet & cham diem CHI hien nhat ky nop THANG cho minh (hoac khong
+  // chi dinh ai) - nhat ky KSV nop dich danh cho 1 cap pho khong con hien
+  // o day cho MOI cap truong (yeu cau nguoi dung 2026-09-10).
+  return logs.filter(log => log.status === "pending" && canReviewLog(log) && !isQueueItemForOthers(log)).sort((a, b) => {
     const aTime = a.resubmittedAt || a.createdAt || `${a.date}T00:00:00`;
     const bTime = b.resubmittedAt || b.createdAt || `${b.date}T00:00:00`;
     return bTime.localeCompare(aTime);
@@ -919,10 +921,8 @@ function updateChrome(title, eyebrow) {
   document.getElementById("pageEyebrow").textContent = eyebrow;
   document.getElementById("sidebarUserName").textContent = user.name;
   document.getElementById("sidebarUserTitle").textContent = user.title || "";
-  // So o chuong bao "Duyet & cham diem" = so nhat ky NOP THANG CHO MINH
-  // (myQueue), khong gom "Dang cho nguoi khac xu ly" - yeu cau nguoi dung
-  // 2026-09-10: so o chuong bao khong khop so viec thuc su phai lam.
-  document.getElementById("pendingNavCount").textContent = reviewQueue().filter(log => !isQueueItemForOthers(log)).length;
+  // reviewQueue() da loc chi con nhat ky nop thang cho minh.
+  document.getElementById("pendingNavCount").textContent = reviewQueue().length;
   const taskBadge = document.getElementById("taskOverdueNavCount");
   if (taskBadge) {
     // Dem so VIEC (taskGroupId) qua han, khong dem tung dong theo nguoi
@@ -1844,25 +1844,6 @@ function isQueueItemForOthers(log) {
   return !!(log.submittedToId && log.submittedToId !== currentUser().id);
 }
 
-// Gom theo NGUOI DUOC NOP CHO (khac groupQueueByAuthor gom theo tac gia)
-// - dung cho khu phu "Dang cho nguoi khac xu ly".
-function groupQueueBySubmittedTo(queue) {
-  const order = [], byId = {};
-  queue.forEach(log => {
-    const key = log.submittedToId || "__unknown__";
-    if (!byId[key]) { byId[key] = { submittedTo: userById(log.submittedToId) || null, items: [] }; order.push(key); }
-    byId[key].items.push(log);
-  });
-  const groups = order.map(key => byId[key]);
-  groups.forEach(g => g.items.sort((a, b) => (submittedAtOf(b) || "").localeCompare(submittedAtOf(a) || "")));
-  groups.sort((a, b) => {
-    const at = a.items[0] ? submittedAtOf(a.items[0]) : "";
-    const bt = b.items[0] ? submittedAtOf(b.items[0]) : "";
-    return (bt || "").localeCompare(at || "");
-  });
-  return groups;
-}
-
 function authorQueueGroupHtml(g) {
   const authorName = g.author ? g.author.name : "Không xác định tác giả";
   const authorUnit = g.author ? unitById(g.author.unitId).short : "";
@@ -1870,43 +1851,26 @@ function authorQueueGroupHtml(g) {
   return `<div class="queue-group"><div class="queue-group-header"><strong>${authorName}</strong>${authorUnit ? `<span>${authorUnit}</span>` : ""}</div>${items}</div>`;
 }
 
-function othersQueueGroupHtml(g) {
-  const toName = g.submittedTo ? g.submittedTo.name : "Không xác định";
-  const items = g.items.map((log, idx) => {
-    const author = userById(log.authorId);
-    return `<button class="queue-item ${log.id === state.selectedReviewId ? "is-selected" : ""}" data-review-id="${log.id}"><span class="queue-index">${idx + 1}</span><span class="queue-item-body"><p>${log.title}</p><span class="queue-meta"><span class="meta-tag">${author ? author.name : "—"}</span>${log.revisionCount ? `<span class="resubmission-badge">Trình lại lần ${log.revisionCount}</span>` : ""}<span>Nộp lúc ${shortDateTime(submittedAtOf(log))}</span></span></span></button>`;
-  }).join("");
-  return `<div class="queue-group"><div class="queue-group-header"><strong>Nộp cho: ${toName}</strong></div>${items}</div>`;
-}
-
 function renderReviews() {
   if (!isLeader()) { state.currentView = "dashboard"; renderDashboard(); return; }
+  // reviewQueue() chi tra ve nhat ky nop THANG cho minh (hoac khong chi
+  // dinh ai) - nhat ky KSV nop dich danh cho 1 cap pho khong hien o day
+  // (yeu cau nguoi dung 2026-09-10).
   const queue = reviewQueue();
   if (!state.selectedReviewId || !queue.some(log => log.id === state.selectedReviewId)) state.selectedReviewId = queue[0]?.id || null;
   const selected = logs.find(log => log.id === state.selectedReviewId);
-  // Tach 2 khu de tranh "gianh" duyet nham phan da nop dich danh cho
-  // nguoi khac (vd Truong phong thay ca nhat ky KSV da nop cho 1 Pho) -
-  // myQueue la phan nop thang cho chinh minh (hoac khong chi dinh ai),
-  // othersQueue la phan minh CO QUYEN xem/duyet (canReviewLog van tra ve
-  // true, cap truong luon co toan quyen) nhung KSV da chon nguoi khac -
-  // van xem/can thiep duoc, chi khong nam lan trong hang chinh.
-  const myQueue = queue.filter(log => !isQueueItemForOthers(log));
-  const othersQueue = queue.filter(isQueueItemForOthers);
   updateChrome("Duyệt và chấm điểm", "TRÁCH NHIỆM NGƯỜI ĐỨNG ĐẦU");
   document.getElementById("appView").innerHTML = `
-    <div class="toolbar"><div><h2>${queue.length} nhật ký chờ đánh giá</h2><p class="metric-context">Chỉ hiển thị cán bộ, công chức thuộc phạm vi được phân công.</p></div></div>
+    <div class="toolbar"><div><h2>${queue.length} nhật ký chờ đánh giá</h2><p class="metric-context">Chỉ hiển thị nhật ký nộp cho bạn.</p></div></div>
     <div class="review-layout">
       <section>
-        <details class="review-queue-details" ${state.reviewQueueCollapsed ? "" : "open"}><summary>Nhật ký nộp cho tôi (${myQueue.length}) <span class="review-queue-hint">(bấm để thu gọn/mở rộng)</span></summary><div class="review-queue">${myQueue.length ? groupQueueByAuthor(myQueue).map(authorQueueGroupHtml).join("") : `<div class="panel empty-state"><strong>Đã xử lý hết</strong>Không còn nhật ký nộp riêng cho bạn.</div>`}</div></details>
-        ${othersQueue.length ? `<details class="review-queue-details review-queue-others" ${state.reviewQueueOthersCollapsed ? "" : "open"}><summary>Đang chờ người khác xử lý (${othersQueue.length}) <span class="review-queue-hint">Nhật ký đã nộp đích danh cho người khác trong đơn vị — bạn vẫn xem/can thiệp được khi cần</span></summary><div class="review-queue">${groupQueueBySubmittedTo(othersQueue).map(othersQueueGroupHtml).join("")}</div></details>` : ""}
+        <details class="review-queue-details" ${state.reviewQueueCollapsed ? "" : "open"}><summary>Nhật ký chờ chấm điểm (${queue.length}) <span class="review-queue-hint">(bấm để thu gọn/mở rộng)</span></summary><div class="review-queue">${queue.length ? groupQueueByAuthor(queue).map(authorQueueGroupHtml).join("") : `<div class="panel empty-state"><strong>Đã xử lý hết</strong>Không còn nhật ký nào chờ bạn chấm điểm.</div>`}</div></details>
       </section>
       <section class="panel review-detail" id="reviewDetailSlot">${selected ? reviewDetail(selected) : `<div class="empty-state"><strong>Không có nhật ký cần xử lý</strong>Hãy quay lại khi có nhật ký mới.</div>`}</section>
     </div>`;
   bindReviewQueueItemClicks();
   const queueDetails = document.querySelector(".review-queue-details");
   if (queueDetails) queueDetails.addEventListener("toggle", () => { state.reviewQueueCollapsed = !queueDetails.open; });
-  const othersDetails = document.querySelector(".review-queue-others");
-  if (othersDetails) othersDetails.addEventListener("toggle", () => { state.reviewQueueOthersCollapsed = !othersDetails.open; });
   if (selected) bindReviewActions(selected);
 }
 
