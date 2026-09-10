@@ -649,6 +649,13 @@ tbody tr:hover { background: #fbfbfc; }
 .journal-date { color: var(--muted); font-size: 12px; }
 .journal-date strong { display: block; color: var(--text); font-size: 18px; }
 .journal-body p { margin: 5px 0 8px; color: var(--muted); font-size: 12px; }
+/* Giu nguyen xuong dong nguoi dung go o cac o van ban dai (Ket qua, Mo ta,
+   Nhan xet cua lanh dao, Loi nhan...) khi hien thi lai - de "thoang" dung
+   nhu luc go (yeu cau nguoi dung 2026-09-10). */
+.journal-body h3, .journal-body p,
+.leader-comment span, .revision-feedback span, .resubmission-context span, .override-feedback span,
+.task-card > p,
+.review-detail .detail-section > p:not(.metric-context) { white-space: pre-wrap; }
 .journal-meta { display: flex; flex-wrap: wrap; gap: 7px; }
 .meta-tag { padding: 3px 7px; border-radius: 6px; color: var(--muted); background: var(--surface-soft); font-size: 11px; }
 .meta-tag-warning { color: #8a650d; background: #fffaf0; border: 1px solid #ead7a4; }

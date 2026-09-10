@@ -690,14 +690,6 @@ function initialize() {
       });
     });
   }).observe(document.body, { childList: true, subtree: true });
-  // "Ten cong viec" (va tuong tu) doi tu <input> sang <textarea rows="1">
-  // de tu xuong dong/dan cao khi het be ngang (xem .title-grow-input) -
-  // nhung van la 1 dong LOGIC duy nhat nhu input cu, nen chan phim Enter
-  // tao xuong dong thu cong (khac voi cac textarea nhieu dong binh thuong
-  // nhu "Mo ta"/"Ket qua" - o do Enter van xuong dong binh thuong).
-  document.addEventListener("keydown", event => {
-    if (event.key === "Enter" && event.target.classList && event.target.classList.contains("title-grow-input")) event.preventDefault();
-  });
   document.addEventListener("click", event => {
     const toggleBtn = event.target.closest("[data-date-field-toggle]");
     if (toggleBtn) { event.preventDefault(); toggleDateFieldCalendar(toggleBtn.dataset.dateFieldToggle); return; }
