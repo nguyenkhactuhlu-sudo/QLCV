@@ -698,6 +698,14 @@ tbody tr:hover { background: #fbfbfc; }
 /* Trang "Phat trien tinh nang & sua loi" - nhat ky cap nhat phan mem
    danh cho nguoi khong ranh ky thuat, nhom theo ngay, moi ngay gan nhat
    len dau. */
+.changelog-page { display: flex; gap: 26px; align-items: flex-start; flex-wrap: wrap; }
+.changelog-page .changelog-main { flex: 1 1 400px; min-width: 0; }
+.changelog-contact { flex: 0 0 262px; padding: 14px 18px 16px; border: 1px solid var(--line); border-top: 3px solid var(--blue); border-radius: 10px; background: var(--surface); box-shadow: 0 1px 3px rgba(15, 44, 73, .06); position: sticky; top: 16px; }
+.changelog-contact-title { padding-bottom: 8px; margin-bottom: 10px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.changelog-contact-name { color: var(--text); font-size: 14px; font-weight: 600; line-height: 1.45; }
+.changelog-contact-name span { color: var(--muted); font-size: 13px; font-weight: 400; }
+.changelog-contact-phone { display: inline-block; margin-top: 6px; color: var(--blue); font-size: 15px; font-weight: 700; letter-spacing: .02em; text-decoration: none; }
+@media (max-width: 900px) { .changelog-contact { flex-basis: 100%; position: static; } }
 .changelog-list { display: grid; gap: 22px; max-width: 720px; }
 .changelog-date { margin-bottom: 8px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
 .changelog-items { display: grid; gap: 10px; }

@@ -4979,9 +4979,9 @@ function changelogTagHtml(type){
 }
 function rc(){
   $('pageEyebrow').textContent='CẬP NHẬT PHẦN MỀM';$('pageTitle').textContent='Phát triển tính năng & sửa lỗi';
-  var h='<p class="metric-context" style="margin:0 0 16px;max-width:640px">Nơi ghi lại vắn tắt những gì phần mềm vừa thêm mới hoặc vừa sửa, theo thời gian gần nhất lên đầu - để mọi người biết phần mềm đang thay đổi những gì.</p>';
+  var main='<p class="metric-context" style="margin:0 0 16px;max-width:640px">Nơi ghi lại vắn tắt những gì phần mềm vừa thêm mới hoặc vừa sửa, theo thời gian gần nhất lên đầu - để mọi người biết phần mềm đang thay đổi những gì.</p>';
   if(!CHANGELOG.length){
-    h+='<div class="empty-state"><strong>Chưa có cập nhật nào được ghi lại</strong></div>';
+    main+='<div class="empty-state"><strong>Chưa có cập nhật nào được ghi lại</strong></div>';
   }else{
     var sorted=CHANGELOG.slice().sort(function(a,b){return a.date<b.date?1:a.date>b.date?-1:0});
     var groups=[];
@@ -4990,14 +4990,19 @@ function rc(){
       if(!g||g.date!==item.date){g={date:item.date,items:[]};groups.push(g)}
       g.items.push(item);
     });
-    h+='<div class="changelog-list">'+groups.map(function(g){
+    main+='<div class="changelog-list">'+groups.map(function(g){
       return '<div class="changelog-group"><div class="changelog-date">'+esc(fullDate(g.date))+'</div>'
         +'<div class="changelog-items">'+g.items.map(function(item){
           return '<div class="changelog-item">'+changelogTagHtml(item.type)+'<span>'+esc(item.text)+'</span></div>';
         }).join('')+'</div></div>';
     }).join('')+'</div>';
   }
-  $('appView').innerHTML=h;
+  var contact='<aside class="changelog-contact">'
+    +'<div class="changelog-contact-title">Liên hệ bộ phận kỹ thuật</div>'
+    +'<div class="changelog-contact-name">Đồng chí Nguyễn Khắc Tú <span>(sinh năm 1993)</span></div>'
+    +'<a class="changelog-contact-phone" href="tel:0919785993">0919785993</a>'
+    +'</aside>';
+  $('appView').innerHTML='<div class="changelog-page"><div class="changelog-main">'+main+'</div>'+contact+'</div>';
 }
 
 // ============================================
