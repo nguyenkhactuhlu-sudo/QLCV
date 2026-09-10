@@ -94,6 +94,7 @@ var STATUS_CLASS={pending:'status-pending',approved:'status-approved',revision:'
 // mang nay.
 // ============================================
 var CHANGELOG=[
+  {date:'2026-09-10',type:'improve',text:'Thêm tag "Tự chấm: Phức tạp X · Chất lượng Y" ngay trên mỗi thẻ nhật ký (cạnh các tag lĩnh vực, vai trò, thời lượng...) - dễ đối chiếu với điểm chính thức lãnh đạo đã chấm mà không cần mở chi tiết.'},
   {date:'2026-09-10',type:'feature',text:'Thêm nút "Trả để chấm điểm lại" (cạnh "Điều chỉnh điểm" trong Nhật ký công tác của đơn vị) - lãnh đạo từ Trưởng phòng/Viện trưởng khu vực trở lên (kể cả Phó Viện trưởng tỉnh với Trưởng phòng) trả 1 nhật ký đã duyệt về đúng người đã chấm trước đó để chấm lại, kèm lời nhắn bắt buộc - dùng cho trường hợp bấm nhầm "Xác nhận kết quả" trong khi ý định là "Yêu cầu bổ sung".'},
   {date:'2026-09-10',type:'improve',text:'Đổi tên nút "Yêu cầu bổ sung" thành "Trả lại và yêu cầu bổ sung" cho rõ nghĩa hơn.'},
   {date:'2026-09-10',type:'feature',text:'Thêm nút "Xác nhận, đồng thời ghi nhật ký của tôi" ở màn Duyệt & chấm điểm - hoạt động như "Giao việc và ghi nhật ký": xác nhận/chấm điểm xong, tự mở sẵn form ghi nhật ký cá nhân ghi nhận việc đã bỏ thời gian duyệt/đánh giá công tác này, chỉ cần bổ sung rồi tự gửi như bình thường.'},
@@ -864,10 +865,14 @@ function journalCardHtml(log,opts){
   // nop luc nao, khong chi nop cho ai.
   var submittedToTag=submittedToName?('<span class="meta-tag">Nộp cho: '+esc(submittedToName)+' · '+esc(shortDateTime(submittedAtOf(log)))+'</span>'):'';
   var cloneTag=log.is_clone?'<span class="meta-tag">Tự động ghi nhận (công việc nhiều ngày)</span>':'';
+  // Diem tu cham - hien ngay tren dong tag de de doi chieu voi diem chinh
+  // thuc (o khoi "journal-scores" ben phai) ma khong can mo chi tiet (yeu
+  // cau nguoi dung, 2026-09-10).
+  var selfScoreTag=(log.self_complexity_score!=null&&log.self_quality_score!=null)?('<span class="meta-tag">Tự chấm: Phức tạp '+log.self_complexity_score+' · Chất lượng '+log.self_quality_score+'</span>'):'';
   return '<article class="journal-card '+(log.status==='revision'?'is-revision':'')+'">'
     +'<div class="journal-date"><strong>'+shortDate(log.log_date)+'</strong>'+(log.log_date||'').slice(0,4)+'</div>'
     +'<div class="journal-body"><h3>'+esc(log.title)+'</h3><p>'+esc(log.result)+'</p>'+revisionFeedback+leaderComment
-    +'<div class="journal-meta">'+authorTag+'<span class="meta-tag">'+esc(catName(log.category_id))+'</span><span class="meta-tag">'+esc(WORK_ROLE_LABEL[log.work_role]||log.work_role)+'</span><span class="meta-tag">'+esc(DURATION_LABEL[log.duration]||log.duration)+'</span>'+submittedToTag+cloneTag+resubmission+overriddenTag+'<span class="status-pill '+(STATUS_CLASS[log.status]||'')+'">'+(STATUS_LABEL[log.status]||log.status)+'</span></div></div>'
+    +'<div class="journal-meta">'+authorTag+'<span class="meta-tag">'+esc(catName(log.category_id))+'</span><span class="meta-tag">'+esc(WORK_ROLE_LABEL[log.work_role]||log.work_role)+'</span><span class="meta-tag">'+esc(DURATION_LABEL[log.duration]||log.duration)+'</span>'+selfScoreTag+submittedToTag+cloneTag+resubmission+overriddenTag+'<span class="status-pill '+(STATUS_CLASS[log.status]||'')+'">'+(STATUS_LABEL[log.status]||log.status)+'</span></div></div>'
     +'<div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>'+(log.complexity_score==null?'—':log.complexity_score)+'</strong></div><div class="score-box"><span>Chất lượng</span><strong>'+(log.quality_score==null?'—':log.quality_score)+'</strong></div></div>'
     +(canEdit?'<button type="button" class="button button-primary button-small" data-edit-journal="'+log.id+'">'+(log.status==='revision'?'Sửa và trình lại':'Sửa')+'</button>':'')
     +(opts.canOverride?'<button type="button" class="button button-secondary button-small" data-override-score="'+log.id+'">Điều chỉnh điểm</button><button type="button" class="button button-secondary button-small" data-return-rescoring="'+log.id+'">Trả để chấm điểm lại</button>':'')
@@ -3073,7 +3078,7 @@ async function fetchUnitJournalLogs(period){
   // gom nguoi CUNG don vi voi nguoi xem) - tranh truong hop nop cho 1
   // nguoi ngoai pham vi do (vd Truong phong/Vien truong KV nop thang len
   // cap tinh) khien khong tim thay ten, hien "Nop cho" bi trong.
-  var sel='id,author_id,unit_id,title,result,work_role,duration,evidence,category_id,created_at,updated_at,log_date,status,complexity_score,quality_score,revision_count,review_comment,reviewer_id,submitted_to:submitted_to_id(full_name),reviewer:reviewer_id(full_name)';
+  var sel='id,author_id,unit_id,title,result,work_role,duration,evidence,category_id,created_at,updated_at,log_date,status,complexity_score,quality_score,self_complexity_score,self_quality_score,revision_count,review_comment,reviewer_id,submitted_to:submitted_to_id(full_name),reviewer:reviewer_id(full_name)';
   var r=await fetch(API+'work_logs?unit_id=in.('+unitIds.join(',')+')&log_date=gte.'+start+'&log_date=lt.'+end+'&select='+sel+'&order=log_date.desc,created_at.desc',{headers:authHeaders()});
   if(!r.ok)throw new Error('HTTP '+r.status);
   var logsResult=await r.json();
