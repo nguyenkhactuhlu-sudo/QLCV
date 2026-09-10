@@ -5000,7 +5000,7 @@ function rc(){
   var contact='<aside class="changelog-contact">'
     +'<div class="changelog-contact-title">Liên hệ bộ phận kỹ thuật</div>'
     +'<div class="changelog-contact-name">Đồng chí Nguyễn Khắc Tú <span>(sinh năm 1993)</span></div>'
-    +'<a class="changelog-contact-phone" href="tel:0919785993">0919785993</a>'
+    +'<div class="changelog-contact-phone">Số điện thoại: <a href="tel:0919785993">0919785993</a></div>'
     +'</aside>';
   $('appView').innerHTML='<div class="changelog-page"><div class="changelog-main">'+main+'</div>'+contact+'</div>';
 }
