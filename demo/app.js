@@ -758,6 +758,11 @@ function initialize() {
     if (event.target.id === "overrideScoreModal") closeOverrideModal();
   });
   document.getElementById("overrideScoreForm").addEventListener("submit", submitOverrideScore);
+  document.querySelectorAll("[data-close-revise-own]").forEach(button => button.addEventListener("click", closeReviseOwnScoreModal));
+  document.getElementById("reviseOwnScoreModal").addEventListener("click", event => {
+    if (event.target.id === "reviseOwnScoreModal") closeReviseOwnScoreModal();
+  });
+  document.getElementById("reviseOwnScoreForm").addEventListener("submit", submitReviseOwnScore);
   document.querySelectorAll("[data-close-return-rescoring]").forEach(button => button.addEventListener("click", closeReturnRescoringModal));
   document.getElementById("returnRescoringModal").addEventListener("click", event => {
     if (event.target.id === "returnRescoringModal") closeReturnRescoringModal();
@@ -1499,6 +1504,9 @@ function journalCard(log, opts = {}) {
   // chung, dung canManagePerson (khong phu thuoc submitted_to_id cua
   // rieng nhat ky nay, khac canReviewLog).
   const canOverride = log.status === "approved" && log.reviewerId && !isLeaveCategoryName(log.category) && canManagePerson(userById(log.reviewerId), currentUser());
+  // TAM THOI: lanh dao tu sua diem CHINH MINH da cham, chi voi nhat ky
+  // trong thang hien tai (do co cau cham diem thay doi).
+  const canReviseOwn = log.status === "approved" && log.reviewerId === currentUser().id && !isLeaveCategoryName(log.category) && (log.date || "").slice(0, 7) === DEMO_TODAY.slice(0, 7);
   const overridden = (log.scoringHistory || []).length >= 2;
   // Kem theo THOI DIEM nop (gio:phut that) de lanh dao biet nop luc nao,
   // khong chi nop cho ai - dung chung submittedAtOf() voi man Duyet & cham
@@ -1530,7 +1538,7 @@ function journalCard(log, opts = {}) {
   // thuc (o khoi "journal-scores" ben phai) ma khong can mo chi tiet (yeu
   // cau nguoi dung, 2026-09-10).
   const selfScoreTag = (log.selfComplexity != null && log.selfQuality != null) ? `<span class="meta-tag">Tự chấm: Phức tạp ${log.selfComplexity} · Chất lượng ${log.selfQuality}</span>` : "";
-  return `<article class="journal-card ${log.status === "revision" ? "is-revision" : ""}"><div class="journal-date"><strong>${shortDate(log.date)}</strong>${log.date.slice(0,4)}</div><div class="journal-body"><h3>${log.title}</h3><p>${log.result}</p>${revisionFeedback}${leaderComment}<div class="journal-meta">${authorTag}<span class="meta-tag">${log.category}</span><span class="meta-tag">${log.workRole}</span><span class="meta-tag">${log.duration}</span>${selfScoreTag}${submittedToTag}${cloneTag}${resubmission}${overriddenTag}<span class="status-pill ${statusClass(log.status)}">${statusLabel(log.status)}</span></div></div><div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>${log.complexity ?? "—"}</strong></div><div class="score-box"><span>Chất lượng</span><strong>${log.quality ?? "—"}</strong></div></div>${canEdit ? `<button type="button" class="button button-primary button-small" data-edit-journal="${log.id}">${log.status === "revision" ? "Sửa và trình lại" : "Sửa"}</button>` : ""}${canOverride ? `<button type="button" class="button button-secondary button-small" data-override-score="${log.id}">Điều chỉnh điểm</button><button type="button" class="button button-secondary button-small" data-return-rescoring="${log.id}">Trả để chấm điểm lại</button>` : ""}${canDelete ? `<button type="button" class="button button-danger button-small" data-delete-log="${log.id}" data-delete-self="${canDeleteSelf ? "1" : "0"}">Xoá</button>` : ""}</div></article>`;
+  return `<article class="journal-card ${log.status === "revision" ? "is-revision" : ""}"><div class="journal-date"><strong>${shortDate(log.date)}</strong>${log.date.slice(0,4)}</div><div class="journal-body"><h3>${log.title}</h3><p>${log.result}</p>${revisionFeedback}${leaderComment}<div class="journal-meta">${authorTag}<span class="meta-tag">${log.category}</span><span class="meta-tag">${log.workRole}</span><span class="meta-tag">${log.duration}</span>${selfScoreTag}${submittedToTag}${cloneTag}${resubmission}${overriddenTag}<span class="status-pill ${statusClass(log.status)}">${statusLabel(log.status)}</span></div></div><div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>${log.complexity ?? "—"}</strong></div><div class="score-box"><span>Chất lượng</span><strong>${log.quality ?? "—"}</strong></div></div>${canEdit ? `<button type="button" class="button button-primary button-small" data-edit-journal="${log.id}">${log.status === "revision" ? "Sửa và trình lại" : "Sửa"}</button>` : ""}${canOverride ? `<button type="button" class="button button-secondary button-small" data-override-score="${log.id}">Điều chỉnh điểm</button><button type="button" class="button button-secondary button-small" data-return-rescoring="${log.id}">Trả để chấm điểm lại</button>` : ""}${canReviseOwn ? `<button type="button" class="button button-secondary button-small" data-revise-own-score="${log.id}">Sửa điểm đã chấm</button>` : ""}${canDelete ? `<button type="button" class="button button-danger button-small" data-delete-log="${log.id}" data-delete-self="${canDeleteSelf ? "1" : "0"}">Xoá</button>` : ""}</div></article>`;
 }
 
 // Gom danh sach cho duyet theo tung tac gia (KSV), xep theo lan nop gan
@@ -2174,6 +2182,68 @@ function submitOverrideScore(event) {
 }
 
 // ============================================
+// SUA DIEM DA CHAM (TAM THOI - migration 00081) - lanh dao tu sua diem
+// CHINH MINH da cham, chi voi nhat ky trong thang hien tai. Nut "Sua diem
+// da cham" chi hien khi canReviseOwn (xem journalCard). De go tinh nang:
+// go nut/canReviseOwn + 3 ham nay + modal reviseOwnScoreModal + binding.
+// ============================================
+let revisingOwnLogId = null;
+
+function openReviseOwnScoreModal(logId) {
+  const log = logs.find(item => item.id === logId);
+  if (!log) return;
+  revisingOwnLogId = logId;
+  const form = document.getElementById("reviseOwnScoreForm");
+  form.reset();
+  form.elements.reviseComplexity.value = log.complexity ?? "";
+  form.elements.reviseQuality.value = log.quality ?? "";
+  document.getElementById("reviseOwnScoreModal").hidden = false;
+  form.elements.reviseComplexity.focus();
+}
+
+function closeReviseOwnScoreModal() {
+  revisingOwnLogId = null;
+  document.getElementById("reviseOwnScoreModal").hidden = true;
+}
+
+function submitReviseOwnScore(event) {
+  event.preventDefault();
+  const log = logs.find(item => item.id === revisingOwnLogId);
+  if (!log) { closeReviseOwnScoreModal(); return; }
+  if ((log.date || "").slice(0, 7) !== DEMO_TODAY.slice(0, 7)) {
+    return showToast("Chỉ sửa được điểm nhật ký trong tháng hiện tại.");
+  }
+  const data = new FormData(event.currentTarget);
+  const complexity = Number(data.get("reviseComplexity"));
+  const quality = Number(data.get("reviseQuality"));
+  const comment = String(data.get("reviseComment") || "").trim();
+  const reviewer = currentUser();
+  const reviewedAt = new Date().toISOString();
+  Object.assign(log, { complexity, quality, comment, reviewedAt });
+  log.scoringHistory = [...(log.scoringHistory || []), { reviewerId: reviewer.id, complexity, quality, comment, at: reviewedAt }];
+  const anchorId = log.cloneGroupId || log.id;
+  logs.forEach(other => {
+    if (other.id !== log.id && (other.id === anchorId || other.cloneGroupId === anchorId)) {
+      Object.assign(other, { complexity, quality, comment });
+    }
+  });
+  saveLogs();
+  const author = userById(log.authorId);
+  if (author) {
+    systemNotifications.push({
+      id: `ON-${Date.now()}-${author.id}`, userId: author.id, type: "score_overridden",
+      title: "Điểm nhật ký của bạn đã được chấm lại",
+      message: `Công việc "${log.title}" đã được lãnh đạo chấm lại điểm (điều chỉnh theo cơ cấu chấm điểm mới).`,
+      view: "journal", createdAt: reviewedAt
+    });
+    saveSystemNotifications();
+  }
+  closeReviseOwnScoreModal();
+  showToast("Đã sửa lại điểm.");
+  renderUnitJournalContent();
+}
+
+// ============================================
 // TRA DE CHAM DIEM LAI - cap tren (tu Truong phong/Vien truong khu vuc tro
 // len) tra 1 nhat ky DA DUYET ve dung nguoi da cham truoc do de cham lai,
 // kem 1 loi nhan bat buoc (vi du: bam nham "Xac nhan ket qua" trong khi y
@@ -2439,6 +2509,7 @@ function renderUnitJournalContent() {
   document.querySelectorAll("[data-uj-jump-person]").forEach(b => b.addEventListener("click", () => { state.ujMode = "person"; state.ujSelectedPersonId = b.dataset.ujJumpPerson; renderUnitJournal(); }));
   document.querySelectorAll("[data-override-score]").forEach(b => b.addEventListener("click", () => openOverrideModal(b.dataset.overrideScore)));
   document.querySelectorAll("[data-return-rescoring]").forEach(b => b.addEventListener("click", () => openReturnRescoringModal(b.dataset.returnRescoring)));
+  document.querySelectorAll("[data-revise-own-score]").forEach(b => b.addEventListener("click", () => openReviseOwnScoreModal(b.dataset.reviseOwnScore)));
   document.querySelectorAll("[data-delete-log]").forEach(b => b.addEventListener("click", () => handleDeleteLogClick(b)));
 }
 

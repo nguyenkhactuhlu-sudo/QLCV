@@ -94,6 +94,7 @@ var STATUS_CLASS={pending:'status-pending',approved:'status-approved',revision:'
 // mang nay.
 // ============================================
 var CHANGELOG=[
+  {date:'2026-09-10',type:'feature',text:'(Tạm thời) Mở tính năng "Sửa điểm đã chấm": lãnh đạo tự sửa lại điểm chính mình đã chấm cho cán bộ/KSV, chỉ với nhật ký trong tháng hiện tại - phục vụ đợt điều chỉnh theo cơ cấu chấm điểm mới. Nút nằm trong Nhật ký công tác của đơn vị.'},
   {date:'2026-09-10',type:'improve',text:'Thêm tag "Tự chấm: Phức tạp X · Chất lượng Y" ngay trên mỗi thẻ nhật ký (cạnh các tag lĩnh vực, vai trò, thời lượng...) - dễ đối chiếu với điểm chính thức lãnh đạo đã chấm mà không cần mở chi tiết.'},
   {date:'2026-09-10',type:'feature',text:'Thêm nút "Trả để chấm điểm lại" (cạnh "Điều chỉnh điểm" trong Nhật ký công tác của đơn vị) - lãnh đạo từ Trưởng phòng/Viện trưởng khu vực trở lên (kể cả Phó Viện trưởng tỉnh với Trưởng phòng) trả 1 nhật ký đã duyệt về đúng người đã chấm trước đó để chấm lại, kèm lời nhắn bắt buộc - dùng cho trường hợp bấm nhầm "Xác nhận kết quả" trong khi ý định là "Yêu cầu bổ sung".'},
   {date:'2026-09-10',type:'improve',text:'Đổi tên nút "Yêu cầu bổ sung" thành "Trả lại và yêu cầu bổ sung" cho rõ nghĩa hơn.'},
@@ -876,6 +877,7 @@ function journalCardHtml(log,opts){
     +'<div class="journal-side"><div class="journal-scores"><div class="score-box"><span>Phức tạp</span><strong>'+(log.complexity_score==null?'—':log.complexity_score)+'</strong></div><div class="score-box"><span>Chất lượng</span><strong>'+(log.quality_score==null?'—':log.quality_score)+'</strong></div></div>'
     +(canEdit?'<button type="button" class="button button-primary button-small" data-edit-journal="'+log.id+'">'+(log.status==='revision'?'Sửa và trình lại':'Sửa')+'</button>':'')
     +(opts.canOverride?'<button type="button" class="button button-secondary button-small" data-override-score="'+log.id+'">Điều chỉnh điểm</button><button type="button" class="button button-secondary button-small" data-return-rescoring="'+log.id+'">Trả để chấm điểm lại</button>':'')
+    +(opts.canReviseOwn?'<button type="button" class="button button-secondary button-small" data-revise-own-score="'+log.id+'">Sửa điểm đã chấm</button>':'')
     +(canDelete?'<button type="button" class="button button-danger button-small" data-delete-log="'+log.id+'" data-delete-self="'+(canDeleteSelf&&!opts.canDelete?'1':'0')+'">Xoá</button>':'')+'</div></article>';
 }
 
@@ -2971,6 +2973,50 @@ async function submitOverrideScore(e){
 }
 
 // ============================================
+// SUA DIEM DA CHAM (TAM THOI - migration 00081) - lanh dao tu sua diem
+// CHINH MINH da cham, chi voi nhat ky trong thang hien tai. Khac
+// openOverrideModal o cho: day la nhat ky nguoi dung LA reviewer_id (nut
+// "Sua diem da cham" chi hien khi opts.canReviseOwn - xem ujLogCardOpts).
+// De go tinh nang: xoa khoi migration list + go nut/dieu kien canReviseOwn
+// + go 3 ham nay + modal reviseOwnScoreModal + 3 dong binding.
+// ============================================
+var REVISING_OWN_LOG_ID=null;
+
+function openReviseOwnScoreModal(logId){
+  if(!requireActive())return;
+  var log=UJ_LOGS.find(function(l){return l.id===logId});
+  if(!log)return;
+  REVISING_OWN_LOG_ID=logId;
+  var form=$('reviseOwnScoreForm');form.reset();
+  form.elements.reviseComplexity.value=log.complexity_score!=null?log.complexity_score:'';
+  form.elements.reviseQuality.value=log.quality_score!=null?log.quality_score:'';
+  $('reviseOwnScoreModal').hidden=false;
+  form.elements.reviseComplexity.focus();
+}
+function closeReviseOwnScoreModal(){
+  REVISING_OWN_LOG_ID=null;
+  $('reviseOwnScoreModal').hidden=true;
+}
+async function submitReviseOwnScore(e){
+  e.preventDefault();
+  if(!requireActive())return;
+  var f=new FormData($('reviseOwnScoreForm'));
+  var complexity=Number(f.get('reviseComplexity'));
+  var quality=Number(f.get('reviseQuality'));
+  var comment=(f.get('reviseComment')||'').trim();
+  var btn=$('reviseOwnScoreForm').querySelector('button[type=submit]');btn.disabled=true;
+  try{
+    var r=await fetch(API+'rpc/revise_own_work_log_score',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_log_id:REVISING_OWN_LOG_ID,p_complexity_score:complexity,p_quality_score:quality,p_comment:comment||null})});
+    var d=await r.json();
+    if(!r.ok||d.success===false)throw new Error((d&&d.error)||('HTTP '+r.status));
+    closeReviseOwnScoreModal();
+    showToast('Đã sửa lại điểm.');
+    ruj();
+  }catch(err){showToast('Lỗi: '+err.message)}
+  btn.disabled=false;
+}
+
+// ============================================
 // TRA DE CHAM DIEM LAI - cap tren (tu Truong phong/Vien truong khu vuc
 // tro len) tra 1 nhat ky DA DUYET ve dung nguoi da cham truoc do de cham
 // lai, kem 1 loi nhan bat buoc (vi du: bam nham "Xac nhan ket qua" trong
@@ -3236,6 +3282,7 @@ function renderUnitJournalContent(){
   document.querySelectorAll('[data-uj-jump-person]').forEach(function(b){b.addEventListener('click',function(){UJ_MODE='person';UJ_SELECTED_PERSON_ID=b.dataset.ujJumpPerson;renderUnitJournalShell()})});
   document.querySelectorAll('[data-override-score]').forEach(function(b){b.addEventListener('click',function(){openOverrideModal(b.dataset.overrideScore)})});
   document.querySelectorAll('[data-return-rescoring]').forEach(function(b){b.addEventListener('click',function(){openReturnRescoringModal(b.dataset.returnRescoring)})});
+  document.querySelectorAll('[data-revise-own-score]').forEach(function(b){b.addEventListener('click',function(){openReviseOwnScoreModal(b.dataset.reviseOwnScore)})});
   document.querySelectorAll('[data-delete-log]').forEach(function(b){b.addEventListener('click',function(){handleDeleteLogClick(b)})});
 }
 
@@ -3295,6 +3342,11 @@ function ujLogCardOpts(l,showAuthor){
   if(l.status==='approved'&&l.reviewer_id&&l.reviewer_id!==U.id&&!isLeaveCategory(l.category_id)){
     var curReviewer=UJ_PEOPLE.find(function(p){return p.id===l.reviewer_id});
     if(curReviewer)opts.canOverride=canManagePerson(curReviewer);
+  }
+  // TAM THOI (migration 00081): lanh dao tu sua diem CHINH MINH da cham,
+  // chi voi nhat ky trong THANG HIEN TAI (do co cau cham diem thay doi).
+  if(l.status==='approved'&&l.reviewer_id===U.id&&!isLeaveCategory(l.category_id)&&(l.log_date||'').slice(0,7)===todayStr().slice(0,7)){
+    opts.canReviseOwn=true;
   }
   var author=UJ_PEOPLE.find(function(p){return p.id===l.author_id});
   if(author)opts.canDelete=canReviewLog(l,author);
@@ -5110,6 +5162,9 @@ document.addEventListener('DOMContentLoaded',function(){
   document.querySelectorAll('[data-close-override]').forEach(function(b){b.addEventListener('click',closeOverrideModal)});
   $('overrideScoreModal').addEventListener('click',function(e){if(e.target.id==='overrideScoreModal')closeOverrideModal()});
   $('overrideScoreForm').addEventListener('submit',submitOverrideScore);
+  document.querySelectorAll('[data-close-revise-own]').forEach(function(b){b.addEventListener('click',closeReviseOwnScoreModal)});
+  $('reviseOwnScoreModal').addEventListener('click',function(e){if(e.target.id==='reviseOwnScoreModal')closeReviseOwnScoreModal()});
+  $('reviseOwnScoreForm').addEventListener('submit',submitReviseOwnScore);
   document.querySelectorAll('[data-close-return-rescoring]').forEach(function(b){b.addEventListener('click',closeReturnRescoringModal)});
   $('returnRescoringModal').addEventListener('click',function(e){if(e.target.id==='returnRescoringModal')closeReturnRescoringModal()});
   $('returnRescoringForm').addEventListener('submit',submitReturnRescoring);

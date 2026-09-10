@@ -377,6 +377,28 @@
     </section>
   </div>
 
+  <div class="modal-backdrop" id="reviseOwnScoreModal" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="reviseOwnScoreModalTitle">
+      <div class="modal-header">
+        <div>
+          <span class="eyebrow">SỬA ĐIỂM ĐÃ CHẤM</span>
+          <h2 id="reviseOwnScoreModalTitle">Sửa lại điểm bạn đã chấm</h2>
+        </div>
+        <button class="icon-button" data-close-revise-own aria-label="Đóng">×</button>
+      </div>
+      <form id="reviseOwnScoreForm" class="form-grid">
+        <p class="metric-context field-wide">Chỉ áp dụng cho nhật ký trong tháng hiện tại. Điểm mới sẽ thay điểm cũ và tác giả nhận được thông báo.</p>
+        <label class="field"><span>Độ phức tạp (1-10)</span><input type="number" name="reviseComplexity" min="1" max="10" step="1" required></label>
+        <label class="field"><span>Chất lượng (1-10)</span><input type="number" name="reviseQuality" min="1" max="10" step="1" required></label>
+        <label class="field field-wide"><span>Nhận xét <em>(không bắt buộc)</em></span><textarea name="reviseComment" rows="3" placeholder="Giải thích lý do sửa điểm (có thể để trống)"></textarea></label>
+        <div class="form-actions field-wide">
+          <button type="button" class="button button-secondary" data-close-revise-own>Hủy</button>
+          <button type="submit" class="button button-primary">Lưu điểm mới</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
   <div class="modal-backdrop" id="returnRescoringModal" hidden>
     <section class="modal" role="dialog" aria-modal="true" aria-labelledby="returnRescoringModalTitle">
       <div class="modal-header">
