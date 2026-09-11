@@ -171,11 +171,19 @@
           <span>Gắn với việc được giao (không bắt buộc)</span>
           <select name="taskAssignmentId" id="journalTaskSelect"></select>
         </label>
+        <div class="field-wide copy-journal-block" id="kpiCatalogBlock">
+          <button type="button" class="button button-secondary" id="toggleKpiCatalog">📋 Tra cứu đầu việc theo danh mục KPI Tối cao</button>
+          <div class="copy-journal-panel" id="kpiCatalogPanel" hidden>
+            <label class="field"><span>Tìm theo tên việc</span><input type="text" id="kpiCatalogSearch" placeholder="Ví dụ: kiểm sát tạm giữ, giải quyết đơn, báo cáo..."></label>
+            <div class="copy-journal-list" id="kpiCatalogList"></div>
+            <button type="button" class="link-button" id="kpiCatalogUseOther">Không tìm thấy việc phù hợp? Dùng "Công tác khác"</button>
+            <small class="field-hint">Chọn 1 việc để tự điền Lĩnh vực công tác và gợi ý Độ phức tạp — riêng Độ phức tạp vẫn sửa lại được sau khi chọn.</small>
+          </div>
+        </div>
         <label class="field">
           <span>Lĩnh vực công tác</span>
-          <select name="category" id="categorySelect" required>
-            <option value="">Chọn lĩnh vực</option>
-          </select>
+          <div class="readonly-field is-empty" id="journalCategoryDisplay">Chưa xác định — tra cứu đầu việc ở trên để tự động điền</div>
+          <input type="hidden" name="category" id="categorySelect">
         </label>
         <label class="field field-wide">
           <span>Nội dung công việc đã hoàn thành</span>
