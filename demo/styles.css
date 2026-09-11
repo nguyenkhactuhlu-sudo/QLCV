@@ -386,6 +386,8 @@ h3 { margin-bottom: 4px; font-size: 15px; }
 .button-primary:hover { background: var(--primary-dark); }
 .button-secondary { color: var(--text); border-color: var(--line); background: var(--surface); }
 .button-secondary:hover { background: var(--surface-soft); }
+.button-secondary.is-picked { color: var(--primary-dark, var(--primary)); border-color: var(--primary); background: var(--primary-light); font-weight: 600; white-space: normal; text-align: left; line-height: 1.4; }
+.kpi-catalog-change { display: inline; font-weight: 400; color: var(--muted); }
 .button-danger { color: var(--red); border-color: #ecc4c9; background: var(--red-soft); }
 .button-small { min-height: 32px; padding: 5px 10px; font-size: 12px; }
 .icon-button { width: 36px; height: 36px; border: 0; border-radius: 50%; background: var(--surface-soft); font-size: 24px; }
@@ -1253,6 +1255,17 @@ details.uj-day-card .uj-day-card-logs .journal-card:first-child { margin-top: 12
 /* Nhac nho tieu chi (vd do dai mat khau) - trung tinh, khac mau vang cua
    ".field-warning" (danh cho canh bao that su, khong phai chi dan truoc). */
 .field-hint { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; }
+
+/* O "Linh vuc cong tac" khoa cung - CO TINH la 1 dong thong bao (khong vien, khong nen o) de
+   khong giong 1 truong bam duoc, tranh nguoi dung co bam vao vo ich. Chi doi qua khi chon lai
+   o tra cuu danh muc KPI ben tren. */
+.readonly-field { padding: 6px 0; color: var(--primary-dark, var(--primary)); font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; cursor: default; }
+.readonly-field::before { content: "🟢"; font-size: 10px; }
+.readonly-field.is-empty { color: var(--muted); font-style: italic; font-weight: 400; }
+.readonly-field.is-empty::before { content: "ℹ️"; }
+
+.link-button { align-self: flex-start; padding: 0; border: 0; background: none; color: var(--primary); font-size: 12px; text-decoration: underline; cursor: pointer; }
+.link-button:hover { color: var(--primary-dark, var(--primary)); }
 
 .self-score-note { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-soft); font-size: 12px; }
 
