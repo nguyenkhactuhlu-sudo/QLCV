@@ -1017,7 +1017,10 @@ function initialize() {
     else if (id === "journalRangeStartDate") updateJournalRangePreview();
   });
   document.getElementById("journalForm").elements.duration.addEventListener("change", toggleJournalRangeField);
-  document.getElementById("journalForm").elements.selfComplexity.addEventListener("input", event => updateSelfScoreGuide("Complexity", event.target.value));
+  document.getElementById("journalForm").elements.selfComplexity.addEventListener("input", event => {
+    kpiComplexityFromCatalog = false; // nguoi dung tu go lai - tro ve loi giai thich day du
+    updateSelfScoreGuide("Complexity", event.target.value);
+  });
   document.getElementById("journalForm").elements.selfQuality.addEventListener("input", event => updateSelfScoreGuide("Quality", event.target.value));
   document.getElementById("journalTaskSelect").addEventListener("change", applyTaskLinkToSubmitTo);
   document.querySelectorAll("[data-close-leave-modal]").forEach(button => button.addEventListener("click", closeLeaveModal));
@@ -5115,6 +5118,7 @@ function openJournalModal(logId = null, presetTaskId = null, presetNoteId = null
   // hien lai tren nut - khong dua ve nhan mac dinh (se lam mat thong tin da khoa).
   const currentCategory = form.elements.category.value;
   setKpiCatalogPickedLabel(currentCategory ? { ma: null, ten: currentCategory, doPhucTap: null } : null);
+  kpiComplexityFromCatalog = false; // moi mo modal (sua nhat ky cu/tao moi) - luon bat dau bang loi giai thich day du
   setVisible(document.getElementById("copyJournalBlock"), !canEdit);
   document.getElementById("copyJournalPanel").hidden = true;
   document.getElementById("copyJournalSearch").value = "";
@@ -5316,6 +5320,12 @@ function updateJournalRangePreview() {
 // Goi y muc diem (dung chung du lieu/cach phan muc voi man hinh duyet cua
 // lanh dao - scoringGuide()) ngay tai o "Tu danh gia" khi ghi nhat ky, de
 // KSV tu cham co can cu tham khao, khong chi lanh dao moi thay goi y nay.
+// true khi gia tri Do phuc tap dang hien la GOI Y vua ap dung tu danh muc KPI Toi cao (chua bi
+// nguoi dung tu sua lai) - luc do khong can nhac lai loi giai thich chung chung nua vi thong tin
+// da nam san o nut "Dau viec tham khao..." ben tren; nguoi dung tu go lai gia tri (input that,
+// khong phai gan .value bang JS) se tu dong tat co nay va tro ve loi giai thich day du nhu cu.
+let kpiComplexityFromCatalog = false;
+
 function updateSelfScoreGuide(kind, value) {
   const guideEl = document.getElementById(`self${kind}Guide`);
   if (!guideEl) return;
@@ -5325,6 +5335,12 @@ function updateSelfScoreGuide(kind, value) {
     guideEl.removeAttribute("data-band");
     titleEl.textContent = "—";
     textEl.textContent = "Nhập điểm để xem gợi ý mức độ tương ứng.";
+    return;
+  }
+  if (kind === "Complexity" && kpiComplexityFromCatalog) {
+    titleEl.textContent = `Mức ${value} · Theo gợi ý danh mục KPI Tối cao`;
+    textEl.textContent = "Đã lấy từ đầu việc tham khảo đã chọn ở trên — có thể tự sửa lại nếu thấy chưa sát thực tế.";
+    guideEl.dataset.band = Number(value) <= 4 ? "low" : Number(value) <= 8 ? "standard" : "high";
     return;
   }
   const type = kind === "Complexity" ? "complexity" : "quality";
@@ -5435,6 +5451,8 @@ function applyOtherCategory() {
   const form = document.getElementById("journalForm");
   form.elements.category.value = "Công tác khác";
   syncJournalCategoryDisplay();
+  kpiComplexityFromCatalog = false; // khong co goi y that - tra ve loi giai thich day du khi tu cham
+  updateSelfScoreGuide("Complexity", form.elements.selfComplexity.value);
   document.getElementById("kpiCatalogPanel").hidden = true;
   setKpiCatalogPickedLabel({ ma: null, ten: "Công tác khác", doPhucTap: null });
   showToast(`Đã chọn "Công tác khác" — tự chấm Độ phức tạp và Chất lượng như bình thường.`);
@@ -5447,6 +5465,7 @@ function applyKpiCatalogItem(ma) {
   form.elements.category.value = item.category;
   syncJournalCategoryDisplay();
   form.elements.selfComplexity.value = item.doPhucTap;
+  kpiComplexityFromCatalog = true;
   updateSelfScoreGuide("Complexity", item.doPhucTap);
   document.getElementById("kpiCatalogPanel").hidden = true;
   setKpiCatalogPickedLabel(item);

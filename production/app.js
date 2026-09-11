@@ -96,6 +96,7 @@ var STATUS_CLASS={pending:'status-pending',approved:'status-approved',revision:'
 var CHANGELOG=[
   {date:'2026-09-12',type:'feature',text:'Thêm mục tra cứu đầu việc theo Bảng danh mục KPI dùng chung của VKSND tối cao ngay trong form ghi nhật ký - chọn 1 việc sẽ tự điền "Lĩnh vực công tác" và gợi ý sẵn "Độ phức tạp" (vẫn tự sửa được); có nút "Không tìm thấy việc phù hợp? Dùng Công tác khác" khi không có việc nào khớp.'},
   {date:'2026-09-12',type:'improve',text:'Đổi danh mục "Lĩnh vực công tác" sang đúng 14 nhóm lĩnh vực của VKSND tối cao (đã lọc bỏ phần chỉ áp dụng ở cấp Tối cao, không có ở tỉnh/khu vực) cộng thêm "Công tác khác" - khoá cứng ô này (không cho chọn tay tuỳ ý), chỉ điền được qua mục tra cứu đầu việc hoặc "Công tác khác", tránh chọn sai/thiếu nhất quán lĩnh vực.'},
+  {date:'2026-09-12',type:'improve',text:'Gợi ý mức điểm dưới ô "Tự đánh giá độ phức tạp" nay rút gọn thành "Theo gợi ý danh mục KPI Tối cao" khi vừa áp dụng gợi ý từ mục tra cứu đầu việc (đỡ lặp lại thông tin đã có sẵn ở nút phía trên); nếu tự gõ sửa lại điểm hoặc chọn "Công tác khác" (không có gợi ý), phần giải thích chi tiết theo từng mức vẫn hiện đầy đủ như trước.'},
   {date:'2026-09-11',type:'improve',text:'Sửa chú thích khung "Tài liệu hướng dẫn sử dụng" (mục Phát triển tính năng & sửa lỗi) cho rõ nghĩa hơn: "Hướng dẫn chi tiết cách sử dụng phần mềm, chi tiết cho từng vị trí công tác".'},
   {date:'2026-09-11',type:'feature',text:'Mục Phát triển tính năng & sửa lỗi: thêm khung "Tài liệu hướng dẫn sử dụng" cho phép tải ngay file hướng dẫn sử dụng QLCV (.docx) tại trang, nằm cạnh khung Liên hệ bộ phận kỹ thuật.'},
   {date:'2026-09-11',type:'improve',text:'Rút gọn nhãn nút "Giao việc và công việc được giao" thành "Giao việc & CV được giao" cho gọn màn hình; đồng thời bỏ gạch chân dòng "Độc lập - Tự do - Hạnh phúc" trong file Excel/PDF xuất báo cáo cho đúng thể thức văn bản hành chính (chỉ in đậm, không gạch chân).'},
@@ -649,6 +650,8 @@ function applyOtherCategory(){
   var form=$('journalForm');
   form.elements.category.value=KPI_CATALOG_OTHER_CATEGORY_ID;
   syncJournalCategoryDisplay();
+  kpiComplexityFromCatalog=false; // khong co goi y that - tra ve loi giai thich day du khi tu cham
+  updateSelfScoreGuide('Complexity',form.elements.selfComplexity.value);
   $('kpiCatalogPanel').hidden=true;
   setKpiCatalogPickedLabel({ma:null,ten:'Công tác khác',doPhucTap:null});
   showToast('Đã chọn "Công tác khác" — tự chấm Độ phức tạp và Chất lượng như bình thường.');
@@ -679,6 +682,7 @@ function applyKpiCatalogItem(ma){
   form.elements.category.value=item.categoryId;
   syncJournalCategoryDisplay();
   form.elements.selfComplexity.value=item.doPhucTap;
+  kpiComplexityFromCatalog=true;
   updateSelfScoreGuide('Complexity',item.doPhucTap);
   $('kpiCatalogPanel').hidden=true;
   setKpiCatalogPickedLabel(item);
@@ -1337,6 +1341,7 @@ async function oj(logId,presetTaskId,presetNoteId,presetContent){
     var currentCategoryId=form.elements.category.value;
     setKpiCatalogPickedLabel(currentCategoryId?{ma:null,ten:catName(currentCategoryId),doPhucTap:null}:null);
   })();
+  kpiComplexityFromCatalog=false; // moi mo modal (sua nhat ky cu/tao moi) - luon bat dau bang loi giai thich day du
   setVisible($('copyJournalBlock'),!canEdit);
   $('copyJournalPanel').hidden=true;
   $('copyJournalSearch').value='';
@@ -1532,6 +1537,12 @@ function updateJournalRangePreview(){
 // Goi y muc diem (dung chung du lieu/cach phan muc voi man hinh duyet cua
 // lanh dao - scoringGuide()) ngay tai o "Tu danh gia" khi ghi nhat ky, de
 // KSV tu cham co can cu tham khao, khong chi lanh dao moi thay goi y nay.
+// true khi gia tri Do phuc tap dang hien la GOI Y vua ap dung tu danh muc KPI Toi cao (chua bi
+// nguoi dung tu sua lai) - luc do khong nhac lai loi giai thich chung chung nua vi thong tin da
+// nam san o nut "Dau viec tham khao..." ben tren; nguoi dung tu go lai gia tri (input that, khong
+// phai gan .value bang JS) se tu dong tat co nay va tro ve loi giai thich day du nhu cu.
+var kpiComplexityFromCatalog=false;
+
 function updateSelfScoreGuide(kind,value){
   var guideEl=$('self'+kind+'Guide');
   if(!guideEl)return;
@@ -1540,6 +1551,12 @@ function updateSelfScoreGuide(kind,value){
     guideEl.removeAttribute('data-band');
     titleEl.textContent='—';
     textEl.textContent='Nhập điểm để xem gợi ý mức độ tương ứng.';
+    return;
+  }
+  if(kind==='Complexity'&&kpiComplexityFromCatalog){
+    titleEl.textContent='Mức '+value+' · Theo gợi ý danh mục KPI Tối cao';
+    textEl.textContent='Đã lấy từ đầu việc tham khảo đã chọn ở trên — có thể tự sửa lại nếu thấy chưa sát thực tế.';
+    guideEl.dataset.band=Number(value)<=4?'low':Number(value)<=8?'standard':'high';
     return;
   }
   var type=kind==='Complexity'?'complexity':'quality';
@@ -5502,7 +5519,10 @@ document.addEventListener('DOMContentLoaded',function(){
     else if(id==='journalRangeStartDate'){updateJournalRangePreview()}
   });
   $('journalForm').elements.duration.addEventListener('change',toggleJournalRangeField);
-  $('journalForm').elements.selfComplexity.addEventListener('input',function(e){updateSelfScoreGuide('Complexity',e.target.value)});
+  $('journalForm').elements.selfComplexity.addEventListener('input',function(e){
+    kpiComplexityFromCatalog=false; // nguoi dung tu go lai - tro ve loi giai thich day du
+    updateSelfScoreGuide('Complexity',e.target.value);
+  });
   $('journalForm').elements.selfQuality.addEventListener('input',function(e){updateSelfScoreGuide('Quality',e.target.value)});
   $('journalTaskSelect').addEventListener('change',applyTaskLinkToSubmitTo);
   document.querySelectorAll('[data-close-leave-modal]').forEach(function(b){b.addEventListener('click',cl)});
