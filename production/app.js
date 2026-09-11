@@ -5001,7 +5001,7 @@ function rc(){
   var contact='<aside class="changelog-sidebar">'
     +'<div class="changelog-contact">'
     +'<div class="changelog-contact-title">Tài liệu hướng dẫn sử dụng</div>'
-    +'<p class="changelog-download-desc">Hướng dẫn chi tiết cách sử dụng phần mềm, dành cho cán bộ, công chức, kiểm sát viên.</p>'
+    +'<p class="changelog-download-desc">Hướng dẫn chi tiết cách sử dụng phần mềm, chi tiết cho từng vị trí công tác.</p>'
     +'<a href="../demo/assets/Tai_lieu_huong_dan_su_dung_QLCV.docx" download="Tai_lieu_huong_dan_su_dung_QLCV.docx" class="button button-primary changelog-download-btn">⬇️ Tải file hướng dẫn (.docx)</a>'
     +'</div>'
     +'<div class="changelog-contact">'
