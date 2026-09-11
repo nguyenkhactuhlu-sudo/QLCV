@@ -494,7 +494,7 @@ function canAssignTasks(user = currentUser()) { return isLeader(user); }
 function canReceiveTasks(user = currentUser()) { return user.role !== "administrator" && user.role !== "province_head"; }
 function taskViewLabel(user = currentUser()) {
   if (user.role === "province_head") return "Giao việc";
-  return isLeader(user) ? "Giao việc và công việc được giao" : "Công việc được giao";
+  return isLeader(user) ? "Giao việc & CV được giao" : "Công việc được giao";
 }
 function formatDate(date) { return new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(`${date}T00:00:00`)); }
 function shortDate(date) { return new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit" }).format(new Date(`${date}T00:00:00`)); }
@@ -3150,7 +3150,7 @@ async function exportMonthlyExcel(period) {
   let r = 1;
   sheet.mergeCells(`A${r}:D${r}`);
   sheet.getCell(`A${r}`).value = "VIỆN KIỂM SÁT NHÂN DÂN TỐI CAO";
-  sheet.getCell(`A${r}`).font = { bold: true, underline: true, name: "Times New Roman", size: 12 };
+  sheet.getCell(`A${r}`).font = { bold: true, name: "Times New Roman", size: 12 };
   sheet.mergeCells(`E${r}:H${r}`);
   sheet.getCell(`E${r}`).value = "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM";
   sheet.getCell(`E${r}`).font = { bold: true, name: "Times New Roman", size: 12 };
@@ -3158,10 +3158,10 @@ async function exportMonthlyExcel(period) {
   r++;
   sheet.mergeCells(`A${r}:D${r}`);
   sheet.getCell(`A${r}`).value = "VIỆN KIỂM SÁT NHÂN DÂN TỈNH BẮC NINH";
-  sheet.getCell(`A${r}`).font = { bold: true, underline: true, name: "Times New Roman", size: 12 };
+  sheet.getCell(`A${r}`).font = { bold: true, name: "Times New Roman", size: 12 };
   sheet.mergeCells(`E${r}:H${r}`);
   sheet.getCell(`E${r}`).value = "Độc lập - Tự do - Hạnh phúc";
-  sheet.getCell(`E${r}`).font = { bold: true, underline: true, name: "Times New Roman", size: 12 };
+  sheet.getCell(`E${r}`).font = { bold: true, name: "Times New Roman", size: 12 };
   sheet.getCell(`E${r}`).alignment = { horizontal: "center" };
   r += 2;
   sheet.mergeCells(`A${r}:H${r}`);
@@ -3259,7 +3259,7 @@ const PDF_EXPORT_CSS = `
   .pdf-export-root { font-family: "Times New Roman", Times, serif; font-size: 12pt; color: #111; background: #fff; padding: 14mm; box-sizing: border-box; }
   .pdf-export-root .letterhead { display: flex; justify-content: space-between; margin-bottom: 16px; }
   .pdf-export-root .letterhead div { text-align: center; }
-  .pdf-export-root .letterhead strong { display: block; text-decoration: underline; }
+  .pdf-export-root .letterhead strong { display: block; }
   .pdf-export-root h1 { text-align: center; font-size: 15pt; margin: 4px 0; }
   .pdf-export-root .subtitle { text-align: center; font-weight: bold; margin: 2px 0; }
   .pdf-export-root .period { text-align: center; font-style: italic; margin: 2px 0 16px; }
@@ -3294,7 +3294,7 @@ function monthlyReportBodyHtml(period) {
   return `
     <div class="letterhead">
       <div><strong>VIỆN KIỂM SÁT NHÂN DÂN TỐI CAO</strong><span>VIỆN KIỂM SÁT NHÂN DÂN TỈNH BẮC NINH</span></div>
-      <div><strong>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><span style="text-decoration:underline">Độc lập - Tự do - Hạnh phúc</span></div>
+      <div><strong>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><span>Độc lập - Tự do - Hạnh phúc</span></div>
     </div>
     <h1>THÔNG BÁO</h1>
     <div class="subtitle">Tổng hợp kết quả đánh giá, chấm điểm, xếp loại công chức và người lao động</div>
@@ -3467,7 +3467,7 @@ function monthlyLogReportBodyHtml(period, groups) {
   return `
     <div class="letterhead">
       <div><strong>VIỆN KIỂM SÁT NHÂN DÂN TỐI CAO</strong><span>VIỆN KIỂM SÁT NHÂN DÂN TỈNH BẮC NINH</span></div>
-      <div><strong>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><span style="text-decoration:underline">Độc lập - Tự do - Hạnh phúc</span></div>
+      <div><strong>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><span>Độc lập - Tự do - Hạnh phúc</span></div>
     </div>
     <h1>NHẬT KÝ CÔNG TÁC CHI TIẾT</h1>
     <div class="period">tháng ${Number(reportMonth)} năm ${reportYear}</div>
