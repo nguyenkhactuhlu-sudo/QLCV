@@ -708,13 +708,16 @@ tbody tr:hover { background: #fbfbfc; }
    len dau. */
 .changelog-page { display: flex; gap: 26px; align-items: flex-start; flex-wrap: wrap; }
 .changelog-page .changelog-main { flex: 1 1 400px; min-width: 0; }
-.changelog-contact { flex: 0 0 352px; padding: 14px 18px 16px; border: 1px solid var(--line); border-top: 3px solid var(--blue); border-radius: 10px; background: var(--surface); box-shadow: 0 1px 3px rgba(15, 44, 73, .06); position: sticky; top: 16px; }
+.changelog-sidebar { flex: 0 0 352px; display: flex; flex-direction: column; gap: 16px; position: sticky; top: 16px; }
+.changelog-contact { padding: 14px 18px 16px; border: 1px solid var(--line); border-top: 3px solid var(--blue); border-radius: 10px; background: var(--surface); box-shadow: 0 1px 3px rgba(15, 44, 73, .06); }
 .changelog-contact-title { padding-bottom: 8px; margin-bottom: 10px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
 .changelog-contact-name { color: var(--text); font-size: 14px; font-weight: 600; line-height: 1.45; white-space: nowrap; }
 .changelog-contact-name span { color: var(--muted); font-size: 13px; font-weight: 400; }
 .changelog-contact-phone { margin-top: 6px; color: var(--muted); font-size: 13px; }
 .changelog-contact-phone a { color: var(--blue); font-size: 15px; font-weight: 700; letter-spacing: .02em; text-decoration: none; }
-@media (max-width: 900px) { .changelog-contact { flex-basis: 100%; position: static; } .changelog-contact-name { white-space: normal; } }
+.changelog-download-desc { margin: 0 0 12px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.changelog-download-btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; box-sizing: border-box; text-decoration: none; }
+@media (max-width: 900px) { .changelog-sidebar { flex-basis: 100%; position: static; } .changelog-contact-name { white-space: normal; } }
 .changelog-list { display: grid; gap: 22px; max-width: 720px; }
 .changelog-date { margin-bottom: 8px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
 .changelog-items { display: grid; gap: 10px; }

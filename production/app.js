@@ -4998,10 +4998,17 @@ function rc(){
         }).join('')+'</div></div>';
     }).join('')+'</div>';
   }
-  var contact='<aside class="changelog-contact">'
+  var contact='<aside class="changelog-sidebar">'
+    +'<div class="changelog-contact">'
+    +'<div class="changelog-contact-title">Tài liệu hướng dẫn sử dụng</div>'
+    +'<p class="changelog-download-desc">Hướng dẫn chi tiết cách sử dụng phần mềm, dành cho cán bộ, công chức, kiểm sát viên.</p>'
+    +'<a href="../demo/assets/Tai_lieu_huong_dan_su_dung_QLCV.docx" download="Tai_lieu_huong_dan_su_dung_QLCV.docx" class="button button-primary changelog-download-btn">⬇️ Tải file hướng dẫn (.docx)</a>'
+    +'</div>'
+    +'<div class="changelog-contact">'
     +'<div class="changelog-contact-title">Liên hệ bộ phận kỹ thuật</div>'
     +'<div class="changelog-contact-name">Đồng chí Nguyễn Khắc Tú <span>(sinh năm 1993)</span></div>'
     +'<div class="changelog-contact-phone">Số điện thoại: <a href="tel:0919785993">0919785993</a></div>'
+    +'</div>'
     +'</aside>';
   $('appView').innerHTML='<div class="changelog-page"><div class="changelog-main">'+main+'</div>'+contact+'</div>';
 }
