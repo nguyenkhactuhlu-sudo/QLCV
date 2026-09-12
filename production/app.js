@@ -53,16 +53,27 @@ async function refreshSession(){
   }catch(e){return false}
 }
 
+async function refreshSessionIfNearExpiry(){
+  var st=activeStorage().getItem('st');if(!st)return;
+  try{
+    var sj=JSON.parse(st);
+    if(sj.e&&sj.e-Date.now()<5*60*1000)await refreshSession();
+  }catch(e){}
+}
 function scheduleSessionRefresh(){
-  setInterval(async function(){
-    var st=activeStorage().getItem('st');if(!st)return;
-    try{
-      var sj=JSON.parse(st);
-      if(sj.e&&sj.e-Date.now()<5*60*1000)await refreshSession();
-    }catch(e){}
-  },4*60*1000);
+  setInterval(refreshSessionIfNearExpiry,4*60*1000);
 }
 scheduleSessionRefresh();
+// setInterval o tren co the bi trinh duyet "tam dung" khi tab chay nen/may
+// tinh ngu (khong chay dung chu ky 4 phut) - neu nguoi dung mo lai tab sau
+// mot thoi gian dai, access token co the da het han ma chua kip lam moi,
+// dan toi thao tac dau tien bao loi "HTTP 401" du dang nhap. Chu dong kiem
+// tra + lam moi ngay khi tab/cua so duoc active tro lai de tranh truong
+// hop nay.
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='visible')refreshSessionIfNearExpiry();
+});
+window.addEventListener('focus',refreshSessionIfNearExpiry);
 function esc(s){return (s==null?'':String(s)).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 
 // Tu dong dan cao cac o textarea (Ket qua/San pham, Mo ta, Nhan xet...) theo
@@ -94,6 +105,9 @@ var STATUS_CLASS={pending:'status-pending',approved:'status-approved',revision:'
 // mang nay.
 // ============================================
 var CHANGELOG=[
+  {date:'2026-09-12',type:'feature',text:'Thêm mục "Thùng rác" (menu bên trái): nhật ký bị xoá (tự xoá hoặc lãnh đạo xoá) nay chuyển vào thùng rác thay vì mất hẳn ngay - có thể khôi phục lại hoặc xoá vĩnh viễn khi chắc chắn không cần nữa, tránh mất dữ liệu thật khi bấm nhầm nút Xoá.'},
+  {date:'2026-09-12',type:'improve',text:'Thêm phím tắt Esc để đóng nhanh các bảng/hộp thoại nổi (form ghi nhật ký, giao việc, ghi chú, duyệt điểm...) thay vì phải bấm nút Đóng/Huỷ.'},
+  {date:'2026-09-12',type:'fix',text:'Sửa lỗi phiên đăng nhập bị coi là hết hạn (báo lỗi HTTP 401) khi để trang mở lâu ở tab nền hoặc máy tính vào chế độ ngủ - nay tự kiểm tra và làm mới phiên ngay khi quay lại tab thay vì chỉ chờ theo chu kỳ, tránh gặp lỗi khi vừa mở lại máy.'},
   {date:'2026-09-12',type:'feature',text:'Thêm mục tra cứu đầu việc theo Bảng danh mục KPI dùng chung của VKSND tối cao ngay trong form ghi nhật ký - chọn 1 việc sẽ tự điền "Lĩnh vực công tác" và gợi ý sẵn "Độ phức tạp" (vẫn tự sửa được); có nút "Không tìm thấy việc phù hợp? Dùng Công tác khác" khi không có việc nào khớp.'},
   {date:'2026-09-12',type:'improve',text:'Đổi danh mục "Lĩnh vực công tác" sang đúng 14 nhóm lĩnh vực của VKSND tối cao (đã lọc bỏ phần chỉ áp dụng ở cấp Tối cao, không có ở tỉnh/khu vực) cộng thêm "Công tác khác" - khoá cứng ô này (không cho chọn tay tuỳ ý), chỉ điền được qua mục tra cứu đầu việc hoặc "Công tác khác", tránh chọn sai/thiếu nhất quán lĩnh vực.'},
   {date:'2026-09-12',type:'improve',text:'Gợi ý mức điểm dưới ô "Tự đánh giá độ phức tạp" nay rút gọn thành "Theo gợi ý danh mục KPI Tối cao" khi vừa áp dụng gợi ý từ mục tra cứu đầu việc (đỡ lặp lại thông tin đã có sẵn ở nút phía trên); nếu tự gõ sửa lại điểm hoặc chọn "Công tác khác" (không có gợi ý), phần giải thích chi tiết theo từng mức vẫn hiện đầy đủ như trước.'},
@@ -739,6 +753,7 @@ function render(){
   else if(V==='organization')ro();
   else if(V==='administration')ra();
   else if(V==='changelog')rc();
+  else if(V==='trash')rtb();
   else if(V==='settings')rs();
   else rp();
 }
@@ -817,7 +832,7 @@ async function fetchDashboardLogs(){
   // dai N ngay bi tinh nang N lan. Nhat ky nghi phep cung loai luon (khong
   // phai "cong viec") - loc client-side qua isLeaveCategory() vi CATS da
   // co san tu luc dang nhap.
-  var r=await fetch(API+'work_logs?log_date=gte.'+start+'&is_clone=eq.false&select=author_id,unit_id,log_date,category_id,status,complexity_score,quality_score&order=log_date.desc',{headers:authHeaders()});
+  var r=await fetch(API+'work_logs?log_date=gte.'+start+'&is_clone=eq.false&deleted_at=is.null&select=author_id,unit_id,log_date,category_id,status,complexity_score,quality_score&order=log_date.desc',{headers:authHeaders()});
   if(!r.ok)throw new Error('HTTP '+r.status);
   var rows=await r.json();
   return rows.filter(function(l){return !isLeaveCategory(l.category_id)});
@@ -1136,7 +1151,7 @@ async function rj(){
   if(U.rl==='administrator'){V='dashboard';render();return}
   $('appView').innerHTML='<div class="empty-state"><strong>Đang tải...</strong></div>';
   try{
-    var r=await fetch(API+'work_logs?author_id=eq.'+U.id+'&order=log_date.desc,created_at.desc&select=*,submitted_to:submitted_to_id(full_name),reviewer:reviewer_id(full_name)',{headers:authHeaders()});
+    var r=await fetch(API+'work_logs?author_id=eq.'+U.id+'&deleted_at=is.null&order=log_date.desc,created_at.desc&select=*,submitted_to:submitted_to_id(full_name),reviewer:reviewer_id(full_name)',{headers:authHeaders()});
     if(!r.ok)throw new Error('HTTP '+r.status);
     LOGS=await r.json();
     // De biet nhat ky nao TUNG bi lanh dao cap tren dieu chinh diem sau khi
@@ -3037,7 +3052,7 @@ function canReviewLog(log,author){
 
 async function fetchReviewQueue(){
   if(!isLeader())return [];
-  var r=await fetch(API+'work_logs?status=eq.pending&order=created_at.desc',{headers:authHeaders()});
+  var r=await fetch(API+'work_logs?status=eq.pending&deleted_at=is.null&order=created_at.desc',{headers:authHeaders()});
   if(!r.ok)throw new Error('HTTP '+r.status);
   var pending=(await r.json()).filter(function(l){return l.author_id!==U.id});
   if(!pending.length)return [];
@@ -3438,7 +3453,7 @@ function handleDeleteLogClick(button){
   var logId=button.dataset.deleteLog;
   var isSelf=button.dataset.deleteSelf==='1';
   if(isSelf){
-    if(!confirm('Xoá nhật ký này? Không thể khôi phục lại.'))return;
+    if(!confirm('Xoá nhật ký này? Sẽ chuyển vào Thùng rác, vẫn khôi phục lại được nếu cần.'))return;
     submitDeleteWorkLog(logId,null);
   }else{
     openDeleteLogModal(logId);
@@ -3457,7 +3472,7 @@ async function submitDeleteLogForm(e){
   e.preventDefault();
   var reason=($('deleteLogForm').elements.deleteLogReason.value||'').trim();
   if(!reason){showToast('Vui lòng nhập lý do xoá.');return}
-  if(!confirm('Xoá nhật ký này? Tác giả sẽ nhận được thông báo kèm lý do. Không thể khôi phục lại.'))return;
+  if(!confirm('Xoá nhật ký này? Tác giả sẽ nhận được thông báo kèm lý do. Sẽ chuyển vào Thùng rác, vẫn khôi phục lại được nếu cần.'))return;
   var logId=DELETING_LOG_ID;
   closeDeleteLogModal();
   await submitDeleteWorkLog(logId,reason);
@@ -3495,7 +3510,7 @@ async function fetchUnitJournalLogs(period){
   // nguoi ngoai pham vi do (vd Truong phong/Vien truong KV nop thang len
   // cap tinh) khien khong tim thay ten, hien "Nop cho" bi trong.
   var sel='id,author_id,unit_id,title,result,work_role,duration,evidence,category_id,created_at,updated_at,log_date,status,complexity_score,quality_score,self_complexity_score,self_quality_score,revision_count,review_comment,reviewer_id,submitted_to:submitted_to_id(full_name),reviewer:reviewer_id(full_name)';
-  var r=await fetch(API+'work_logs?unit_id=in.('+unitIds.join(',')+')&log_date=gte.'+start+'&log_date=lt.'+end+'&select='+sel+'&order=log_date.desc,created_at.desc',{headers:authHeaders()});
+  var r=await fetch(API+'work_logs?unit_id=in.('+unitIds.join(',')+')&log_date=gte.'+start+'&log_date=lt.'+end+'&deleted_at=is.null&select='+sel+'&order=log_date.desc,created_at.desc',{headers:authHeaders()});
   if(!r.ok)throw new Error('HTTP '+r.status);
   var logsResult=await r.json();
   var approvedIds=logsResult.filter(function(l){return l.status==='approved'}).map(function(l){return l.id});
@@ -3859,7 +3874,7 @@ async function monthlyEvidence(userId){
     // is_clone=eq.false: loai cac dong tu sinh cua "cong viec nhieu ngay"
     // (xem migration 00057/00058) - khong de 1 viec keo dai nhieu ngay bi
     // tinh nang len nhieu lan chi vi duoc nhan ban ra tung ngay.
-    var r=await fetch(API+'work_logs?author_id=eq.'+userId+'&log_date=gte.'+start+'&log_date=lt.'+end+'&is_clone=eq.false&select=status,category_id,complexity_score,quality_score',{headers:authHeaders()});
+    var r=await fetch(API+'work_logs?author_id=eq.'+userId+'&log_date=gte.'+start+'&log_date=lt.'+end+'&is_clone=eq.false&deleted_at=is.null&select=status,category_id,complexity_score,quality_score',{headers:authHeaders()});
     items=r.ok?await r.json():[];
   }catch(e){}
   // Nhat ky nghi phep khong tinh vao khoi luong/ty le xu ly cong viec.
@@ -4658,7 +4673,7 @@ async function fetchMonthlyLogsScope(period){
   // nhan thang 0-index nen chinh la thang KE TIEP theo 0-index (giong cach
   // dung trong monthlyEvidence()).
   var end=ymdStr(Number(parts[0]),Number(parts[1]),1);
-  var r=await fetch(API+'work_logs?author_id=in.('+ids.join(',')+')&log_date=gte.'+start+'&log_date=lt.'+end+'&select=id,author_id,log_date,category_id,title,result,complexity_score,quality_score,status&order=log_date.asc',{headers:authHeaders()});
+  var r=await fetch(API+'work_logs?author_id=in.('+ids.join(',')+')&log_date=gte.'+start+'&log_date=lt.'+end+'&deleted_at=is.null&select=id,author_id,log_date,category_id,title,result,complexity_score,quality_score,status&order=log_date.asc',{headers:authHeaders()});
   if(!r.ok)throw new Error('HTTP '+r.status);
   var logs=await r.json();
   return people.map(function(p){return {person:p,logs:logs.filter(function(l){return l.author_id===p.id})}});
@@ -4863,7 +4878,7 @@ async function markNotificationRead(id){
 async function fetchNotifications(){
   var list=[];
   try{
-    var r=await fetch(API+'work_logs?author_id=eq.'+U.id+'&status=eq.revision&select=id,title,log_date,review_comment,reviewer_id,reviewed_at',{headers:authHeaders()});
+    var r=await fetch(API+'work_logs?author_id=eq.'+U.id+'&status=eq.revision&deleted_at=is.null&select=id,title,log_date,review_comment,reviewer_id,reviewed_at',{headers:authHeaders()});
     var mine=r.ok?await r.json():[];
     if(mine.length){
       var reviewerIds=Array.from(new Set(mine.map(function(l){return l.reviewer_id}).filter(Boolean)));
@@ -5415,6 +5430,66 @@ function rc(){
 }
 
 // ============================================
+// THUNG RAC - nhat ky bi xoa (chinh minh hoac lanh dao xoa) nay chuyen vao day thay vi mat han
+// ngay, xem duoc + khoi phuc duoc hoac xoa vinh vien tu day (yeu cau nguoi dung 2026-09-12).
+// ============================================
+async function rtb(){
+  $('pageEyebrow').textContent='THÙNG RÁC';$('pageTitle').textContent='Nhật ký đã xoá';
+  $('appView').innerHTML='<div class="empty-state"><strong>Đang tải...</strong></div>';
+  var items=[];
+  try{
+    var r=await fetch(API+'rpc/list_trash_work_logs',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({})});
+    items=await r.json();
+    if(!r.ok)throw new Error((items&&items.message)||('HTTP '+r.status));
+  }catch(err){
+    $('appView').innerHTML='<div class="empty-state"><strong>Không tải được thùng rác</strong><span>'+esc(err.message)+'</span></div>';
+    return;
+  }
+  var intro='<p class="metric-context" style="margin:0 0 16px;max-width:640px">Nhật ký đã xoá (do chính bạn hoặc do lãnh đạo quản lý bạn xoá) nằm ở đây - có thể khôi phục lại hoặc xoá vĩnh viễn nếu chắc chắn không cần nữa.</p>';
+  if(!items.length){
+    $('appView').innerHTML=intro+'<div class="empty-state"><strong>Thùng rác trống</strong></div>';
+    return;
+  }
+  var list=items.map(function(it){
+    return '<article class="journal-card">'
+      +'<div class="journal-date"><strong>'+shortDate(it.log_date)+'</strong>'+(it.log_date||'').slice(0,4)+'</div>'
+      +'<div class="journal-body"><h3>'+esc(it.title)+'</h3><p>'+esc(it.result||'')+'</p>'
+      +'<div class="journal-meta"><span class="meta-tag">'+esc(it.author_name||'—')+'</span><span class="meta-tag">'+esc(catName(it.category_id))+'</span>'
+      +'<span class="meta-tag">Đã xoá bởi '+esc(it.deleted_by_name||'—')+' · '+esc(shortDateTime(it.deleted_at))+'</span>'
+      +(it.delete_reason?'<span class="meta-tag">Lý do: '+esc(it.delete_reason)+'</span>':'')+'</div></div>'
+      +'<div class="journal-side">'
+      +'<button type="button" class="button button-primary button-small" data-restore-log="'+it.id+'">Khôi phục</button>'
+      +'<button type="button" class="button button-danger button-small" data-purge-log="'+it.id+'">Xoá vĩnh viễn</button>'
+      +'</div></article>';
+  }).join('');
+  $('appView').innerHTML=intro+'<div class="journal-list">'+list+'</div>';
+  document.querySelectorAll('[data-restore-log]').forEach(function(b){b.addEventListener('click',function(){restoreWorkLog(b.dataset.restoreLog)})});
+  document.querySelectorAll('[data-purge-log]').forEach(function(b){b.addEventListener('click',function(){purgeWorkLogFromTrash(b.dataset.purgeLog)})});
+}
+
+async function restoreWorkLog(logId){
+  if(!confirm('Khôi phục nhật ký này về danh sách bình thường?'))return;
+  try{
+    var r=await fetch(API+'rpc/restore_work_log',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_log_id:logId})});
+    var d=await r.json();
+    if(!r.ok||d.success===false){showToast('Lỗi: '+((d&&d.error)||('HTTP '+r.status)));return}
+    showToast('Đã khôi phục nhật ký.');
+    rtb();
+  }catch(err){showToast('Lỗi: '+err.message)}
+}
+
+async function purgeWorkLogFromTrash(logId){
+  if(!confirm('Xoá VĨNH VIỄN nhật ký này? Không thể khôi phục lại sau khi xoá.'))return;
+  try{
+    var r=await fetch(API+'rpc/purge_work_log',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({p_log_id:logId})});
+    var d=await r.json();
+    if(!r.ok||d.success===false){showToast('Lỗi: '+((d&&d.error)||('HTTP '+r.status)));return}
+    showToast('Đã xoá vĩnh viễn.');
+    rtb();
+  }catch(err){showToast('Lỗi: '+err.message)}
+}
+
+// ============================================
 // CAI DAT TAI KHOAN - trang that (khong con la hop thoai), doi ten/mat khau/dang xuat
 // ============================================
 function rs(){
@@ -5643,6 +5718,16 @@ document.addEventListener('DOMContentLoaded',function(){
   });
   document.addEventListener('keydown',function(e){
     if(e.key==='Escape'&&DATE_FIELD_CAL_STATE)closeDateFieldCalendar();
+  });
+  // Phim tat Esc: dong hop thoai (bang noi) dang mo - tim ".modal-backdrop" dau tien dang hien
+  // (khong "hidden"), roi bam ho nut dong co san cua no (data-close-...) de tai su dung dung
+  // logic don dep trang thai da co (EDITING_ID=null, v.v.), khong tu y an DOM truc tiep.
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='Escape')return;
+    var openModal=Array.prototype.find.call(document.querySelectorAll('.modal-backdrop'),function(m){return !m.hidden});
+    if(!openModal)return;
+    var closeBtn=openModal.querySelector('[data-close-modal],[data-close-leave-modal],[data-close-note],[data-close-assign-task],[data-close-override],[data-close-revise-own],[data-close-return-rescoring],[data-close-export],[data-close-delete-log]');
+    if(closeBtn)closeBtn.click();
   });
 
   // Khoi phuc phien dang nhap neu con hieu luc (khong bat nguoi dung dang nhap lai khi tai trang)
